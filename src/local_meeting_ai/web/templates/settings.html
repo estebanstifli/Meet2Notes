@@ -1,0 +1,478 @@
+{% extends "base.html" %}
+{% block title %}Settings · Meet2Notes{% endblock %}
+{% block content %}
+<div class="page settings-page">
+  <header class="simple-page-header">
+    <div>
+      <span class="eyebrow">Local control</span>
+      <h1>Settings</h1>
+      <p>Understand exactly where Meet2Notes runs and how it handles your data.</p>
+    </div>
+    <span class="save-state" id="save-state"><i></i> Saved locally</span>
+  </header>
+
+  <div class="settings-layout">
+    <nav class="settings-tabs" aria-label="Settings sections" role="tablist">
+      <button type="button" role="tab" aria-selected="true" aria-controls="general" data-settings-tab="general">General</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="transcription-engine" data-settings-tab="transcription-engine">Transcription</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="speaker-engine" data-settings-tab="speaker-engine">Speakers</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="ai-engine" data-settings-tab="ai-engine">AI engine</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="privacy" data-settings-tab="privacy">Privacy</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="system" data-settings-tab="system">System</button>
+    </nav>
+    <div class="settings-content">
+      <section class="settings-section active" id="general" role="tabpanel" data-settings-panel>
+        <div class="settings-section-header">
+          <span class="settings-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M14 5v4M4 17h2M10 17h10M8 15v4M4 12h4M12 12h8M10 10v4"/></svg>
+          </span>
+          <div><h2>General</h2><p>Small choices for your local interface.</p></div>
+        </div>
+        <form id="settings-form" class="settings-form">
+          <label class="setting-row">
+            <span><strong>Interface language</strong><small>The interface is prepared for incremental translation.</small></span>
+            <select id="ui-language"><option value="en">English</option><option value="es">Español</option></select>
+          </label>
+          <label class="setting-row">
+            <span><strong>Retention period</strong><small>No automatic deletion occurs unless you set a period.</small></span>
+            <select id="retention-days">
+              <option value="">Keep indefinitely</option>
+              <option value="30">30 days</option>
+              <option value="90">90 days</option>
+              <option value="365">1 year</option>
+            </select>
+          </label>
+          <label class="setting-row">
+            <span><strong>Confirm permanent deletion</strong><small>Require an explicit confirmation before removing meeting files.</small></span>
+            <span class="switch"><input id="confirm-delete" type="checkbox"><i></i></span>
+          </label>
+          <div class="settings-actions"><button class="button primary" type="submit">Save general settings</button></div>
+        </form>
+      </section>
+
+      <section class="settings-section engine-settings-section" id="transcription-engine" role="tabpanel" data-settings-panel hidden>
+        <div class="settings-section-header">
+          <span class="settings-icon engine-blue">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg>
+          </span>
+          <div>
+            <h2>Transcription engine</h2>
+            <p>Choose the default provider and tune its local inference runtime.</p>
+          </div>
+        </div>
+
+        <form id="engine-settings-form" class="engine-settings-form">
+          <div class="engine-identity-card">
+            <span class="engine-logo-large">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg>
+            </span>
+            <div class="engine-identity-copy">
+              <span class="eyebrow">Default provider</span>
+              <strong>Faster Whisper</strong>
+              <small>Local · private · powered by CTranslate2</small>
+            </div>
+            <label class="engine-provider-select">
+              <span>Engine</span>
+              <select id="transcription-engine-select">
+                <option value="faster-whisper">Faster Whisper · Local</option>
+              </select>
+            </label>
+            <span class="engine-runtime-pill" id="engine-runtime-state"><i></i> Checking worker…</span>
+          </div>
+
+          <div class="engine-config-group">
+            <div class="engine-config-heading">
+              <div><strong>Model and acceleration</strong><small>Controls quality, memory and inference speed.</small></div>
+              <span id="engine-loaded-model">No model loaded</span>
+            </div>
+            <div class="engine-field-grid">
+              <label class="engine-field wide">
+                <span>Whisper model</span>
+                <select id="fw-model">
+                  <option value="tiny">Tiny · fastest / lowest memory</option>
+                  <option value="base">Base · compact</option>
+                  <option value="small">Small · recommended</option>
+                  <option value="medium">Medium · higher accuracy</option>
+                  <option value="large-v3">Large v3 · maximum accuracy</option>
+                  <option value="distil-large-v3">Distil Large v3 · fast high quality</option>
+                  <option value="turbo">Turbo · optimized large model</option>
+                </select>
+                <small>The model stays in memory after its first load by default.</small>
+              </label>
+              <label class="engine-field">
+                <span>Compute device</span>
+                <select id="fw-device">
+                  <option value="auto">Auto · recommended</option>
+                  <option value="cpu">CPU</option>
+                  <option value="cuda">CUDA · NVIDIA GPU</option>
+                </select>
+                <small id="engine-device-note">Detecting available acceleration…</small>
+              </label>
+              <label class="engine-field compact">
+                <span>Device index</span>
+                <input id="fw-device-index" type="number" min="0" max="31" step="1">
+                <small>Usually 0.</small>
+              </label>
+              <label class="engine-field">
+                <span>Compute type</span>
+                <select id="fw-compute-type"></select>
+                <small id="engine-compute-help">Auto chooses the fastest supported type.</small>
+              </label>
+              <label class="engine-field compact">
+                <span>CPU threads</span>
+                <input id="fw-cpu-threads" type="number" min="0" max="128" step="1">
+                <small>0 uses the runtime default.</small>
+              </label>
+              <label class="engine-field compact">
+                <span>Inference workers</span>
+                <select id="fw-num-workers">
+                  <option value="1">1 · recommended</option>
+                  <option value="2">2 · more throughput</option>
+                  <option value="3">3 · high memory use</option>
+                  <option value="4">4 · maximum throughput</option>
+                </select>
+                <small>More workers increase RAM/VRAM usage.</small>
+              </label>
+            </div>
+            <div class="engine-compatibility-note">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+              <span><strong>Backend compatibility:</strong> standard CTranslate2 supports Auto, CPU and CUDA. Vulkan, Metal and DirectML are not available; ROCm requires a custom build.</span>
+            </div>
+          </div>
+
+          <div class="engine-config-group">
+            <div class="engine-config-heading">
+              <div><strong>Recognition</strong><small>Defaults used when a transcription does not override them.</small></div>
+            </div>
+            <div class="engine-field-grid">
+              <label class="engine-field wide">
+                <span>Transcription language</span>
+                <select id="fw-language"><option value="">Auto detect · recommended</option></select>
+                <small>Whisper supports automatic detection or an explicit language hint.</small>
+              </label>
+              <label class="engine-field">
+                <span>Task</span>
+                <select id="fw-task">
+                  <option value="transcribe">Transcribe in the original language</option>
+                  <option value="translate">Translate speech to English</option>
+                </select>
+              </label>
+              <label class="engine-field compact">
+                <span>Beam size</span>
+                <input id="fw-beam-size" type="number" min="1" max="10" step="1">
+                <small>1 is fastest; 5 is balanced.</small>
+              </label>
+              <label class="engine-field compact">
+                <span>VAD silence</span>
+                <input id="fw-vad-silence" type="number" min="100" max="5000" step="50">
+                <small>Milliseconds before splitting speech.</small>
+              </label>
+            </div>
+            <div class="engine-toggle-grid">
+              <label class="engine-toggle">
+                <span><strong>Voice activity detection</strong><small>Skip silence before Whisper inference.</small></span>
+                <span class="switch"><input id="fw-vad-filter" type="checkbox"><i></i></span>
+              </label>
+              <label class="engine-toggle">
+                <span><strong>Word timestamps</strong><small>More detailed timing with a small speed cost.</small></span>
+                <span class="switch"><input id="fw-word-timestamps" type="checkbox"><i></i></span>
+              </label>
+              <label class="engine-toggle">
+                <span><strong>Previous-text context</strong><small>Improves continuity across consecutive segments.</small></span>
+                <span class="switch"><input id="fw-condition-previous" type="checkbox"><i></i></span>
+              </label>
+              <label class="engine-toggle">
+                <span><strong>Keep model in memory</strong><small>Recommended for instant subsequent transcriptions.</small></span>
+                <span class="switch"><input id="fw-keep-loaded" type="checkbox"><i></i></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="engine-config-group realtime-config-group">
+            <div class="engine-config-heading">
+              <div><strong>Real-time transcription</strong><small>Balances response latency, context and repeated work.</small></div>
+              <span class="recommended-chip">Recommended · 3 s / 1 s</span>
+            </div>
+            <div class="realtime-parameter-grid">
+              <label class="realtime-parameter">
+                <span><strong>Audio chunk</strong><output id="fw-chunk-output">3.0 s</output></span>
+                <input id="fw-chunk-seconds" type="range" min="1" max="15" step="0.5">
+                <small>Shorter gives faster text; longer gives Whisper more context.</small>
+              </label>
+              <label class="realtime-parameter">
+                <span><strong>Overlap</strong><output id="fw-overlap-output">1.0 s</output></span>
+                <input id="fw-overlap-seconds" type="range" min="0" max="5" step="0.25">
+                <small>Repeated context prevents cut words between chunks.</small>
+              </label>
+            </div>
+          </div>
+
+          <div class="engine-settings-actions">
+            <span id="engine-worker-summary">Dedicated Faster Whisper worker</span>
+            <button class="button primary" type="submit">Save engine settings</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="settings-section research-settings-section" id="speaker-engine" role="tabpanel" data-settings-panel hidden>
+        <div class="settings-section-header">
+          <span class="settings-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 18a4 4 0 0 0-8 0M12 4a4 4 0 1 0 0 8M4 20h16"/></svg>
+          </span>
+          <div><h2>Speaker recognition</h2><p>Separate participants locally after speech recognition.</p></div>
+        </div>
+        <form id="diarization-form" class="engine-settings-form">
+          <div class="engine-identity-card">
+            <span class="engine-logo-large">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 18a4 4 0 0 0-8 0M12 4a4 4 0 1 0 0 8M4 20h16"/></svg>
+            </span>
+            <div class="engine-identity-copy">
+              <span class="eyebrow">Local speaker engine</span>
+              <strong>sherpa-onnx</strong>
+              <small>Pyannote segmentation · speaker embeddings · clustering</small>
+            </div>
+            <span class="engine-runtime-pill" id="diarization-runtime-state"><i></i> Checking worker…</span>
+          </div>
+          <div class="engine-config-group">
+            <div class="engine-config-heading">
+              <div><strong>Models and runtime</strong><small>INT8 segmentation is the recommended low-memory default.</small></div>
+              <span id="diarization-model-state">Models not installed</span>
+            </div>
+            <div class="engine-field-grid">
+              <label class="engine-field">
+                <span>Segmentation model</span>
+                <select id="diarization-segmentation"><option value="pyannote-3.0">Pyannote segmentation 3.0</option></select>
+              </label>
+              <label class="engine-field">
+                <span>Embedding model</span>
+                <select id="diarization-embedding">
+                  <option value="3d-speaker">3D-Speaker · recommended</option>
+                  <option value="nemo-titanet">NeMo TitaNet · faster</option>
+                </select>
+              </label>
+              <label class="engine-field">
+                <span>ONNX provider</span>
+                <select id="diarization-provider">
+                  <option value="cpu">CPU · universal</option>
+                  <option value="cuda">CUDA · NVIDIA</option>
+                  <option value="coreml">CoreML · Apple</option>
+                </select>
+              </label>
+              <label class="engine-field compact">
+                <span>Runtime threads</span>
+                <input id="diarization-threads" type="number" min="1" max="64">
+              </label>
+              <label class="engine-field compact">
+                <span>Known speakers</span>
+                <input id="diarization-speakers" type="number" min="-1" max="50">
+                <small>-1 detects automatically.</small>
+              </label>
+              <label class="engine-field compact">
+                <span>Cluster threshold</span>
+                <input id="diarization-threshold" type="number" min="0.01" max="0.99" step="0.01">
+                <small>Higher produces fewer speakers.</small>
+              </label>
+              <label class="engine-field compact">
+                <span>Minimum speech</span>
+                <input id="diarization-min-on" type="number" min="0" max="10" step="0.05">
+                <small>Seconds.</small>
+              </label>
+              <label class="engine-field compact">
+                <span>Minimum silence</span>
+                <input id="diarization-min-off" type="number" min="0" max="10" step="0.05">
+                <small>Seconds.</small>
+              </label>
+              <label class="engine-field compact">
+                <span>Assignment overlap</span>
+                <input id="diarization-overlap" type="number" min="0" max="1" step="0.05">
+                <small>Minimum ratio for assigning a transcript segment.</small>
+              </label>
+            </div>
+            <div class="engine-toggle-grid">
+              <label class="engine-toggle">
+                <span><strong>Quantized segmentation</strong><small>Uses the 1.5 MB INT8 model instead of the 5.7 MB FP32 model.</small></span>
+                <span class="switch"><input id="diarization-quantized" type="checkbox"><i></i></span>
+              </label>
+              <label class="engine-toggle">
+                <span><strong>Keep engine in memory</strong><small>Avoids rebuilding the ONNX sessions between meetings.</small></span>
+                <span class="switch"><input id="diarization-keep-loaded" type="checkbox"><i></i></span>
+              </label>
+              <label class="engine-toggle">
+                <span><strong>Debug logging</strong><small>Detailed native runtime diagnostics.</small></span>
+                <span class="switch"><input id="diarization-debug" type="checkbox"><i></i></span>
+              </label>
+            </div>
+          </div>
+          <div class="engine-settings-actions multi-action">
+            <span id="diarization-worker-summary">Dedicated diarization worker</span>
+            <button class="button" id="diarization-unload" type="button">Unload</button>
+            <button class="button" id="diarization-load" type="button">Load</button>
+            <button class="button" id="diarization-install" type="button">Install models</button>
+            <button class="button primary" type="submit">Save settings</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="settings-section engine-settings-section" id="ai-engine" role="tabpanel" data-settings-panel hidden>
+        <div class="settings-section-header">
+          <span class="settings-icon engine-blue">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8l4 4v8l-4 4H8l-4-4V8l4-4Z"/><path d="M9 9h6v6H9z"/></svg>
+          </span>
+          <div><h2>AI engine</h2><p>Prepare local or OpenAI-compatible providers for meeting summaries.</p></div>
+        </div>
+        <form id="ai-engine-form" class="engine-settings-form">
+          <div class="engine-identity-card">
+            <span class="engine-logo-large">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8l4 4v8l-4 4H8l-4-4V8l4-4Z"/><path d="M9 9h6v6H9z"/></svg>
+            </span>
+            <div class="engine-identity-copy">
+              <span class="eyebrow">Summary provider</span>
+              <strong>Pluggable AI runtime</strong>
+              <small>Local LFM2.5 GGUF by default · remote API is explicit opt-in</small>
+            </div>
+            <label class="engine-provider-select">
+              <span>Provider</span>
+              <select id="ai-provider">
+                <option value="disabled">Disabled</option>
+                <option value="local">Local model</option>
+                <option value="openai-compatible">OpenAI-compatible API</option>
+              </select>
+            </label>
+            <span class="engine-runtime-pill" id="ai-runtime-state"><i></i> Configuration only</span>
+          </div>
+          <div class="engine-config-group">
+            <div class="engine-config-heading">
+              <div><strong>Runtime and model</strong><small>llama.cpp provides a small cross-platform GGUF runtime with CPU and GPU acceleration.</small></div>
+              <span class="recommended-chip">Recommended · LFM2.5 1.2B Q4</span>
+            </div>
+            <div class="engine-field-grid">
+              <label class="engine-field">
+                <span>Local runtime</span>
+                <select id="ai-local-runtime">
+                  <option value="managed-llama-cpp">Managed llama.cpp</option>
+                  <option value="external-openai">Existing compatible server</option>
+                </select>
+              </label>
+              <label class="engine-field wide">
+                <span>Model</span>
+                <select id="ai-model">
+                  <option value="LiquidAI/LFM2.5-1.2B-Instruct-GGUF">LFM2.5 1.2B · recommended balance</option>
+                  <option value="Qwen/Qwen3-0.6B-GGUF">Qwen3 0.6B · smallest multilingual</option>
+                  <option value="Qwen/Qwen3-1.7B-GGUF">Qwen3 1.7B · higher quality</option>
+                  <option value="google/gemma-3-1b-it-GGUF">Gemma 3 1B · gated license</option>
+                  <option value="custom">Custom GGUF / model name</option>
+                </select>
+              </label>
+              <label class="engine-field wide">
+                <span>Local model path</span>
+                <input id="ai-model-path" type="text" placeholder="Optional path to an existing .gguf file">
+              </label>
+              <label class="engine-field wide">
+                <span>GGUF model file</span>
+                <input id="ai-model-file" type="text" value="LFM2.5-1.2B-Instruct-Q4_K_M.gguf">
+              </label>
+              <label class="engine-field wide">
+                <span>Compatible API base URL</span>
+                <input id="ai-base-url" type="url" placeholder="http://127.0.0.1:8080/v1">
+              </label>
+              <label class="engine-field">
+                <span>API key environment variable</span>
+                <input id="ai-key-env" type="text" value="MEET2NOTES_AI_API_KEY">
+                <small>The secret itself is never saved.</small>
+              </label>
+              <label class="engine-field compact">
+                <span>Context tokens</span>
+                <input id="ai-context-length" type="number" min="2048" max="131072" step="1024">
+              </label>
+              <label class="engine-field compact">
+                <span>Output tokens</span>
+                <input id="ai-max-output" type="number" min="128" max="8192" step="128">
+              </label>
+              <label class="engine-field compact">
+                <span>Temperature</span>
+                <input id="ai-temperature" type="number" min="0" max="2" step="0.05">
+              </label>
+              <label class="engine-field compact">
+                <span>GPU layers</span>
+                <input id="ai-gpu-layers" type="number" min="-1" max="999" step="1">
+                <small>-1 selects automatically.</small>
+              </label>
+              <label class="engine-field compact"><span>Batch size</span><input id="ai-batch-size" type="number" min="32" max="4096" step="32"></label>
+              <label class="engine-field compact"><span>Micro batch</span><input id="ai-micro-batch" type="number" min="16" max="4096" step="16"></label>
+              <label class="engine-field compact"><span>Generation threads</span><input id="ai-threads" type="number" min="0" max="256"><small>0 selects automatically.</small></label>
+              <label class="engine-field compact"><span>Batch threads</span><input id="ai-batch-threads" type="number" min="0" max="256"></label>
+              <label class="engine-field compact"><span>Main GPU</span><input id="ai-main-gpu" type="number" min="0" max="31"></label>
+              <label class="engine-field"><span>Multi-GPU split</span><select id="ai-split-mode"><option value="layer">Layer · recommended</option><option value="row">Row</option><option value="none">Single GPU</option></select></label>
+            </div>
+          </div>
+          <div class="engine-config-group">
+            <div class="engine-config-heading"><div><strong>Summary generation</strong><small>Conservative defaults reduce hallucinations in meeting notes.</small></div></div>
+            <div class="engine-field-grid">
+              <label class="engine-field compact"><span>Top P</span><input id="ai-top-p" type="number" min="0.01" max="1" step="0.01"></label>
+              <label class="engine-field compact"><span>Top K</span><input id="ai-top-k" type="number" min="0" max="500"></label>
+              <label class="engine-field compact"><span>Min P</span><input id="ai-min-p" type="number" min="0" max="1" step="0.01"></label>
+              <label class="engine-field compact"><span>Repeat penalty</span><input id="ai-repeat-penalty" type="number" min="0" max="2" step="0.01"></label>
+              <label class="engine-field compact"><span>Seed</span><input id="ai-seed" type="number" min="-1" max="2147483647"><small>-1 is random.</small></label>
+              <label class="engine-field wide"><span>System prompt</span><textarea id="ai-system-prompt" rows="4"></textarea></label>
+            </div>
+            <div class="engine-toggle-grid">
+              <label class="engine-toggle">
+                <span><strong>Keep model in memory</strong><small>Faster repeated summaries at the cost of RAM/VRAM.</small></span>
+                <span class="switch"><input id="ai-keep-loaded" type="checkbox"><i></i></span>
+              </label>
+              <label class="engine-toggle"><span><strong>Memory map model</strong><small>Recommended for faster loading and lower private RAM use.</small></span><span class="switch"><input id="ai-use-mmap" type="checkbox"><i></i></span></label>
+              <label class="engine-toggle"><span><strong>Lock model in RAM</strong><small>Prevents paging; use only when enough memory is available.</small></span><span class="switch"><input id="ai-use-mlock" type="checkbox"><i></i></span></label>
+              <label class="engine-toggle"><span><strong>Offload K/Q/V</strong><small>Moves attention tensors to the selected GPU backend.</small></span><span class="switch"><input id="ai-offload-kqv" type="checkbox"><i></i></span></label>
+              <label class="engine-toggle"><span><strong>Flash attention</strong><small>Reduces attention memory use when supported.</small></span><span class="switch"><input id="ai-flash-attention" type="checkbox"><i></i></span></label>
+              <label class="engine-toggle"><span><strong>NUMA optimization</strong><small>For multi-socket workstation CPUs.</small></span><span class="switch"><input id="ai-numa" type="checkbox"><i></i></span></label>
+            </div>
+            <div class="engine-compatibility-note">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+              <span>LFM2.5 summaries run in an independent worker. Keep it resident for repeated summaries, or unload it to recover RAM/VRAM.</span>
+            </div>
+          </div>
+          <div class="engine-settings-actions multi-action">
+            <span id="ai-worker-summary">Dedicated summary worker · no API keys stored</span>
+            <button class="button" id="ai-unload" type="button">Unload</button>
+            <button class="button" id="ai-load" type="button">Load</button>
+            <button class="button" id="ai-install" type="button">Install LFM2.5 Q4</button>
+            <button class="button primary" type="submit">Save AI settings</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="settings-section" id="privacy" role="tabpanel" data-settings-panel hidden>
+        <div class="settings-section-header">
+          <span class="settings-icon green">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.9 8.1 7 10 4.1-1.9 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-5"/></svg>
+          </span>
+          <div><h2>Privacy posture</h2><p>Safe defaults are enforced in the application, not just promised.</p></div>
+        </div>
+        <div class="privacy-grid">
+          <div><i class="status-dot"></i><span><strong>Loopback only</strong><small id="listen-address">Checking address…</small></span></div>
+          <div><i class="status-dot"></i><span><strong>No telemetry</strong><small>No analytics or usage events are sent.</small></span></div>
+          <div><i class="status-dot"></i><span><strong>Remote AI opt-in only</strong><small>External providers remain disabled until explicitly configured.</small></span></div>
+          <div><i class="status-dot"></i><span><strong>Explicit recording</strong><small>Audio capture can never start automatically.</small></span></div>
+        </div>
+      </section>
+
+      <section class="settings-section" id="system" role="tabpanel" data-settings-panel hidden>
+        <div class="settings-section-header">
+          <span class="settings-icon dark">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          </span>
+          <div><h2>System</h2><p>Runtime and media capabilities detected on this computer.</p></div>
+        </div>
+        <dl class="system-list">
+          <div><dt>Application data</dt><dd id="data-directory">Loading…</dd></div>
+          <div><dt>Platform</dt><dd id="platform-version">Loading…</dd></div>
+          <div><dt>FFmpeg</dt><dd id="ffmpeg-capability">Checking…</dd></div>
+          <div><dt>Audio capture</dt><dd id="capture-capability"><span class="neutral-pill">Checking…</span></dd></div>
+          <div><dt>Transcription</dt><dd id="transcription-capability"><span class="neutral-pill">Checking…</span></dd></div>
+        </dl>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/settings.js" defer></script>{% endblock %}

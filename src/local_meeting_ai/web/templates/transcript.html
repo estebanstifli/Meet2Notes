@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Transcription · Meet2Notes{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/css/transcription.css">{% endblock %}
+{% block content %}
+<div
+  class="page minimal-transcript-page"
+  data-meeting-id="{{ meeting.id if meeting else '' }}"
+  data-default-title="{{ default_title }}"
+>
+  <header class="minimal-page-header">
+    <div class="workspace-heading">
+      <span class="workspace-icon">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg>
+      </span>
+      <div>
+        <h1 data-i18n="workspace.title">Transcription</h1>
+        <p>Capture or import audio and turn it into editable text.</p>
+      </div>
+    </div>
+    <a class="minimal-settings-link" href="/settings" aria-label="Settings" title="Settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19.4 15 .1.1-1.8 3.1-.2-.1a2 2 0 0 0-2.4.3l-.6.4a2 2 0 0 0-.9 2.2v.2H10V21a2 2 0 0 0-.9-2.2l-.6-.4a2 2 0 0 0-2.4-.3l-.2.1-1.8-3.1.1-.1a2 2 0 0 0 1-2v-.8a2 2 0 0 0-1-2l-.1-.1L5.9 7l.2.1a2 2 0 0 0 2.4-.3l.6-.4A2 2 0 0 0 10 4.2V4h3.6v.2a2 2 0 0 0 .9 2.2l.6.4a2 2 0 0 0 2.4.3l.2-.1 1.8 3.1-.1.1a2 2 0 0 0-1 2v.8a2 2 0 0 0 1 2Z"/></svg>
+    </a>
+  </header>
+
+  <section class="transcription-canvas panel">
+    <header class="transcription-canvas-header">
+      <div class="transcription-name-control">
+        <button
+          type="button"
+          id="transcription-title-display"
+          class="transcription-title-display"
+          title="Click to rename this transcription"
+        >{{ default_title }}</button>
+        <input
+          id="transcription-title-input"
+          class="transcription-title-input hidden"
+          maxlength="200"
+          aria-label="Transcription name"
+        >
+        <span class="rename-hint">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-.5 4.5L8 20l11-11-4-4L4 16Z"/><path d="m13 7 4 4"/></svg>
+          Click the name to rename
+        </span>
+      </div>
+
+      <div class="transcription-primary-actions">
+        <button type="button" class="button primary start-transcription-button" id="start-transcription">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg>
+          Start transcription
+        </button>
+        <div class="live-action-group hidden" id="live-actions">
+          <button type="button" class="live-pause-button" id="pause-capture">
+            <svg class="pause-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
+            <svg class="resume-symbol hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z"/></svg>
+            <span id="pause-capture-label">Pause transcription</span>
+          </button>
+          <button type="button" class="live-stop-button" id="stop-capture" title="Stop and transcribe">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+            <span>Stop</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="live-capture-strip hidden" id="live-capture-strip">
+      <span class="live-indicator"><i></i> Live</span>
+      <div class="live-source-copy">
+        <strong id="live-source-name">Audio source</strong>
+        <span id="live-capture-state">Listening locally</span>
+      </div>
+      <div class="level-meter" aria-label="Input level">
+        <span id="capture-level"></span>
+      </div>
+      <time id="capture-elapsed">00:00</time>
+    </div>
+
+    <div class="canvas-audio-row hidden" id="audio-row">
+      <span class="canvas-audio-icon">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg>
+      </span>
+      <div class="canvas-audio-copy">
+        <strong id="audio-filename">Recording</strong>
+        <span>Original audio · stored locally</span>
+      </div>
+      <audio id="meeting-audio" controls preload="metadata"></audio>
+      <span class="save-indicator" id="editor-save-state"><i></i> Saved</span>
+    </div>
+
+    <div class="job-progress-card hidden" id="transcription-progress">
+      <span class="pulse-orbit"><i></i></span>
+      <div>
+        <div class="progress-copy">
+          <strong id="transcription-progress-message">Preparing transcription…</strong>
+          <span id="transcription-progress-value">0%</span>
+        </div>
+        <progress id="transcription-progress-bar" max="100" value="0"></progress>
+        <p>Segments appear as soon as the local model produces them.</p>
+      </div>
+      <button class="text-button" id="cancel-transcription">Cancel</button>
+    </div>
+
+    <div class="minimal-editor-toolbar">
+      <label class="search-box minimal-transcript-search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+        <input id="transcript-search" type="search" placeholder="Search transcript" aria-label="Search transcript">
+      </label>
+      <span id="editor-meta">No transcript yet</span>
+    </div>
+
+    <div class="transcript-segments minimal-segments" id="transcript-segments">
+      <div class="minimal-empty-state">
+        <span class="minimal-empty-icon">
+          <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M13 18h38M13 31h26M13 44h32"/><path d="M47 40a8 8 0 1 0 0 16 8 8 0 0 0 0-16Z"/><path d="m53 52 7 7"/></svg>
+        </span>
+        <h2>Your transcript will appear here</h2>
+        <p>Start with a microphone, system audio, an audio interface, or a media file.</p>
+        <button type="button" class="button primary" data-empty-start>Start transcription</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<dialog class="modal capture-modal" id="transcription-dialog">
+  <form class="modal-panel capture-modal-panel" id="transcription-form">
+    <div class="modal-header capture-modal-header">
+      <div>
+        <span class="eyebrow">New transcription</span>
+        <h2>Choose your audio source</h2>
+        <p>Like a studio input panel, but everything stays on this computer.</p>
+      </div>
+      <button type="button" class="icon-button close-button" data-close-transcription aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+
+    <div class="source-mode-grid" role="radiogroup" aria-label="Audio source type">
+      <label class="source-mode-card">
+        <input type="radio" name="source-mode" value="microphone" checked>
+        <span class="source-mode-icon microphone">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg>
+        </span>
+        <span><strong>Microphone</strong><small>Built-in, USB, mixer or audio interface</small></span>
+        <i></i>
+      </label>
+      <label class="source-mode-card">
+        <input type="radio" name="source-mode" value="system">
+        <span class="source-mode-icon system">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4M8 10h2l2-3 3 6 2-3h2"/></svg>
+        </span>
+        <span><strong>System audio</strong><small>Calls, browser, players and desktop mix</small></span>
+        <i></i>
+      </label>
+      <label class="source-mode-card">
+        <input type="radio" name="source-mode" value="file">
+        <span class="source-mode-icon file">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7zM14 3v5h5M10 13h5M10 17h5"/></svg>
+        </span>
+        <span><strong>Media file</strong><small>MP3, WAV, M4A, MP4 and more</small></span>
+        <i></i>
+      </label>
+    </div>
+
+    <section class="source-picker-panel" id="native-source-panel">
+      <div class="source-picker-heading">
+        <div>
+          <strong id="source-picker-title">Available microphones</strong>
+          <span id="capture-platform">Detecting native audio system…</span>
+        </div>
+        <button type="button" class="icon-button" id="refresh-sources" aria-label="Refresh audio sources" title="Refresh sources">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5"/><path d="M18.5 10a7 7 0 0 0-12-3L4 11M5.5 14a7 7 0 0 0 12 3l2.5-4"/></svg>
+        </button>
+      </div>
+      <div class="native-source-list" id="native-source-list">
+        <div class="source-loading"><i class="mini-spinner"></i> Scanning audio devices…</div>
+      </div>
+      <div class="source-guidance hidden" id="source-guidance"></div>
+    </section>
+
+    <section class="file-source-panel hidden" id="file-source-panel">
+      <label class="compact-file-drop" id="capture-file-drop">
+        <input id="capture-file" type="file" accept=".wav,.mp3,.m4a,.flac,.ogg,.aac,.mp4,.mkv,.webm,.mov">
+        <span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 14v5h14v-5"/></svg>
+        </span>
+        <strong id="capture-file-name">Drop a file here or browse</strong>
+        <small id="capture-file-help">Audio and video up to the configured local limit</small>
+      </label>
+    </section>
+
+    <a class="capture-settings-note" href="/settings#transcription-engine">
+      Transcription quality, language and model are configured in Settings.
+    </a>
+
+    <div class="capture-privacy-note">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.9 8.1 7 10 4.1-1.9 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-5"/></svg>
+      <span><strong>Local and private.</strong> Recording never starts without this button and no audio is uploaded.</span>
+    </div>
+
+    <div class="modal-actions capture-modal-actions">
+      <button type="button" class="button secondary" data-close-transcription>Cancel</button>
+      <button type="submit" class="button primary" id="transcription-submit">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg>
+        <span>Start live transcription</span>
+      </button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
+{% block scripts %}<script src="/static/js/transcript.js" defer></script>{% endblock %}

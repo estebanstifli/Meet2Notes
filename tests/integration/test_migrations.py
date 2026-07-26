@@ -1,0 +1,40 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from local_meeting_ai.infrastructure.database.connection import Database
+from local_meeting_ai.infrastructure.database.migrations import MigrationRunner
+
+
+def test_initial_migration_is_complete_and_idempotent(tmp_path: Path) -> None:
+    database = Database(tmp_path / "migration.db")
+    runner = MigrationRunner(database)
+
+    assert runner.apply() == [1, 2, 3]
+    assert runner.apply() == []
+
+    with database.read() as connection:
+        tables = {
+            row["name"]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type IN ('table', 'view')"
+            )
+        }
+        foreign_keys = connection.execute("PRAGMA foreign_keys").fetchone()[0]
+        journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
+        busy_timeout = connection.execute("PRAGMA busy_timeout").fetchone()[0]
+
+    assert {
+        "meetings",
+        "recordings",
+        "transcriptions",
+        "transcript_segments",
+        "summaries",
+        "summary_templates",
+        "jobs",
+        "settings",
+        "transcript_search",
+    } <= tables
+    assert foreign_keys == 1
+    assert journal_mode == "wal"
+    assert busy_timeout == 5000

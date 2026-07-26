@@ -1,0 +1,110 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "meet2notes"
+version = "0.4.0"
+description = "Private local AI meeting transcription, speaker diarization, and summaries."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Meet2Notes contributors" }]
+keywords = [
+    "meeting-notes",
+    "meeting-transcription",
+    "speaker-diarization",
+    "faster-whisper",
+    "local-ai",
+    "privacy",
+    "fastapi",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "aiofiles>=24.1.0,<25",
+    "fastapi>=0.115.0,<1",
+    "jinja2>=3.1.4,<4",
+    "platformdirs>=4.3.0,<5",
+    "pydantic>=2.10.0,<3",
+    "pydantic-settings>=2.7.0,<3",
+    "python-multipart>=0.0.18,<1",
+    "uvicorn[standard]>=0.34.0,<1",
+]
+
+[project.optional-dependencies]
+transcription = [
+    "faster-whisper>=1.1.0,<2",
+]
+capture = [
+    "PyAudioWPatch>=0.2.12.7,<0.3; sys_platform == 'win32'",
+    "sounddevice>=0.5.3,<1; sys_platform != 'win32'",
+]
+diarization = [
+    "sherpa-onnx>=1.10.28,<2",
+    "numpy>=1.26,<3",
+]
+summaries = [
+    "huggingface-hub>=0.27,<2",
+    "llama-cpp-python>=0.3.8,<1",
+]
+ai = [
+    "sherpa-onnx>=1.10.28,<2",
+    "numpy>=1.26,<3",
+    "huggingface-hub>=0.27,<2",
+    "llama-cpp-python>=0.3.8,<1",
+]
+dev = [
+    "httpx2>=2.9.0,<3",
+    "mypy>=1.14.0,<2",
+    "pytest>=8.3.0,<9",
+    "pytest-asyncio>=0.25.0,<1",
+    "pytest-cov>=6.0.0,<7",
+    "ruff>=0.9.0,<1",
+    "types-aiofiles>=24.1.0,<25",
+]
+
+[project.scripts]
+meet2notes = "local_meeting_ai.cli:main"
+meet2notes-models = "local_meeting_ai.model_setup:main"
+
+[project.urls]
+Homepage = "https://github.com/estebanstifli/Meet2Notes"
+Repository = "https://github.com/estebanstifli/Meet2Notes"
+Issues = "https://github.com/estebanstifli/Meet2Notes/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/local_meeting_ai"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+files = ["src"]
+
+[[tool.mypy.overrides]]
+module = ["uvicorn.*"]
+ignore_missing_imports = true

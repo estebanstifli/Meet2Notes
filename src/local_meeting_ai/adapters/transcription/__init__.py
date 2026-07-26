@@ -1,0 +1,1 @@
+"""Transcription engine adapters."""
