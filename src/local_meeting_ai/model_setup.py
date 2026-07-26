@@ -64,17 +64,32 @@ async def install_models(
     print(f"Meet2Notes model directory: {paths.models}")
 
     if "whisper" in requested:
-        print(f"[1/3] Downloading and verifying Faster Whisper '{whisper_model}'...")
+        whisper_engine = FasterWhisperEngine(paths.models)
+        cached = whisper_model in whisper_engine.capability().get(
+            "installed_models",
+            [],
+        )
+        whisper_engine.shutdown()
+        action = "Verifying cached" if cached else "Downloading and verifying"
+        print(f"[1/3] {action} Faster Whisper '{whisper_model}'...")
         await _install_whisper(paths, whisper_model)
         print("      Faster Whisper is ready.")
 
     if "diarization" in requested:
-        print("[2/3] Downloading and verifying sherpa-onnx diarization models...")
+        diarization_engine = SherpaOnnxDiarizationEngine(paths.models)
+        cached = bool(diarization_engine.capability().get("installed"))
+        diarization_engine.shutdown()
+        action = "Verifying cached" if cached else "Downloading and verifying"
+        print(f"[2/3] {action} sherpa-onnx diarization models...")
         await _install_diarization(paths)
         print("      Speaker diarization is ready.")
 
     if "summary" in requested:
-        print("[3/3] Downloading and verifying LFM2.5 1.2B Q4_K_M...")
+        summary_engine = LlamaCppSummaryEngine(paths.models)
+        cached = bool(summary_engine.capability().get("installed"))
+        summary_engine.shutdown()
+        action = "Verifying cached" if cached else "Downloading and verifying"
+        print(f"[3/3] {action} LFM2.5 1.2B Q4_K_M...")
         await _install_summary(paths)
         print("      Local meeting summaries are ready.")
 

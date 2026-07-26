@@ -26,6 +26,20 @@ behind independent workers that can keep models resident in RAM or VRAM.
 > Meet2Notes is in active alpha development. Back up important recordings and
 > always obtain the consent required to record a conversation.
 
+<details>
+<summary><strong>Table of contents</strong></summary>
+
+- [Why Meet2Notes](#why-meet2notes)
+- [Install from zero](#install-from-zero)
+- [Managed models](#managed-models)
+- [How it works](#how-it-works)
+- [Platform support](#platform-support)
+- [Data, privacy, and migration](#data-privacy-and-migration)
+- [Development](#development)
+- [Roadmap](#roadmap)
+
+</details>
+
 ## Why Meet2Notes
 
 - **Private by default** — local server, local SQLite database, local models,
@@ -43,46 +57,59 @@ behind independent workers that can keep models resident in RAM or VRAM.
 - **Portable media import** — WAV, MP3, M4A, FLAC, OGG, AAC, MP4, MKV, WebM,
   and MOV through FFmpeg.
 
-## One-command installation
+## Install from zero
 
 The installer creates an isolated `.venv`, installs native audio and AI
 runtimes, detects a compatible llama.cpp backend, installs FFmpeg when the
 platform package manager permits it, downloads the recommended models, and
 verifies the final environment.
 
-### Windows
+### Windows 10/11
 
-Open PowerShell in the project folder:
-
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\install.ps1
-.\.venv\Scripts\meet2notes.exe
-```
-
-Useful options:
+Install Git and Python 3.12, then clone and launch:
 
 ```powershell
-# Force the portable CPU build and skip the ~1.2 GiB model download
-.\install.ps1 -AiBackend cpu -Models none
+winget install --id Git.Git --exact
+winget install --id Python.Python.3.12 --exact
 
-# Install development tools and launch after setup
-.\install.ps1 -Dev -Start
+git clone https://github.com/estebanstifli/Meet2Notes.git
+cd Meet2Notes
+.\install.cmd -Start
 ```
 
-### macOS or Linux
+`install.cmd` runs the readable PowerShell installer with a process-only policy
+bypass. It does not install an unsigned application binary or weaken the
+permanent PowerShell policy.
+
+### macOS
 
 ```bash
+brew install git python@3.12 ffmpeg portaudio
+git clone https://github.com/estebanstifli/Meet2Notes.git
+cd Meet2Notes
 chmod +x install.sh
-./install.sh
-.venv/bin/meet2notes
+./install.sh --start
 ```
 
-Use `./install.sh --no-models` for a runtime-only installation, or
-`./install.sh --dev --start` for a development setup that launches immediately.
+### Ubuntu/Debian
+
+```bash
+sudo apt update
+sudo apt install -y git python3 python3-venv python3-dev \
+  ffmpeg portaudio19-dev libsndfile1 build-essential cmake
+
+git clone https://github.com/estebanstifli/Meet2Notes.git
+cd Meet2Notes
+chmod +x install.sh
+./install.sh --start
+```
 
 Meet2Notes opens at [http://127.0.0.1:8765](http://127.0.0.1:8765). It binds
 only to the local machine unless you explicitly change the host.
+
+See the complete [installation guide](docs/INSTALLATION.md) for Fedora, Arch,
+private-repository authentication, CUDA/Metal selection, upgrades, existing
+dependencies, and troubleshooting.
 
 ## Managed models
 
@@ -94,8 +121,13 @@ The default installation downloads and validates these local models:
 | Speaker diarization | Pyannote 3.0 int8 + 3D-Speaker | 45 MiB | sherpa-onnx |
 | Meeting summaries | LFM2.5 1.2B Q4_K_M | 700 MiB | llama.cpp |
 
-Models are downloaded into the operating system's private Meet2Notes data
-directory and reused on later runs. You can install or verify them independently:
+Model weights are **not committed to this repository**. Faster Whisper and
+LFM2.5 come directly from their publishers on Hugging Face; the two
+sherpa-onnx models come from official k2-fsa GitHub Releases. They are stored in
+the operating system's private Meet2Notes data directory and reused on later
+runs.
+
+You can install or verify them independently:
 
 ```bash
 meet2notes-models --models all
@@ -105,6 +137,11 @@ meet2notes-models --models diarization summary
 
 Downloads happen only when you run the installer, invoke `meet2notes-models`, or
 confirm an installation action in Settings.
+
+Re-running an installer is safe: it reuses `.venv`, compatible packages,
+FFmpeg/FFprobe found on `PATH`, existing models, databases, and recordings. Use
+the explicit `-ReinstallAiRuntime` or `--reinstall-ai-runtime` option only when
+replacing an existing CPU/GPU llama.cpp backend.
 
 ## How it works
 

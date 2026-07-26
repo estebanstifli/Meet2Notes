@@ -18,6 +18,7 @@ param(
     [string]$WhisperModel = "small",
 
     [switch]$SkipFfmpeg,
+    [switch]$ReinstallAiRuntime,
     [switch]$Dev,
     [switch]$Start
 )
@@ -57,18 +58,58 @@ function Get-BootstrapPython {
 
     $Python = Get-Command python -ErrorAction SilentlyContinue
     if ($Python) {
-        return @($Python.Source)
+        & $Python.Source -c "import sys; raise SystemExit(sys.version_info < (3, 11))" *> $null
+        if ($LASTEXITCODE -eq 0) {
+            return @($Python.Source)
+        }
     }
-    throw "Python 3.11+ was not found. Install it from https://www.python.org/downloads/"
+
+    $Winget = Get-Command winget -ErrorAction SilentlyContinue
+    if ($Winget) {
+        Write-Step "Python 3.12 was not found; installing it with winget"
+        & $Winget.Source install --id Python.Python.3.12 --exact --source winget `
+            --accept-package-agreements --accept-source-agreements
+        if ($LASTEXITCODE -eq 0) {
+            $InstalledPython = Join-Path $env:LOCALAPPDATA `
+                "Programs\Python\Python312\python.exe"
+            if (Test-Path -LiteralPath $InstalledPython) {
+                return @($InstalledPython)
+            }
+            $RefreshedLauncher = Get-Command py -ErrorAction SilentlyContinue
+            if ($RefreshedLauncher) {
+                return @($RefreshedLauncher.Source, "-3.12")
+            }
+        }
+    }
+    throw (
+        "Python 3.11+ was not found. Install Python 3.12 from " +
+        "https://www.python.org/downloads/ and run install.cmd again."
+    )
 }
 
 function Install-Ffmpeg {
-    if (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
-        Write-Host "FFmpeg is already available."
-        return
+    $Ffmpeg = Get-Command ffmpeg -ErrorAction SilentlyContinue
+    $Ffprobe = Get-Command ffprobe -ErrorAction SilentlyContinue
+    if ($Ffmpeg -and $Ffprobe) {
+        $FfmpegOutput = & $Ffmpeg.Source -version 2>$null
+        $FfmpegWorks = $LASTEXITCODE -eq 0
+        $FfprobeOutput = & $Ffprobe.Source -version 2>$null
+        $FfprobeWorks = $LASTEXITCODE -eq 0
+        if ($FfmpegWorks -and $FfprobeWorks) {
+            $FfmpegVersion = $FfmpegOutput | Select-Object -First 1
+            $FfprobeVersion = $FfprobeOutput | Select-Object -First 1
+            Write-Host "FFmpeg is already available: $FfmpegVersion"
+            Write-Host "FFprobe is already available: $FfprobeVersion"
+            Write-Host "Using: $($Ffmpeg.Source)"
+            return
+        }
+        Write-Warning "FFmpeg/FFprobe were found but did not pass a version check."
     }
     if ($SkipFfmpeg) {
-        Write-Warning "FFmpeg was not found. Media import will require it later."
+        Write-Warning (
+            "FFmpeg and FFprobe were not both found. Media import will " +
+            "require them later."
+        )
         return
     }
 
@@ -77,11 +118,16 @@ function Install-Ffmpeg {
         Write-Warning "FFmpeg was not found and winget is unavailable. Install FFmpeg manually."
         return
     }
-    Write-Step "Installing FFmpeg with winget"
+    Write-Step "FFmpeg/FFprobe were not both found; installing FFmpeg with winget"
     & $Winget.Source install --id Gyan.FFmpeg --exact --source winget `
         --accept-package-agreements --accept-source-agreements
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "FFmpeg installation did not complete. Meet2Notes itself is installed."
+    } else {
+        Write-Host (
+            "FFmpeg was installed. If this terminal cannot see it yet, open " +
+            "a new terminal before starting Meet2Notes."
+        )
     }
 }
 
@@ -148,8 +194,15 @@ $LlamaIndex = if ($ResolvedBackend -eq "cuda") {
     "https://abetlen.github.io/llama-cpp-python/whl/cpu"
 }
 Write-Host "llama.cpp backend: $ResolvedBackend"
-& $EnvironmentPython -m pip install "llama-cpp-python>=0.3.8,<1" `
-    --extra-index-url $LlamaIndex
+$LlamaArguments = @(
+    "-m", "pip", "install",
+    "llama-cpp-python>=0.3.8,<1",
+    "--extra-index-url", $LlamaIndex
+)
+if ($ReinstallAiRuntime) {
+    $LlamaArguments += @("--force-reinstall", "--no-cache-dir")
+}
+& $EnvironmentPython @LlamaArguments
 if ($LASTEXITCODE -ne 0 -and $AiBackend -eq "auto" -and $ResolvedBackend -eq "cuda") {
     Write-Warning "CUDA wheel installation failed; falling back to the portable CPU wheel."
     Invoke-Checked $EnvironmentPython @(
@@ -185,6 +238,7 @@ Invoke-Checked $EnvironmentPython @("scripts/check_environment.py")
 Write-Host ""
 Write-Host "Meet2Notes is ready." -ForegroundColor Green
 Write-Host "Run: .\.venv\Scripts\meet2notes.exe"
+Write-Host "Re-running install.cmd safely reuses the environment and downloaded models."
 
 if ($Start) {
     & (Join-Path $EnvironmentRoot "Scripts\meet2notes.exe")

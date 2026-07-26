@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Added complete clone-to-launch installation instructions for Windows, macOS,
+  Ubuntu/Debian, Fedora, and Arch Linux.
+- Added a transparent Windows `install.cmd` entry point and explicit CPU/CUDA/
+  Metal runtime replacement options.
+- Documented upstream model provenance, local storage, idempotent upgrades, and
+  behavior when Python, FFmpeg, packages, models, or databases already exist.
+- Expanded environment verification with runtime versions, optional package
+  availability, data/model directories, and free disk space.
+
 ## 0.4.0 - 2026-07-26
 
 - Renamed the application and all public entry points to Meet2Notes.
