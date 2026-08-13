@@ -16,6 +16,7 @@ from local_meeting_ai.adapters.diarization.router import DiarizationEngineRouter
 from local_meeting_ai.adapters.diarization.sherpa_onnx import (
     SherpaOnnxDiarizationEngine,
 )
+from local_meeting_ai.adapters.embeddings import EmbeddingEngineRouter
 from local_meeting_ai.adapters.summary.llama_cpp import LlamaCppSummaryEngine
 from local_meeting_ai.adapters.transcription.faster_whisper import FasterWhisperEngine
 from local_meeting_ai.adapters.transcription.nvidia_asr import (
@@ -29,6 +30,9 @@ from local_meeting_ai.application.ai_services import (
     SummaryService,
 )
 from local_meeting_ai.application.capture_service import LiveCaptureService
+from local_meeting_ai.application.final_pipeline import FinalProcessingPipeline
+from local_meeting_ai.application.rag import PromptService, RagService
+from local_meeting_ai.application.rag_vector_store import RagVectorStoreGateway
 from local_meeting_ai.application.services import ImportService, MeetingService
 from local_meeting_ai.application.speaker_service import SpeakerService
 from local_meeting_ai.application.summary_templates import BUILTIN_SUMMARY_TEMPLATES
@@ -37,21 +41,23 @@ from local_meeting_ai.application.transcription_profiles import (
 )
 from local_meeting_ai.application.transcription_service import TranscriptionService
 from local_meeting_ai.config import AppSettings
-from local_meeting_ai.domain.entities import Job
-from local_meeting_ai.domain.enums import JobStatus, JobType
+from local_meeting_ai.domain.enums import JobType
 from local_meeting_ai.domain.protocols import (
     AudioCaptureBackend,
     AudioNormalizer,
     AudioRangeExporter,
     DiarizationEngine,
+    EmbeddingProvider,
     SummaryEngine,
     TranscriptionEngine,
 )
 from local_meeting_ai.infrastructure.database.connection import Database
 from local_meeting_ai.infrastructure.database.migrations import MigrationRunner
+from local_meeting_ai.infrastructure.database.rag_repository import RagRepository
 from local_meeting_ai.infrastructure.database.repositories import (
     JobRepository,
     MeetingRepository,
+    PluginExecutionRepository,
     RecordingRepository,
     SettingsRepository,
     SpeakerProfileRepository,
@@ -65,6 +71,7 @@ from local_meeting_ai.infrastructure.pytorch_cuda import PytorchCudaRuntime
 from local_meeting_ai.infrastructure.storage import MeetingStorage
 from local_meeting_ai.logging_config import ActivityLog, configure_logging
 from local_meeting_ai.paths import AppPaths
+from local_meeting_ai.plugins.manager import PluginManager
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +100,30 @@ def _retire_removed_final_transcription_preferences(
     )
 
 
+def _retire_ollama_bge_preference(preferences: SettingsRepository) -> None:
+    """Migrate the short-lived Ollama BGE default to the direct FastEmbed runtime."""
+
+    configured = preferences.get_all().get("rag")
+    if not isinstance(configured, dict):
+        return
+    if (
+        configured.get("profile_id", "bge-m3") != "bge-m3"
+        or configured.get("embedding_provider") != "ollama"
+    ):
+        return
+    preferences.update(
+        {
+            "rag": {
+                **configured,
+                "embedding_provider": "fastembed",
+                "embedding_model": "BAAI/bge-m3",
+                "base_url": "",
+            }
+        }
+    )
+    logger.info("Migrated the BGE-M3 embedding runtime from Ollama to FastEmbed")
+
+
 @dataclass(slots=True)
 class Container:
     settings: AppSettings
@@ -119,35 +150,18 @@ class Container:
     summary_service: SummaryService
     summaries: SummaryRepository
     summary_templates: SummaryTemplateRepository
+    plugin_executions: PluginExecutionRepository
+    plugin_manager: PluginManager
+    final_pipeline: FinalProcessingPipeline
     speaker_service: SpeakerService
     speaker_profiles: SpeakerProfileRepository
     activity_log: ActivityLog
     pytorch_cuda: PytorchCudaRuntime
-
-
-async def _start_postprocess_summary(
-    summary_service: SummaryService,
-    jobs: JobRepository,
-    preceding_job: Job,
-    transcription_id: int,
-    options: dict[str, object],
-) -> None:
-    try:
-        await summary_service.start(transcription_id, postprocess=True)
-        logger.info("Meeting AI analysis queued")
-    except Exception as error:
-        logger.warning("Meeting AI analysis skipped: %s", error)
-        failed_job = jobs.create(
-            meeting_id=preceding_job.meeting_id,
-            job_type=JobType.SUMMARIZE,
-            payload={
-                "transcription_id": transcription_id,
-                "postprocess": True,
-                "postprocess_options": options,
-            },
-            message="Meeting AI analysis could not start",
-        )
-        jobs.fail(failed_job.uuid, str(error) or type(error).__name__)
+    rag_repository: RagRepository
+    rag_vector_stores: RagVectorStoreGateway
+    embedding_provider: EmbeddingProvider
+    rag_service: RagService
+    prompt_service: PromptService
 
 
 def build_container(
@@ -158,6 +172,7 @@ def build_container(
     audio_capture_backend: AudioCaptureBackend | None = None,
     diarization_engine: DiarizationEngine | None = None,
     summary_engine: SummaryEngine | None = None,
+    embedding_provider: EmbeddingProvider | None = None,
     audio_range_exporter: AudioRangeExporter | None = None,
 ) -> Container:
     paths = AppPaths.from_settings(settings)
@@ -172,6 +187,7 @@ def build_container(
     jobs = JobRepository(database)
     preferences = SettingsRepository(database)
     _retire_removed_final_transcription_preferences(preferences)
+    _retire_ollama_bge_preference(preferences)
     configured_models_directory = preferences.get_all().get("models_directory")
     if settings.models_dir is None and isinstance(configured_models_directory, str):
         clean_models_directory = configured_models_directory.strip()
@@ -183,6 +199,8 @@ def build_container(
     summary_templates = SummaryTemplateRepository(database)
     summary_templates.seed_builtins(BUILTIN_SUMMARY_TEMPLATES)
     speaker_profiles = SpeakerProfileRepository(database)
+    plugin_executions = PluginExecutionRepository(database)
+    plugin_manager = PluginManager(preferences, plugin_executions)
     transcriptions.recover_interrupted()
     storage = MeetingStorage(paths, settings.max_upload_bytes)
     ffmpeg = FFmpegClient(settings.ffmpeg_path)
@@ -274,80 +292,32 @@ def build_container(
         jobs=jobs,
         preferences=preferences,
         queue=queue,
+        plugins=plugin_manager,
     )
     queue.register(JobType.DIARIZE, diarization_service.process)
     queue.register(JobType.SUMMARIZE, summary_service.process)
-
-    async def continue_postprocessing(job: Job, status: JobStatus) -> None:
-        if not bool(job.payload.get("postprocess")):
-            return
-        transcription_id = job.payload.get("transcription_id")
-        if not isinstance(transcription_id, int):
-            return
-        raw_options = job.payload.get("postprocess_options")
-        options = raw_options if isinstance(raw_options, dict) else {}
-        run_diarization = bool(options.get("diarization", True))
-        run_summary = bool(options.get("summary", True))
-        speaker_count = options.get("speaker_count")
-        if not isinstance(speaker_count, int) or speaker_count < 1:
-            speaker_count = None
-        if job.job_type == JobType.TRANSCRIBE:
-            if status != JobStatus.COMPLETED:
-                return
-            if not run_diarization:
-                if not run_summary:
-                    logger.info("Post-processing completed without speakers or AI analysis")
-                    return
-                await _start_postprocess_summary(
-                    summary_service,
-                    jobs,
-                    job,
-                    transcription_id,
-                    options,
-                )
-                return
-            try:
-                await diarization_service.start(
-                    transcription_id,
-                    speaker_count=speaker_count,
-                    postprocess_options=options,
-                    postprocess=True,
-                )
-                logger.info("Speaker identification queued after transcription")
-                return
-            except Exception as error:
-                logger.warning(
-                    "Speaker identification skipped; continuing with AI analysis: %s",
-                    error,
-                )
-                failed_job = jobs.create(
-                    meeting_id=job.meeting_id,
-                    job_type=JobType.DIARIZE,
-                    payload={
-                        "transcription_id": transcription_id,
-                        "postprocess": True,
-                        "postprocess_options": options,
-                    },
-                    message="Speaker identification could not start",
-                )
-                jobs.fail(failed_job.uuid, str(error) or type(error).__name__)
-        elif job.job_type == JobType.DIARIZE:
-            if status not in {JobStatus.COMPLETED, JobStatus.FAILED}:
-                return
-            if status == JobStatus.FAILED:
-                logger.warning("AI analysis will continue after diarization failure")
-        else:
-            return
-        if run_summary:
-            await _start_postprocess_summary(
-                summary_service,
-                jobs,
-                job,
-                transcription_id,
-                options,
-            )
-
-    queue.register_terminal_handler(continue_postprocessing)
+    final_pipeline = FinalProcessingPipeline(
+        jobs=jobs,
+        diarization=diarization_service,
+        summaries=summary_service,
+        plugins=plugin_manager,
+    )
+    queue.register_terminal_handler(final_pipeline.job_finished)
+    rag_repository = RagRepository(database)
+    rag_vector_stores = RagVectorStoreGateway(rag_repository, plugin_manager)
+    resolved_embedding_provider = embedding_provider or EmbeddingEngineRouter(paths.models)
+    rag_service = RagService(
+        provider=resolved_embedding_provider,
+        vector_stores=rag_vector_stores,
+        meetings=meetings,
+        transcriptions=transcriptions,
+        preferences=preferences,
+    )
+    prompt_service = PromptService(
+        rag=rag_service,
+        summary_engine=resolved_summary,
+        preferences=preferences,
+    )
 
     return Container(
         settings=settings,
@@ -374,8 +344,16 @@ def build_container(
         summary_service=summary_service,
         summaries=summaries,
         summary_templates=summary_templates,
+        plugin_executions=plugin_executions,
+        plugin_manager=plugin_manager,
+        final_pipeline=final_pipeline,
         speaker_service=speaker_service,
         speaker_profiles=speaker_profiles,
         activity_log=activity_log,
         pytorch_cuda=PytorchCudaRuntime(),
+        rag_repository=rag_repository,
+        rag_vector_stores=rag_vector_stores,
+        embedding_provider=resolved_embedding_provider,
+        rag_service=rag_service,
+        prompt_service=prompt_service,
     )

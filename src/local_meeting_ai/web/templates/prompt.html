@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Prompt · Meet2Notes{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/css/prompt.css?v={{ asset_version }}">{% endblock %}
+{% block content %}
+<div class="page prompt-page">
+  <header class="meetings-page-header prompt-header">
+    <div class="workspace-heading">
+      <span class="workspace-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z"/><path d="M18 16v5M15.5 18.5h5"/></svg></span>
+      <div><h1>Prompt</h1><p>Ask your connected AI about one meeting or your complete local history.</p></div>
+    </div>
+    <div class="page-header-actions">
+      {% include "_theme_toggle.html" %}
+      <a class="icon-button" href="/settings#rag" aria-label="RAG settings" title="RAG settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19.4 15 .1.1-1.8 3.1-.2-.1a2 2 0 0 0-2.4.3l-.6.4a2 2 0 0 0-.9 2.2v.2H10V21a2 2 0 0 0-.9-2.2l-.6-.4a2 2 0 0 0-2.4-.3l-.2.1-1.8-3.1.1-.1a2 2 0 0 0 1-2v-.8a2 2 0 0 0-1-2l-.1-.1L5.9 7l.2.1a2 2 0 0 0 2.4-.3l.6-.4A2 2 0 0 0 10 4.2V4h3.6v.2a2 2 0 0 0 .9 2.2l.6.4a2 2 0 0 0 2.4.3l.2-.1 1.8 3.1-.1.1a2 2 0 0 0-1 2v.8a2 2 0 0 0 1 2Z"/></svg></a>
+    </div>
+  </header>
+
+  <div class="prompt-layout">
+    <aside class="panel prompt-controls">
+      <div><span class="eyebrow">Context</span><h2>Ground the answer</h2><p>Choose the meeting scope and whether semantic retrieval should select the most relevant excerpts.</p></div>
+      <label class="field"><span>Meeting scope</span><select id="prompt-meeting">
+        <option value="">All meetings</option>
+        {% for meeting in meetings %}<option value="{{ meeting.id }}" {{ 'selected' if selected_meeting_id and selected_meeting_id|string == meeting.id|string else '' }}>{{ meeting.title }}</option>{% endfor %}
+      </select></label>
+      <label class="prompt-rag-toggle">
+        <span><strong>Use historical RAG</strong><small>The question is embedded, then semantic and keyword scores are combined.</small></span>
+        <span class="switch"><input id="prompt-use-rag" type="checkbox" checked><i></i></span>
+      </label>
+      <div class="prompt-status" id="prompt-rag-status"><i></i><span>Checking local RAG…</span></div>
+      <div class="prompt-privacy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8 8 9 4.6-1 8-4 8-9V6l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg><span>Transcripts and vectors stay in the local SQLite workspace. The configured AI and embedding endpoints receive only the selected context.</span></div>
+    </aside>
+
+    <section class="panel prompt-chat" aria-label="AI conversation">
+      <div class="prompt-messages" id="prompt-messages" aria-live="polite">
+        <article class="prompt-welcome">
+          <span class="prompt-orb"><svg viewBox="0 0 24 24"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z"/></svg></span>
+          <h2>What do you want to recover?</h2>
+          <p>I can search decisions, commitments and discussions across your indexed meeting transcripts.</p>
+          <div class="prompt-suggestions">
+            <button type="button" data-prompt-suggestion="In which meeting was topic X discussed?">In which meeting was topic X discussed?</button>
+            <button type="button" data-prompt-suggestion="What was discussed in last Saturday's meeting?">What was discussed in last Saturday's meeting?</button>
+            <button type="button" data-prompt-suggestion="Summarize the outstanding decisions from all meetings.">Summarize the outstanding decisions from all meetings.</button>
+          </div>
+        </article>
+      </div>
+      <form class="prompt-composer" id="prompt-form">
+        <textarea id="prompt-question" rows="2" maxlength="4000" placeholder="Ask about your meetings…" required></textarea>
+        <button class="button primary" id="prompt-submit" type="submit"><span>Ask AI</span><svg viewBox="0 0 24 24"><path d="m5 12 14-7-4 14-3-6-7-1Z"/></svg></button>
+        <small id="prompt-composer-note">RAG will embed this question before retrieving context.</small>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/prompt.js?v={{ asset_version }}" defer></script>{% endblock %}

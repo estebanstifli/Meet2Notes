@@ -10,7 +10,7 @@ def test_initial_migration_is_complete_and_idempotent(tmp_path: Path) -> None:
     database = Database(tmp_path / "migration.db")
     runner = MigrationRunner(database)
 
-    assert runner.apply() == [1, 2, 3, 4, 5, 6]
+    assert runner.apply() == [1, 2, 3, 4, 5, 6, 7, 8]
     assert runner.apply() == []
 
     with database.read() as connection:
@@ -35,6 +35,8 @@ def test_initial_migration_is_complete_and_idempotent(tmp_path: Path) -> None:
         "settings",
         "transcript_search",
         "speaker_turns",
+        "plugin_executions",
+        "rag_chunks",
     } <= tables
     assert foreign_keys == 1
     assert journal_mode == "wal"

@@ -38,6 +38,11 @@ Whisper, Sherpa-ONNX, or a particular language model.
   values such as `-1` in the user interface.
 - Timestamped transcription segments and diarized speaker turns stored in a
   local SQLite workspace.
+- Historical RAG over one meeting or the full library, with BGE-M3 embeddings,
+  persisted SQLite vectors, optional sqlite-vec acceleration, hybrid ranking,
+  temporal queries, and timestamped source provenance.
+- A separate Prompt window that can use a complete selected transcript or embed
+  each question and retrieve grounded context from every meeting.
 - A Speakers workspace for renaming speakers, saving voice samples, matching
   identities across meetings, generating per-speaker summaries, and exporting
   a speaker's text or audio.
@@ -189,6 +194,36 @@ custom formats, and choose any format as the default. Each summary records both
 the selected format ID and an immutable snapshot of its prompt and sections, so
 old results remain reproducible after a format is edited.
 
+## Historical RAG and Prompt
+
+Settings -> RAG provides three embedding choices: managed BGE-M3 through
+FastEmbed/ONNX Runtime, a custom local GGUF file through llama.cpp, and a custom
+local or remote endpoint through LiteLLM. Basic and advanced settings adapt to
+the selected profile, and RAG can be disabled independently. SQLite is the
+default vector store; plugins can register alternative vector-store backends
+through the public RAG hooks.
+
+Prompt opens as a separate workspace with the same application header and theme
+controls as the other pages. It can ask the connected AI about one selected
+meeting or the complete history, optionally embedding the question first and
+returning ranked, timestamped source excerpts.
+
+## Community plugins
+
+The post-recording pipeline exposes a versioned Python Plugin API with
+WordPress-inspired actions and filters. Community packages can observe final
+transcription, diarization, analysis, and pipeline lifecycle events or transform
+the temporary document sent to AI. Translation, redaction, terminology,
+enrichment, exporters, and alternative RAG vector stores can therefore be added
+without changing capture or Live transcription. Transcription and diarization
+engine registration is not part of the current public Plugin API.
+
+Plugins are discovered through the standard `meet2notes.plugins` package entry
+point and managed from Settings -> Plugins. Hook executions have priorities,
+timeouts, failure policies, and a privacy-preserving provenance ledger. The
+canonical recording and transcript are never overwritten by a filter. See the
+[Plugin API guide](docs/plugins.md) and [public roadmap](docs/roadmap.md).
+
 ## Install from source
 
 The installers create an isolated `.venv` inside the repository. Meet2Notes
@@ -296,9 +331,11 @@ accidentally starting two servers against the same data directory.
 ## Model installation and storage
 
 The default installer downloads Faster Whisper Small, Sherpa-ONNX diarization,
-the shared saved-voice embedding model, and LFM2.5 1.2B Q4. Other catalog entries
-are opt-in. Models are reused between sessions and are separate from recordings
-and the SQLite database.
+the shared saved-voice embedding model, and LFM2.5 1.2B Q4. Historical RAG selects
+BGE-M3 by default and installs it directly through FastEmbed/ONNX Runtime without
+Ollama or PyTorch. Other catalog entries are opt-in.
+Models are reused between sessions and are separate from recordings and the SQLite
+database.
 
 The Settings tables are the preferred management interface. Command-line model
 setup is also available:
@@ -307,6 +344,7 @@ setup is also available:
 .\.venv\Scripts\meet2notes-models.exe --models all
 .\.venv\Scripts\meet2notes-models.exe --models whisper --whisper-model medium
 .\.venv\Scripts\meet2notes-models.exe --models diarization summary
+.\.venv\Scripts\meet2notes-models.exe --models embeddings
 .\.venv\Scripts\meet2notes-models.exe --models nvidia-parakeet
 .\.venv\Scripts\meet2notes-models.exe --models nvidia-nemotron
 ```

@@ -2024,6 +2024,30 @@ svg {
   margin-bottom: 1rem;
 }
 
+.plugin-table td:first-child {
+  min-width: 260px;
+}
+
+.plugin-table td:last-child {
+  white-space: nowrap;
+}
+
+.plugin-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 150px;
+}
+
+.plugin-error {
+  color: var(--danger, #b42318) !important;
+  max-width: 280px;
+}
+
+.plugin-api-card {
+  margin-top: 18px;
+}
+
 .note-format-table td:nth-child(3) {
   width: 9rem;
 }
@@ -3683,3 +3707,14 @@ svg {
     transition-duration: .01ms !important;
   }
 }
+
+.rag-test-card { margin-top: 22px; }
+.rag-test-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 0 20px 20px; }
+.rag-test-form input { min-height: 43px; border: 1px solid var(--line); border-radius: 10px; padding: 0 13px; color: var(--ink); background: var(--panel); }
+.rag-test-results { display: grid; gap: 10px; padding: 0 20px 20px; }
+.rag-test-result { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.rag-test-result > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.rag-test-result span,.rag-test-result p,.settings-empty-copy { color: var(--ink-soft); }
+.rag-test-result span { font-size: .8rem; white-space: nowrap; }
+.rag-test-result p { margin: 8px 0 0; line-height: 1.5; font-size: .87rem; }
+@media (max-width: 700px) { .rag-test-form { grid-template-columns: 1fr; }.rag-test-result > div { display: grid; }.rag-test-result span { white-space: normal; } }

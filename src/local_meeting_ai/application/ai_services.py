@@ -27,6 +27,13 @@ from local_meeting_ai.infrastructure.database.repositories import (
     TranscriptionRepository,
 )
 from local_meeting_ai.infrastructure.jobs import JobContext, LocalJobQueue
+from local_meeting_ai.plugins.contracts import (
+    AnalysisArtifact,
+    HookContext,
+    MeetingDocument,
+    TranscriptDocumentSegment,
+)
+from local_meeting_ai.plugins.manager import PluginManager
 
 from .speaker_text import speaker_turn_text
 
@@ -302,6 +309,7 @@ class SummaryService:
         jobs: JobRepository,
         preferences: SettingsRepository,
         queue: LocalJobQueue,
+        plugins: PluginManager,
     ) -> None:
         self.engine = engine
         self.summaries = summaries
@@ -310,6 +318,7 @@ class SummaryService:
         self.jobs = jobs
         self.preferences = preferences
         self.queue = queue
+        self.plugins = plugins
 
     def capability(self) -> dict[str, Any]:
         capability = self.engine.capability()
@@ -363,6 +372,7 @@ class SummaryService:
         transcription_id: int,
         *,
         postprocess: bool = False,
+        postprocess_options: dict[str, Any] | None = None,
     ) -> tuple[Summary, Job]:
         transcription = self.transcriptions.get(transcription_id)
         if not transcription:
@@ -399,6 +409,7 @@ class SummaryService:
                 "summary_id": summary.id,
                 "transcription_id": transcription.id,
                 "postprocess": postprocess,
+                "postprocess_options": postprocess_options or {},
                 "summary_template": self._template_config(template),
             },
             message="Waiting to generate the meeting summary",
@@ -493,21 +504,60 @@ class SummaryService:
             speaker_id: configured_names.get(speaker_id, f"Speaker {index + 1}")
             for index, speaker_id in enumerate(speaker_ids)
         }
-        def summary_line(segment: Any) -> str:
-            label = (
-                speaker_labels.get(segment.speaker_id, "Unidentified speaker")
-                if segment.speaker_id is not None
-                else "Unidentified speaker"
-            )
-            return f"[{segment.start_ms / 1000:.1f}s] {label}: {segment.text}"
-
-        transcript = "\n".join(summary_line(segment) for segment in segments)
+        document = MeetingDocument(
+            meeting_id=transcription.meeting_id,
+            transcription_id=transcription.id,
+            source_language=transcription.language,
+            analysis_language=transcription.language,
+            segments=[
+                TranscriptDocumentSegment(
+                    id=segment.id,
+                    index=segment.segment_index,
+                    start_ms=segment.start_ms,
+                    end_ms=segment.end_ms,
+                    text=segment.text,
+                    speaker_id=segment.speaker_id,
+                    speaker_label=(
+                        speaker_labels.get(segment.speaker_id, "Unidentified speaker")
+                        if segment.speaker_id is not None
+                        else "Unidentified speaker"
+                    ),
+                    confidence=segment.confidence,
+                    metadata=segment.metadata,
+                )
+                for segment in segments
+            ],
+            metadata={
+                "source": "persisted_final_transcript",
+                "canonical_transcript_preserved": True,
+            },
+        )
+        postprocess_options = job.payload.get("postprocess_options")
+        options = postprocess_options if isinstance(postprocess_options, dict) else {}
+        pipeline_id = str(options.get("pipeline_id") or "") or None
+        before_context = HookContext(
+            hook="analysis.before",
+            pipeline_id=pipeline_id,
+            job_uuid=job.uuid,
+            meeting_id=transcription.meeting_id,
+            transcription_id=transcription.id,
+            stage="analysis_filters",
+        )
+        filtered = await self.plugins.hooks.apply_filters(
+            "analysis.before",
+            document,
+            before_context,
+        )
+        document = MeetingDocument.model_validate(filtered)
+        transcript = document.prompt_text()
         config = configured_values(
             self.preferences,
             "summary_engine",
             SUMMARY_DEFAULTS,
         )
-        config["response_language"] = transcription.language
+        config["response_language"] = (
+            document.analysis_language or transcription.language
+        )
         template_snapshot = job.payload.get("summary_template")
         if isinstance(template_snapshot, dict):
             config["summary_template"] = template_snapshot
@@ -535,12 +585,38 @@ class SummaryService:
                 cast(ProgressReporter, progress),
                 is_cancelled,
             )
+            artifact = AnalysisArtifact(
+                meeting_id=transcription.meeting_id,
+                transcription_id=transcription.id,
+                summary_id=summary_id,
+                content_markdown=result.content_markdown,
+                metadata={
+                    "analysis_language": document.analysis_language,
+                    "document_metadata": document.metadata,
+                },
+            )
+            after_context = HookContext(
+                hook="analysis.after",
+                pipeline_id=pipeline_id,
+                job_uuid=job.uuid,
+                meeting_id=transcription.meeting_id,
+                transcription_id=transcription.id,
+                stage="analysis_post_filters",
+            )
+            filtered_artifact = await self.plugins.hooks.apply_filters(
+                "analysis.after",
+                artifact,
+                after_context,
+            )
+            artifact = AnalysisArtifact.model_validate(filtered_artifact)
             completed = self.summaries.complete(
                 summary_id,
-                result.content_markdown,
+                artifact.content_markdown,
                 {
                     "prompt_tokens": result.prompt_tokens,
                     "completion_tokens": result.completion_tokens,
+                    "pipeline_id": pipeline_id,
+                    "derived_artifact": artifact.metadata,
                 },
             )
             if not completed:

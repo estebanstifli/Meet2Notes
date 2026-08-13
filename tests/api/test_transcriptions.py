@@ -233,7 +233,8 @@ def test_transcription_pipeline_editor_and_versions(tmp_path: Path) -> None:
         assert "Import media" not in workspace.text
         assert 'href="/?new=1"' in workspace.text
         assert "New meeting" in workspace.text
-        assert "Action items" in workspace.text
+        assert 'href="/prompt"' in workspace.text
+        assert "Prompt" in workspace.text
         assert 'href="/settings"' in workspace.text
         assert "minimal-settings-link" not in workspace.text
         assert 'id="postprocess-dialog"' in workspace.text

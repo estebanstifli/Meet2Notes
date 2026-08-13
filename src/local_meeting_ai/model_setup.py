@@ -13,6 +13,7 @@ from local_meeting_ai.adapters.diarization.pyannote_community import (
 from local_meeting_ai.adapters.diarization.sherpa_onnx import (
     SherpaOnnxDiarizationEngine,
 )
+from local_meeting_ai.adapters.embeddings import FastEmbedBgeM3Provider
 from local_meeting_ai.adapters.summary.llama_cpp import LlamaCppSummaryEngine
 from local_meeting_ai.adapters.transcription.faster_whisper import FasterWhisperEngine
 from local_meeting_ai.adapters.transcription.nvidia_asr import (
@@ -24,6 +25,7 @@ from local_meeting_ai.application.ai_services import (
     DIARIZATION_DEFAULTS,
     SUMMARY_DEFAULTS,
 )
+from local_meeting_ai.application.rag import RAG_DEFAULTS
 from local_meeting_ai.application.transcription_config import FASTER_WHISPER_MODELS
 from local_meeting_ai.config import AppSettings
 from local_meeting_ai.domain.entities import ModelProfile
@@ -39,6 +41,7 @@ MODEL_CHOICES = (
     "diarize",
     "pyannote-community-1",
     "summary",
+    "embeddings",
     "vibevoice-bitnet",
     "nvidia-parakeet",
     "nvidia-nemotron",
@@ -86,7 +89,12 @@ async def install_models(
     data_dir: Path | None,
     models_dir: Path | None,
 ) -> None:
-    requested = {"whisper", "diarization", "summary"} if "all" in selections else selections
+    install_defaults = "all" in selections
+    requested = (
+        {"whisper", "diarization", "summary", "embeddings"}
+        if install_defaults
+        else selections
+    )
     settings = AppSettings(data_dir=data_dir, models_dir=models_dir)
     paths = AppPaths.from_settings(settings)
     paths.ensure()
@@ -98,12 +106,12 @@ async def install_models(
     print(f"Meet2Notes model directory: {paths.models}")
 
     if "whisper" in requested:
-        print(f"[1/3] Downloading and verifying Faster Whisper '{whisper_model}'...")
+        print(f"[1/4] Downloading and verifying Faster Whisper '{whisper_model}'...")
         await _install_whisper(paths, whisper_model)
         print("      Faster Whisper is ready.")
 
     if "diarization" in requested:
-        print("[2/3] Downloading and verifying sherpa-onnx diarization models...")
+        print("[2/4] Downloading and verifying sherpa-onnx diarization models...")
         await _install_diarization(paths)
         print("      Speaker diarization is ready.")
 
@@ -118,9 +126,14 @@ async def install_models(
         print("      Pyannote Community-1 is ready.")
 
     if "summary" in requested:
-        print("[3/3] Downloading and verifying LFM2.5 1.2B Q4_K_M...")
+        print("[3/4] Downloading and verifying LFM2.5 1.2B Q4_K_M...")
         await _install_summary(paths)
         print("      Local meeting summaries are ready.")
+
+    if "embeddings" in requested:
+        print("[4/4] Downloading and verifying BGE-M3 through FastEmbed...")
+        await _install_embeddings(paths)
+        print("      BGE-M3 embeddings are ready for CPU inference.")
 
     if "vibevoice-bitnet" in requested:
         print("Downloading Microsoft VibeVoice ASR BitNet (1.58 GB)...")
@@ -207,6 +220,19 @@ async def _install_vibevoice_bitnet(paths: AppPaths) -> None:
         await engine.prepare(profile, allow_model_download=True)
     finally:
         engine.shutdown()
+
+
+async def _install_embeddings(paths: AppPaths) -> None:
+    provider = FastEmbedBgeM3Provider(paths.models)
+    config: dict[str, Any] = {
+        **RAG_DEFAULTS,
+        "keep_model_loaded": False,
+    }
+    try:
+        await provider.prepare(config, allow_model_download=True)
+        await provider.unload("bge-m3")
+    finally:
+        provider.shutdown()
 
 
 async def _install_diarize(paths: AppPaths) -> None:

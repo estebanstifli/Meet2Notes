@@ -440,6 +440,13 @@ def test_live_capture_pause_stop_and_transcribe(tmp_path: Path) -> None:
         else:
             raise AssertionError("Post-processing did not reach the summary stage")
         assert summary_job["status"] == "completed"
+        plugin_runs = client.get("/api/plugins/executions").json()
+        assert any(
+            run["plugin_id"] == "meet2notes.analysis-cleanup"
+            and run["hook"] == "analysis.before"
+            and run["status"] == "completed"
+            for run in plugin_runs
+        )
         assert any(job["job_type"] == "diarize" for job in workflow_jobs)
         detail = client.get(
             f"/api/transcriptions/{payload['transcription']['id']}"

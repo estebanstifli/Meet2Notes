@@ -17,7 +17,9 @@
       <button type="button" role="tab" aria-selected="false" aria-controls="transcription-engine" data-settings-tab="transcription-engine"><svg viewBox="0 0 24 24"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1"/></svg>Transcription</button>
       <button type="button" role="tab" aria-selected="false" aria-controls="speaker-engine" data-settings-tab="speaker-engine"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>Speakers</button>
       <button type="button" role="tab" aria-selected="false" aria-controls="ai-engine" data-settings-tab="ai-engine"><svg viewBox="0 0 24 24"><path d="m12 3 2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6Z"/></svg>AI engine</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="rag" data-settings-tab="rag"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg>RAG</button>
       <button type="button" role="tab" aria-selected="false" aria-controls="note-formats" data-settings-tab="note-formats"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg>Note formats</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="plugins" data-settings-tab="plugins"><svg viewBox="0 0 24 24"><path d="M8 3v4M16 3v4M5 7h14v5a7 7 0 0 1-14 0V7ZM9 21v-4M15 21v-4"/></svg>Plugins</button>
     </nav>
     <div class="settings-content">
       <section class="settings-section active" id="general" role="tabpanel" data-settings-panel>
@@ -276,6 +278,27 @@
           </div>
           </details>
         </form>
+      </section>
+      <section class="settings-section engine-settings-section" id="plugins" role="tabpanel" data-settings-panel hidden>
+        <div class="settings-section-header note-format-header">
+          <span class="settings-icon engine-blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v4M16 3v4M5 7h14v5a7 7 0 0 1-14 0V7ZM9 21v-4M15 21v-4"/></svg></span>
+          <div><h2>Plugins</h2><p>Extend final processing without changing recording or Live transcription.</p></div>
+          <button class="button" id="plugins-rescan" type="button">Rescan installed plugins</button>
+        </div>
+        <div class="engine-compatibility-note note-format-intro">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+          <span>Plugins run after final transcription. Filters receive a temporary meeting document, so translations and cleanup can change the AI input without overwriting the saved transcript. Only enable packages you trust.</span>
+        </div>
+        <section class="engine-catalog" aria-label="Installed Meet2Notes plugins">
+          <div class="model-table-wrap"><table class="model-table plugin-table"><thead><tr><th>Plugin</th><th>Hooks</th><th>Permissions</th><th>Status</th><th>Actions</th></tr></thead><tbody id="plugin-list"><tr><td><strong>Loading plugins...</strong></td><td></td><td></td><td></td><td></td></tr></tbody></table></div>
+        </section>
+        <section class="general-card plugin-api-card">
+          <div class="general-card-heading">
+            <span class="settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 9 4 12l4 3M16 9l4 3-4 3M14 5l-4 14"/></svg></span>
+            <div><strong>Community extension API</strong><small id="plugin-api-summary">Loading extension API...</small></div>
+          </div>
+          <p class="modal-note">Python packages register through the <code>meet2notes.plugins</code> entry-point group. Execution history records status, duration and content hashes, never transcript text.</p>
+        </section>
       </section>
 
       <section class="settings-section research-settings-section" id="speaker-engine" role="tabpanel" data-settings-panel hidden>
@@ -561,6 +584,81 @@
           </div>
         </form>
       </section>
+      <section class="settings-section engine-settings-section" id="rag" role="tabpanel" data-settings-panel hidden>
+        <div class="settings-section-header">
+          <div><span class="eyebrow">Historical retrieval</span><h2>RAG over your meeting history</h2><p>Build a private semantic index and retrieve grounded excerpts before asking the connected AI.</p></div>
+        </div>
+        <form id="rag-form" class="engine-form">
+          <input id="rag-profile-id" type="hidden" value="bge-m3">
+          <div class="engine-compatibility-note">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+            <span><strong>Recommended default:</strong> BGE-M3 runs directly in Meet2Notes with FastEmbed and ONNX Runtime. It does not require Ollama or PyTorch and provides multilingual 1024-dimensional embeddings with an 8K context.</span>
+          </div>
+          <section class="engine-catalog" aria-label="Embedding models">
+            <div class="model-table-wrap"><table class="model-table"><thead><tr><th aria-label="Selected"></th><th>Embedding model</th><th>Installation</th><th>Actions</th></tr></thead><tbody id="rag-model-list"><tr><td></td><td><strong>Loading embedding models...</strong></td><td></td><td></td></tr></tbody></table></div>
+          </section>
+          <div class="engine-config-group">
+            <div class="engine-config-heading"><div><strong>Basic options</strong><small id="rag-basic-description">Settings for the selected embedding profile and retrieval.</small></div><span id="rag-index-summary">Index not checked</span></div>
+            <div class="engine-toggle-stack">
+              <label class="engine-toggle"><span><strong>Enable historical RAG</strong><small>Allows indexing and semantic retrieval from completed active transcripts.</small></span><span class="switch"><input id="rag-enabled" type="checkbox"><i></i></span></label>
+            </div>
+            <div class="engine-field-grid" id="rag-bge-basic">
+              <label class="engine-field"><span>Runtime</span><input value="FastEmbed · ONNX Runtime · CPU" disabled><small>No external service or PyTorch installation is required.</small></label>
+              <label class="engine-field"><span>Model</span><input value="BAAI/bge-m3 · 1024 dimensions · 8K context" disabled></label>
+            </div>
+            <div class="engine-field-grid" id="rag-custom-gguf-basic" hidden>
+              <label class="engine-field wide"><span>Embedding GGUF file</span><div class="path-field"><input id="rag-custom-gguf-path" maxlength="2048" readonly placeholder="Choose an existing .gguf file"><button class="button" id="rag-custom-gguf-browse" type="button">Browse...</button></div><small>The file remains in its current location and is loaded with llama.cpp.</small></label>
+            </div>
+            <div class="engine-field-grid" id="rag-litellm-basic" hidden>
+              <label class="engine-field"><span>LiteLLM embedding model</span><input id="rag-litellm-model" maxlength="200" placeholder="openai/text-embedding-3-small"></label>
+              <label class="engine-field"><span>API base URL</span><input id="rag-litellm-base-url" maxlength="500" placeholder="Optional for hosted providers"></label>
+              <label class="engine-field"><span>API key environment variable</span><input id="rag-key-env" maxlength="120" placeholder="OPENAI_API_KEY"><small>The secure LiteLLM key configured in AI Engine is shared here.</small></label>
+              <label class="engine-field wide"><span>API key <small>optional</small></span><input id="rag-api-key" type="password" autocomplete="new-password" placeholder="Leave blank to keep the saved key"><small id="rag-api-key-status">Checking secure credential storage...</small></label>
+              <div class="engine-field"><span>&nbsp;</span><button class="button" id="rag-api-key-clear" type="button">Remove saved API key</button></div>
+            </div>
+            <div class="engine-field-grid">
+              <label class="engine-field"><span>Vector store</span><select id="rag-vector-store"><option value="sqlite">SQLite · private workspace</option></select><small>Plugins can register additional destinations.</small></label>
+              <label class="engine-field"><span>Results (top K)</span><input id="rag-top-k" type="number" min="1" max="50"></label>
+              <label class="engine-field"><span>Minimum ranking score</span><input id="rag-min-score" type="number" min="0" max="1" step="0.01"></label>
+            </div>
+            <div class="engine-toggle-grid" id="rag-local-runtime-options">
+              <label class="engine-toggle"><span><strong>Keep model in memory</strong><small>Faster repeated searches at the cost of RAM/VRAM.</small></span><span class="switch"><input id="rag-keep-loaded" type="checkbox"><i></i></span></label>
+              <label class="engine-toggle"><span><strong>Load at startup</strong><small>Only loads an already-installed or configured model; it never downloads automatically.</small></span><span class="switch"><input id="rag-preload-on-start" type="checkbox"><i></i></span></label>
+            </div>
+          </div>
+          <details class="advanced-settings">
+            <summary><span>Advanced RAG options</span><small>Chunking, hybrid ranking, context and runtime limits</small></summary>
+            <div class="engine-field-grid advanced-grid">
+              <label class="engine-field"><span>Chunk size · characters</span><input id="rag-chunk-size" type="number" min="300" max="12000"></label>
+              <label class="engine-field"><span>Chunk overlap · characters</span><input id="rag-chunk-overlap" type="number" min="0" max="4000"></label>
+              <label class="engine-field"><span>Embedding batch size</span><input id="rag-batch-size" type="number" min="1" max="128"></label>
+              <label class="engine-field"><span>Candidate pool</span><input id="rag-candidate-k" type="number" min="1" max="500"></label>
+              <label class="engine-field"><span>Semantic weight</span><input id="rag-semantic-weight" type="number" min="0" max="1" step="0.05"></label>
+              <label class="engine-field"><span>Keyword weight</span><input id="rag-keyword-weight" type="number" min="0" max="1" step="0.05"></label>
+              <label class="engine-field"><span>Maximum context · characters</span><input id="rag-max-context" type="number" min="1000" max="100000"></label>
+              <label class="engine-field"><span>Request timeout · seconds</span><input id="rag-timeout" type="number" min="5" max="600"></label>
+              <label class="engine-field"><span>Vector acceleration</span><select id="rag-acceleration"><option value="auto">Auto · recommended</option><option value="sqlite-vec">Require sqlite-vec</option><option value="python">Portable Python cosine</option></select></label>
+              <label class="engine-field" data-rag-gguf-advanced hidden><span>Context length</span><input id="rag-context-length" type="number" min="256" max="131072"></label>
+              <label class="engine-field" data-rag-gguf-advanced hidden><span>llama.cpp batch size</span><input id="rag-runtime-batch-size" type="number" min="32" max="4096"></label>
+              <label class="engine-field" id="rag-threads-field"><span>Embedding CPU threads · 0 auto</span><input id="rag-threads" type="number" min="0" max="128"></label>
+              <label class="engine-field" data-rag-gguf-advanced hidden><span>GPU layers · 0 CPU</span><input id="rag-gpu-layers" type="number" min="-1" max="1000"></label>
+              <label class="engine-field" data-rag-gguf-advanced hidden><span>Main GPU</span><input id="rag-main-gpu" type="number" min="0" max="32"></label>
+            </div>
+            <div class="engine-toggle-grid" id="rag-gguf-runtime-options" hidden>
+              <label class="engine-toggle"><span><strong>Memory map GGUF</strong><small>Recommended for faster loading and lower private RAM use.</small></span><span class="switch"><input id="rag-use-mmap" type="checkbox"><i></i></span></label>
+              <label class="engine-toggle"><span><strong>Lock GGUF in RAM</strong><small>Use only when enough memory is available.</small></span><span class="switch"><input id="rag-use-mlock" type="checkbox"><i></i></span></label>
+            </div>
+          </details>
+          <div class="engine-settings-actions multi-action"><span>Changing the model or vector store rebuilds embeddings on the next index/search.</span><button class="button" id="rag-unload" type="button">Unload</button><button class="button primary" type="submit">Save RAG settings</button></div>
+        </form>
+
+        <section class="general-card rag-test-card">
+          <div class="general-card-heading"><span class="settings-icon dark"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span><div><strong>Semantic search &amp; ranking test</strong><small>Embeds this question and shows cosine, keyword and final hybrid scores.</small></div><button class="button secondary" id="rag-reindex" type="button">Rebuild index</button></div>
+          <form id="rag-test-form" class="rag-test-form"><input id="rag-test-query" maxlength="4000" placeholder="In which meeting was topic X discussed?" required><button class="button primary" type="submit">Run search test</button></form>
+          <div id="rag-test-results" class="rag-test-results"><span class="settings-empty-copy">No search test has been run yet.</span></div>
+        </section>
+      </section>
+
       <section class="settings-section engine-settings-section" id="note-formats" role="tabpanel" data-settings-panel hidden>
         <div class="settings-section-header note-format-header">
           <span class="settings-icon engine-blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg></span>

@@ -200,3 +200,30 @@ class SummaryEngine(Protocol):
     def unload(self) -> None: ...
 
     def shutdown(self) -> None: ...
+
+
+class EmbeddingProvider(Protocol):
+    """Pluggable text-embedding boundary used by the historical RAG index."""
+
+    name: str
+
+    def capability(self, config: dict[str, Any]) -> dict[str, Any]: ...
+
+    async def embed(
+        self,
+        texts: list[str],
+        config: dict[str, Any],
+    ) -> list[list[float]]: ...
+
+    async def prepare(
+        self,
+        config: dict[str, Any],
+        *,
+        allow_model_download: bool,
+    ) -> None: ...
+
+    async def uninstall(self, profile_id: str, config: dict[str, Any]) -> None: ...
+
+    async def unload(self, profile_id: str | None = None) -> None: ...
+
+    def shutdown(self) -> None: ...

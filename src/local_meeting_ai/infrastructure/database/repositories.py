@@ -1544,3 +1544,94 @@ class SummaryRepository:
                 """,
                 (utc_now(), summary_id),
             )
+
+
+class PluginExecutionRepository:
+    """Privacy-preserving provenance for extension hook executions."""
+
+    def __init__(self, database: Database) -> None:
+        self.database = database
+
+    def start(
+        self,
+        *,
+        plugin_id: str,
+        plugin_version: str,
+        hook: str,
+        kind: str,
+        context: Any,
+        input_digest: str,
+    ) -> int:
+        with self.database.transaction() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO plugin_executions(
+                    plugin_id, plugin_version, hook, kind, pipeline_id, job_uuid,
+                    meeting_id, transcription_id, status, input_digest, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?)
+                """,
+                (
+                    plugin_id,
+                    plugin_version,
+                    hook,
+                    kind,
+                    getattr(context, "pipeline_id", None),
+                    getattr(context, "job_uuid", None),
+                    getattr(context, "meeting_id", None),
+                    getattr(context, "transcription_id", None),
+                    input_digest,
+                    utc_now(),
+                ),
+            )
+            assert cursor.lastrowid is not None
+            return int(cursor.lastrowid)
+
+    def finish(
+        self,
+        execution_id: int,
+        *,
+        status: str,
+        duration_ms: int,
+        output_digest: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        with self.database.transaction() as connection:
+            connection.execute(
+                """
+                UPDATE plugin_executions
+                SET status = ?, duration_ms = ?, output_digest = ?, message = ?,
+                    completed_at = ?
+                WHERE id = ?
+                """,
+                (
+                    status,
+                    duration_ms,
+                    output_digest,
+                    message,
+                    utc_now(),
+                    execution_id,
+                ),
+            )
+
+    def recent(self, limit: int = 100) -> list[dict[str, Any]]:
+        clean_limit = max(1, min(limit, 500))
+        with self.database.read() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, plugin_id, plugin_version, hook, kind, pipeline_id,
+                       job_uuid, meeting_id, transcription_id, status, duration_ms,
+                       input_digest, output_digest, message, created_at, completed_at
+                FROM plugin_executions
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (clean_limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def last_by_plugin(self) -> dict[str, dict[str, Any]]:
+        latest: dict[str, dict[str, Any]] = {}
+        for execution in self.recent(500):
+            plugin_id = str(execution["plugin_id"])
+            latest.setdefault(plugin_id, execution)
+        return latest

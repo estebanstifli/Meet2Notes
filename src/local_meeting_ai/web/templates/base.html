@@ -37,11 +37,10 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M14 19.5a4 4 0 0 1 6.5-3.1"/></svg>
           <span>Speakers</span>
         </a>
-        <button class="nav-button" data-coming-soon="Action items" aria-label="Action items, coming soon">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>
-          <span data-i18n="nav.action_items">Action items</span>
-          <span class="nav-soon" data-i18n="common.soon">Soon</span>
-        </button>
+        <a href="/prompt" target="_blank" rel="noopener" class="{{ 'active' if page == 'prompt' else '' }}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z"/><path d="M18 16v5M15.5 18.5h5"/></svg>
+          <span>Prompt</span>
+        </a>
       </nav>
 
       <div class="sidebar-bottom">

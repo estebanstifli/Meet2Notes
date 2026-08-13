@@ -30,6 +30,7 @@ from local_meeting_ai.domain.protocols import (
     AudioNormalizer,
     AudioRangeExporter,
     DiarizationEngine,
+    EmbeddingProvider,
     SummaryEngine,
     TranscriptionEngine,
 )
@@ -45,6 +46,7 @@ def create_app(
     audio_capture_backend: AudioCaptureBackend | None = None,
     diarization_engine: DiarizationEngine | None = None,
     summary_engine: SummaryEngine | None = None,
+    embedding_provider: EmbeddingProvider | None = None,
     audio_range_exporter: AudioRangeExporter | None = None,
 ) -> FastAPI:
     resolved_settings = settings or AppSettings()
@@ -55,6 +57,7 @@ def create_app(
         audio_capture_backend=audio_capture_backend,
         diarization_engine=diarization_engine,
         summary_engine=summary_engine,
+        embedding_provider=embedding_provider,
         audio_range_exporter=audio_range_exporter,
     )
 
@@ -74,6 +77,7 @@ def create_app(
                 ),
                 ("selected diarization engine", container.diarization_service.preload_default),
                 ("LFM2.5", container.summary_service.preload_default),
+                ("selected embedding model", container.rag_service.preload_default),
             ):
                 logger.info("Checking %s preload configuration", engine_name)
                 try:
@@ -104,6 +108,9 @@ def create_app(
             container.transcription_engine.shutdown()
             container.diarization_service.shutdown()
             container.summary_engine.shutdown()
+            embedding_shutdown = getattr(container.embedding_provider, "shutdown", None)
+            if callable(embedding_shutdown):
+                embedding_shutdown()
             logger.info("Meet2Notes stopped cleanly")
 
     app = FastAPI(
@@ -254,6 +261,19 @@ def _register_web_routes(
             request=request,
             name="settings.html",
             context={"version": __version__, "page": "settings"},
+        )
+
+    @app.get("/prompt", include_in_schema=False)
+    async def prompt_page(request: Request) -> object:
+        return templates.TemplateResponse(
+            request=request,
+            name="prompt.html",
+            context={
+                "version": __version__,
+                "page": "prompt",
+                "meetings": container.meeting_service.list(limit=500),
+                "selected_meeting_id": request.query_params.get("meeting"),
+            },
         )
 
     @app.get("/speakers", include_in_schema=False)

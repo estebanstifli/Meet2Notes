@@ -1,0 +1,16 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "meet2notes-analysis-glossary-example"
+version = "1.0.0"
+description = "Example Meet2Notes analysis filter plugin."
+requires-python = ">=3.11"
+dependencies = ["meet2notes>=0.5"]
+
+[project.entry-points."meet2notes.plugins"]
+analysis_glossary = "meet2notes_analysis_glossary.plugin:create_plugin"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/meet2notes_analysis_glossary"]

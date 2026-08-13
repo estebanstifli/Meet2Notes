@@ -267,7 +267,19 @@ class LlamaCppSummaryEngine:
             response_language = str(config.get("response_language") or "").lower()
             speaker_scope = config.get("summary_scope") == "speaker"
             speaker_name = str(config.get("speaker_name") or "the speaker")
-            if speaker_scope and response_language == "es":
+            prompt_mode = bool(config.get("prompt_mode"))
+            if prompt_mode:
+                question = str(config.get("prompt_question") or "").strip()
+                history = str(config.get("prompt_history") or "").strip()
+                task_prompt = (
+                    "Answer the user's question in the same language as the question. "
+                    "Use only the supplied meeting context for claims about meetings. "
+                    "If the context does not contain the answer, say so clearly. "
+                    "When R1/R2 source labels exist, cite them inline exactly as [R1]."
+                    + (f"\n\nRECENT CONVERSATION:\n{history}" if history else "")
+                    + f"\n\nQUESTION:\n{question}"
+                )
+            elif speaker_scope and response_language == "es":
                 task_prompt = (
                     f"Responde exclusivamente en español. Resume únicamente lo que "
                     f"ha dicho {speaker_name}: sus ideas, argumentos, datos, opiniones, "
@@ -315,7 +327,9 @@ class LlamaCppSummaryEngine:
                 {
                     "role": "user",
                     "content": (
-                        task_prompt + "\n\nTRANSCRIPT:\n" + transcript
+                        task_prompt
+                        + ("\n\nMEETING CONTEXT:\n" if prompt_mode else "\n\nTRANSCRIPT:\n")
+                        + transcript
                     ),
                 },
             ]

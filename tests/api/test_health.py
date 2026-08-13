@@ -8,7 +8,7 @@ def test_health_and_capabilities_are_explicit(client: TestClient) -> None:
     assert health.status_code == 200
     assert health.json() == {
         "status": "ok",
-        "version": "0.4.0",
+        "version": "0.5.0",
         "database": "ok",
         "queue": "running",
     }
@@ -75,7 +75,7 @@ def test_web_pages_and_security_headers(client: TestClient) -> None:
     assert 'id="shutdown-dialog"' in response.text
     assert 'id="postprocess-log"' in response.text
     assert "start-transcription-button hidden" in response.text
-    assert "?v=0.4.0-" in response.text
+    assert "?v=0.5.0-" in response.text
     assert "Find and replace" not in response.text
     assert response.headers["x-frame-options"] == "DENY"
     assert "default-src 'self'" in response.headers["content-security-policy"]

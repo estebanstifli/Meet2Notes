@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 - 2026-08-13
+
+- Replaced implicit final post-processing callbacks with an observable pipeline
+  for final ASR, diarization, saved-voice matching, filters, and AI analysis.
+- Added Plugin API v1 with typed artifacts, actions, filters, deterministic
+  priorities, timeouts, failure policies, and Python entry-point discovery.
+- Added local plugin management in Settings and a privacy-preserving execution
+  ledger containing timings, statuses, and content digests.
+- Added a built-in analysis-cleanup filter, a community plugin example, and
+  contribution and roadmap documentation.
+- Kept the existing Live transcription path and settings unchanged.
+
 ## 0.4.0 - 2026-07-26
 
 - Renamed the application and all public entry points to Meet2Notes.

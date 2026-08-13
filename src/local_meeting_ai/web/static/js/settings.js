@@ -39,7 +39,10 @@
   let diarizationPreferences = null;
   let summaryPreferences = null;
   let summaryModels = [];
+  let ragPreferences = null;
+  let embeddingModels = [];
   let noteFormats = [];
+  let pluginCatalog = [];
   let activeTranscriptionPurpose = "live";
   let installActivityCursor = 0;
   let installActivityTimer = null;
@@ -694,6 +697,19 @@
         ? "A key is stored securely by the operating system. Leave this blank to keep it."
         : "No key is stored. This is normal for local providers without authentication.";
     if (clear) clear.disabled = !status?.configured;
+    renderRagCredentialStatus(status);
+  }
+
+  function renderRagCredentialStatus(status) {
+    const label = $("#rag-api-key-status");
+    const clear = $("#rag-api-key-clear");
+    if (!label) return;
+    label.textContent = !status?.available
+      ? "Secure OS credential storage is unavailable."
+      : status.configured
+        ? "A shared LiteLLM key is stored securely by the operating system."
+        : "No shared key is stored; this is normal for unauthenticated local providers.";
+    if (clear) clear.disabled = !status?.configured;
   }
 
   function renderNoteFormats(formats = noteFormats) {
@@ -966,15 +982,238 @@
         : '<span class="neutral-pill">Optional install</span>';
   }
 
+  function renderPlugins(catalog) {
+    pluginCatalog = catalog.plugins || [];
+    const apiSummary = $("#plugin-api-summary");
+    if (apiSummary) {
+      apiSummary.textContent = `Plugin API ${catalog.plugin_api} · Meet2Notes ${catalog.meet2notes} · ${catalog.entry_point_group}`;
+    }
+    const body = $("#plugin-list");
+    if (!body) return;
+    if (!pluginCatalog.length) {
+      body.innerHTML = '<tr><td colspan="5"><span class="neutral-pill">No plugins discovered</span></td></tr>';
+      return;
+    }
+    body.innerHTML = pluginCatalog.map((plugin) => {
+      const hooks = (plugin.hooks || []).map((hook) =>
+        `<span class="neutral-pill">${escapeHTML(hook.kind)} · ${escapeHTML(hook.name)}</span>`
+      ).join(" ") || '<span class="muted-copy">Registered when enabled</span>';
+      const permissions = (plugin.permissions || []).map((permission) =>
+        `<span class="neutral-pill">${escapeHTML(permission)}</span>`
+      ).join(" ") || '<span class="muted-copy">None declared</span>';
+      const failure = plugin.error
+        ? `<small class="plugin-error">${escapeHTML(plugin.error)}</small>`
+        : "";
+      const statusClass = plugin.error
+        ? "status-failed"
+        : plugin.enabled ? "status-ready" : "status-idle";
+      const statusText = plugin.error
+        ? "Error"
+        : plugin.enabled ? "Enabled" : "Disabled";
+      const last = plugin.last_execution
+        ? `<small>Last run: ${escapeHTML(plugin.last_execution.status)} · ${plugin.last_execution.duration_ms ?? 0} ms</small>`
+        : "";
+      return `<tr>
+        <td><strong>${escapeHTML(plugin.name)}</strong><small>${escapeHTML(plugin.description)}</small><small>${escapeHTML(plugin.author)} · v${escapeHTML(plugin.version)} · ${escapeHTML(plugin.source)}</small></td>
+        <td><div class="plugin-tags">${hooks}</div></td>
+        <td><div class="plugin-tags">${permissions}</div></td>
+        <td><span class="status-badge ${statusClass}">${statusText}</span>${failure}${last}</td>
+        <td><button class="button ${plugin.enabled ? "danger" : "primary"}" type="button" data-plugin-toggle="${escapeHTML(plugin.id)}" data-plugin-enabled="${plugin.enabled}" ${!plugin.enabled && (!plugin.compatible || plugin.error) ? "disabled" : ""}>${plugin.enabled ? "Disable" : "Enable"}</button></td>
+      </tr>`;
+    }).join("");
+  }
+
+  function updateRagFields() {
+    const profileId = $("#rag-profile-id").value || "bge-m3";
+    const customGguf = profileId === "custom-gguf";
+    const remote = profileId === "litellm-custom";
+    $("#rag-bge-basic").hidden = profileId !== "bge-m3";
+    $("#rag-custom-gguf-basic").hidden = !customGguf;
+    $("#rag-litellm-basic").hidden = !remote;
+    $("#rag-local-runtime-options").hidden = remote;
+    $("#rag-threads-field").hidden = remote;
+    $("#rag-gguf-runtime-options").hidden = !customGguf;
+    document.querySelectorAll("[data-rag-gguf-advanced]").forEach((field) => {
+      field.hidden = !customGguf;
+    });
+    const descriptions = {
+      "bge-m3": "Direct FastEmbed/ONNX runtime, vector destination and retrieval controls.",
+      "custom-gguf": "Choose a local embedding GGUF and configure its llama.cpp runtime.",
+      "litellm-custom": "Connect any local or remote embedding endpoint supported by LiteLLM.",
+    };
+    $("#rag-basic-description").textContent = descriptions[profileId];
+    const enabled = $("#rag-enabled").checked;
+    $("#rag-reindex").disabled = !enabled;
+    $("#rag-test-form button[type='submit']").disabled = !enabled;
+    updateRagVectorStoreFields();
+  }
+
+  function updateRagVectorStoreFields() {
+    const sqlite = $("#rag-vector-store").value === "sqlite";
+    $("#rag-acceleration").disabled = !sqlite;
+    if (!sqlite) $("#rag-acceleration").value = "auto";
+  }
+
+  function renderEmbeddingCatalog(models = embeddingModels, preferences = ragPreferences) {
+    embeddingModels = models;
+    const body = $("#rag-model-list");
+    if (!body) return;
+    const selected = preferences?.rag?.profile_id || "bge-m3";
+    body.replaceChildren();
+    models.forEach((profile) => {
+      const active = profile.id === selected;
+      const managed = profile.managed !== false;
+      const canSelect = Boolean(
+        profile.runtime_available
+        && (profile.installed || !managed || profile.external_file || profile.id === "bge-m3"),
+      );
+      const installState = profile.external_file
+        ? (profile.installed ? "File ready" : "Choose a file")
+        : managed
+          ? (profile.installed ? "Installed" : "Not installed")
+          : "Not required";
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td class="model-selected${active ? " active" : ""}" aria-label="${active ? "Selected" : "Not selected"}">${active ? "✓" : ""}</td>
+        <td><strong>${escapeHTML(profile.display_name)}</strong><small>${escapeHTML(profile.description || "")}</small>${profile.recommended ? '<span class="model-requirement">Recommended · CPU compatible</span>' : ""}</td>
+        <td><span class="model-install-state ${profile.installed ? "installed" : ""}">${installState}</span><small>${escapeHTML(profile.download_size || "")}</small>${profile.runtime_available ? "" : '<span class="model-runtime-state">Runtime unavailable</span>'}</td>
+        <td class="table-actions">
+          ${managed && !profile.installed ? `<button class="table-action" type="button" data-embedding-action="install" data-profile-id="${escapeHTML(profile.id)}">Install</button>` : ""}
+          ${active ? '<span class="model-active-label">Active</span>' : (canSelect ? `<button class="table-action" type="button" data-embedding-action="select" data-profile-id="${escapeHTML(profile.id)}">Select</button>` : "")}
+          ${(managed || profile.external_file) && profile.installed && profile.runtime_available ? `<button class="table-action" type="button" data-embedding-action="load" data-profile-id="${escapeHTML(profile.id)}">Load</button>` : ""}
+          ${profile.resident ? `<button class="table-action" type="button" data-embedding-action="unload" data-profile-id="${escapeHTML(profile.id)}">Unload</button>` : ""}
+          ${managed && profile.installed ? `<button class="table-action danger" type="button" data-embedding-action="uninstall" data-profile-id="${escapeHTML(profile.id)}">Uninstall</button>` : ""}
+        </td>`;
+      body.append(row);
+    });
+  }
+
+  function populateRagSettings(preferences) {
+    ragPreferences = preferences;
+    const rag = preferences.rag || {};
+    $("#rag-enabled").checked = rag.enabled !== false;
+    $("#rag-profile-id").value = rag.profile_id || "bge-m3";
+    $("#rag-custom-gguf-path").value = rag.model_path || "";
+    $("#rag-litellm-model").value = rag.profile_id === "litellm-custom"
+      ? (rag.embedding_model || "")
+      : "openai/text-embedding-3-small";
+    $("#rag-litellm-base-url").value = rag.profile_id === "litellm-custom"
+      ? (rag.base_url || "")
+      : "";
+    $("#rag-key-env").value = rag.api_key_env || "OPENAI_API_KEY";
+    $("#rag-vector-store").value = rag.vector_store || "sqlite";
+    $("#rag-acceleration").value = rag.vector_acceleration || "auto";
+    $("#rag-chunk-size").value = rag.chunk_size_chars ?? 1800;
+    $("#rag-chunk-overlap").value = rag.chunk_overlap_chars ?? 300;
+    $("#rag-batch-size").value = rag.embedding_batch_size ?? 16;
+    $("#rag-top-k").value = rag.top_k ?? 8;
+    $("#rag-candidate-k").value = rag.candidate_k ?? 40;
+    $("#rag-min-score").value = rag.min_score ?? 0.18;
+    $("#rag-semantic-weight").value = rag.semantic_weight ?? 0.8;
+    $("#rag-keyword-weight").value = rag.keyword_weight ?? 0.2;
+    $("#rag-max-context").value = rag.max_context_chars ?? 14000;
+    $("#rag-timeout").value = rag.request_timeout ?? 120;
+    $("#rag-context-length").value = rag.context_length ?? 8192;
+    $("#rag-runtime-batch-size").value = rag.runtime_batch_size ?? 512;
+    $("#rag-threads").value = rag.threads ?? 0;
+    $("#rag-gpu-layers").value = rag.gpu_layers ?? 0;
+    $("#rag-main-gpu").value = rag.main_gpu ?? 0;
+    $("#rag-use-mmap").checked = rag.use_mmap ?? true;
+    $("#rag-use-mlock").checked = rag.use_mlock ?? false;
+    $("#rag-keep-loaded").checked = rag.keep_model_loaded ?? true;
+    $("#rag-preload-on-start").checked = rag.preload_on_start ?? false;
+    updateRagFields();
+  }
+
+  function renderVectorStores(stores, selected) {
+    const select = $("#rag-vector-store");
+    select.replaceChildren(...stores.map((store) => new Option(
+      `${store.display_name}${store.local ? " · local" : " · plugin"}`,
+      store.id,
+    )));
+    select.value = stores.some((store) => store.id === selected) ? selected : "sqlite";
+    updateRagVectorStoreFields();
+  }
+
+  async function refreshRagStatus() {
+    try {
+      const status = await api("/api/rag/status");
+      $("#rag-index-summary").textContent = `${status.meetings} meetings · ${status.chunks} chunks · ${status.vector_acceleration}`;
+      renderVectorStores(status.vector_stores || [], status.vector_store);
+      if (status.provider.models) renderEmbeddingCatalog(status.provider.models, ragPreferences);
+    } catch (error) {
+      $("#rag-index-summary").textContent = error.message;
+    }
+  }
+
+  function ragSettingsPayload() {
+    const profileId = $("#rag-profile-id").value || "bge-m3";
+    const provider = profileId === "bge-m3" ? "fastembed" : profileId === "custom-gguf" ? "local" : "litellm";
+    const model = profileId === "bge-m3"
+      ? "BAAI/bge-m3"
+      : profileId === "custom-gguf"
+        ? "custom-gguf"
+        : ($("#rag-litellm-model").value.trim() || "openai/text-embedding-3-small");
+    const baseUrl = profileId === "litellm-custom"
+        ? $("#rag-litellm-base-url").value.trim()
+        : "";
+    return {
+      enabled: $("#rag-enabled").checked,
+      profile_id: profileId,
+      embedding_provider: provider,
+      embedding_model: model,
+      base_url: baseUrl,
+      api_key_env: $("#rag-key-env").value.trim(),
+      model_path: $("#rag-custom-gguf-path").value.trim() || null,
+      context_length: Number($("#rag-context-length").value),
+      runtime_batch_size: Number($("#rag-runtime-batch-size").value),
+      threads: Number($("#rag-threads").value),
+      gpu_layers: Number($("#rag-gpu-layers").value),
+      main_gpu: Number($("#rag-main-gpu").value),
+      use_mmap: $("#rag-use-mmap").checked,
+      use_mlock: $("#rag-use-mlock").checked,
+      keep_model_loaded: profileId === "litellm-custom" ? false : $("#rag-keep-loaded").checked,
+      preload_on_start: profileId === "litellm-custom" ? false : $("#rag-preload-on-start").checked,
+      vector_store: $("#rag-vector-store").value,
+      vector_acceleration: $("#rag-acceleration").value,
+      chunk_size_chars: Number($("#rag-chunk-size").value),
+      chunk_overlap_chars: Number($("#rag-chunk-overlap").value),
+      embedding_batch_size: Number($("#rag-batch-size").value),
+      top_k: Number($("#rag-top-k").value),
+      candidate_k: Number($("#rag-candidate-k").value),
+      min_score: Number($("#rag-min-score").value),
+      semantic_weight: Number($("#rag-semantic-weight").value),
+      keyword_weight: Number($("#rag-keyword-weight").value),
+      max_context_chars: Number($("#rag-max-context").value),
+      request_timeout: Number($("#rag-timeout").value),
+      keep_alive: "5m",
+    };
+  }
+
+  function renderRagTestResults(data) {
+    const target = $("#rag-test-results");
+    if (!data.results.length) {
+      target.innerHTML = '<span class="settings-empty-copy">No chunk passed the configured minimum score.</span>';
+      return;
+    }
+    target.innerHTML = data.results.map((result) => `
+      <article class="rag-test-result">
+        <div><strong>#${result.rank} · ${escapeHTML(result.meeting_title)}</strong><span>Hybrid ${Number(result.score).toFixed(3)} · semantic ${Number(result.semantic_score).toFixed(3)} · keyword ${Number(result.keyword_score).toFixed(3)}</span></div>
+        <p>${escapeHTML(result.text).slice(0, 520)}${result.text.length > 520 ? "…" : ""}</p>
+      </article>`).join("");
+  }
+
   async function loadSettings() {
     try {
-      const [preferences, info, capabilities, models, credential, formats] = await Promise.all([
+      const [preferences, info, capabilities, models, credential, formats, plugins, embeddings] = await Promise.all([
         api("/api/settings"),
         api("/api/info"),
         api("/api/capabilities"),
         api("/api/models/summary"),
         api("/api/settings/summary-api-key"),
         api("/api/summary-templates"),
+        api("/api/plugins"),
+        api("/api/models/embeddings"),
       ]);
       $("#ui-language").value = preferences.ui_language;
       $("#ui-theme").value = preferences.ui_theme || "system";
@@ -987,12 +1226,17 @@
       renderSummaryCatalog(models, preferences);
       renderCredentialStatus(credential);
       renderNoteFormats(formats);
+      renderPlugins(plugins);
       populateDiarizationSettings(preferences);
+      populateRagSettings(preferences);
+      embeddingModels = embeddings;
+      renderEmbeddingCatalog(embeddings, preferences);
       renderAuxiliaryCapabilities(capabilities);
       renderSystem(info, capabilities);
       defaultModelsDirectory = info.default_models_directory || "";
       const profiles = await api("/api/models/transcription");
       renderTranscriptionCatalog(profiles, preferences);
+      refreshRagStatus();
     } catch (error) {
       toast(error.message, "error");
     }
@@ -1017,6 +1261,8 @@
   $("#fw-chunk-seconds")?.addEventListener("input", updateRealtimeControls);
   $("#fw-overlap-seconds")?.addEventListener("input", updateRealtimeControls);
   $("#ai-provider")?.addEventListener("change", updateAiFields);
+  $("#rag-enabled")?.addEventListener("change", updateRagFields);
+  $("#rag-vector-store")?.addEventListener("change", updateRagVectorStoreFields);
 
   document.querySelectorAll("[data-settings-tab]").forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -1623,6 +1869,65 @@
     }
   }
 
+  async function embeddingCatalogAction(action, profileId, button) {
+    button.disabled = true;
+    const profile = embeddingModels.find((item) => item.id === profileId);
+    try {
+      if (!profile) throw new Error("The selected embedding model is unavailable.");
+      if (action === "select") {
+        const current = ragPreferences?.rag || {};
+        const defaults = profileId === "bge-m3"
+          ? { embedding_model: "BAAI/bge-m3", base_url: "" }
+          : profileId === "custom-gguf"
+            ? { embedding_model: "custom-gguf", base_url: "" }
+            : { embedding_model: "openai/text-embedding-3-small", base_url: "" };
+        const preferences = await api("/api/settings", {
+          method: "PUT",
+          body: JSON.stringify({
+            rag: {
+              ...current,
+              ...defaults,
+              profile_id: profileId,
+              embedding_provider: profile.provider,
+            },
+          }),
+        });
+        populateRagSettings(preferences);
+        toast(`${profile.display_name} is now the selected embedding model.`);
+      } else if (action === "uninstall") {
+        if (!window.confirm(`Uninstall ${profile.display_name}? Its managed ONNX files will be removed.`)) return;
+        await api(`/api/engines/embeddings/uninstall?profile_id=${encodeURIComponent(profileId)}`, { method: "POST" });
+        toast("Embedding model uninstalled.");
+      } else if (action === "unload") {
+        await api(`/api/engines/embeddings/unload?profile_id=${encodeURIComponent(profileId)}`, { method: "POST" });
+        toast("Embedding model unloaded from memory.");
+      } else {
+        const installing = action === "install";
+        await api("/api/settings", {
+          method: "PUT",
+          body: JSON.stringify({ rag: ragSettingsPayload() }),
+        });
+        if (installing) await beginInstallModal(`Installing ${profile.display_name} · ${profile.download_size}`);
+        await api(`/api/engines/embeddings/prepare?profile_id=${encodeURIComponent(profileId)}${installing ? "&download=true" : ""}`, { method: "POST" });
+        if (installing) await finishInstallModal();
+        toast(installing ? "Embedding model installed locally." : "Embedding model loaded into memory.");
+      }
+      const [models, preferences] = await Promise.all([
+        api("/api/models/embeddings"),
+        api("/api/settings"),
+      ]);
+      embeddingModels = models;
+      populateRagSettings(preferences);
+      renderEmbeddingCatalog(models, preferences);
+      await refreshRagStatus();
+    } catch (error) {
+      if (action === "install") await finishInstallModal(error);
+      toast(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   document.querySelectorAll("[id$='-transcription-model-list']").forEach((list) => {
     list.addEventListener("click", (event) => {
       const button = event.target.closest("[data-transcription-action]");
@@ -1652,11 +1957,26 @@
     if (button) summaryCatalogAction(button.dataset.summaryAction, button.dataset.profileId, button);
   });
 
+  $("#rag-model-list")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-embedding-action]");
+    if (button) embeddingCatalogAction(button.dataset.embeddingAction, button.dataset.profileId, button);
+  });
+
   $("#ai-api-key-clear")?.addEventListener("click", async () => {
     try {
       const status = await api("/api/settings/summary-api-key", { method: "DELETE" });
       renderCredentialStatus(status);
       toast("Saved API key removed from the operating-system credential store.");
+    } catch (error) {
+      toast(error.message, "error");
+    }
+  });
+
+  $("#rag-api-key-clear")?.addEventListener("click", async () => {
+    try {
+      const status = await api("/api/settings/summary-api-key", { method: "DELETE" });
+      renderCredentialStatus(status);
+      toast("Shared LiteLLM API key removed from secure credential storage.");
     } catch (error) {
       toast(error.message, "error");
     }
@@ -1669,6 +1989,21 @@
       if (selected.file) {
         $("#ai-custom-gguf-path").value = selected.file;
         toast("GGUF file selected. Save the AI settings to use it.");
+      }
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      event.currentTarget.disabled = false;
+    }
+  });
+
+  $("#rag-custom-gguf-browse")?.addEventListener("click", async (event) => {
+    event.currentTarget.disabled = true;
+    try {
+      const selected = await api("/api/models/embeddings/select-file", { method: "POST" });
+      if (selected.file) {
+        $("#rag-custom-gguf-path").value = selected.file;
+        toast("Embedding GGUF selected. Save the RAG settings before loading it.");
       }
     } catch (error) {
       toast(error.message, "error");
@@ -1781,6 +2116,122 @@
     runtimeAction("summary", "prepare", event.currentTarget));
   $("#ai-install-table")?.addEventListener("click", (event) =>
     runtimeAction("summary", "prepare", event.currentTarget, true));
+
+  $("#rag-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = event.submitter;
+    submit.disabled = true;
+    try {
+      const apiKey = $("#rag-api-key")?.value.trim() || "";
+      if (apiKey) {
+        renderCredentialStatus(await api("/api/settings/summary-api-key", {
+          method: "PUT",
+          body: JSON.stringify({ api_key: apiKey }),
+        }));
+        $("#rag-api-key").value = "";
+      }
+      const preferences = await api("/api/settings", {
+        method: "PUT",
+        body: JSON.stringify({ rag: ragSettingsPayload() }),
+      });
+      populateRagSettings(preferences);
+      embeddingModels = await api("/api/models/embeddings");
+      renderEmbeddingCatalog(embeddingModels, preferences);
+      await refreshRagStatus();
+      toast("Historical RAG settings saved locally.", "success");
+      setSavedState("RAG saved just now");
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      submit.disabled = false;
+    }
+  });
+
+  $("#rag-unload")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      await api("/api/engines/embeddings/unload", { method: "POST" });
+      toast("Embedding worker unloaded.");
+      embeddingModels = await api("/api/models/embeddings");
+      renderEmbeddingCatalog(embeddingModels, ragPreferences);
+      await refreshRagStatus();
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  $("#rag-reindex")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.textContent = "Embedding meetings…";
+    try {
+      const result = await api("/api/rag/index", {
+        method: "POST",
+        body: JSON.stringify({ force: true }),
+      });
+      toast(`RAG rebuilt: ${result.chunks} chunks across ${result.meetings} meetings.`, "success");
+      await refreshRagStatus();
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      button.disabled = false;
+      button.textContent = "Rebuild index";
+    }
+  });
+
+  $("#rag-test-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = event.submitter;
+    submit.disabled = true;
+    submit.textContent = "Embedding & ranking…";
+    try {
+      const result = await api("/api/rag/search", {
+        method: "POST",
+        body: JSON.stringify({ query: $("#rag-test-query").value.trim() }),
+      });
+      renderRagTestResults(result);
+      await refreshRagStatus();
+    } catch (error) {
+      toast(error.message, "error");
+      $("#rag-test-results").innerHTML = `<span class="settings-empty-copy">${escapeHTML(error.message)}</span>`;
+    } finally {
+      submit.disabled = false;
+      submit.textContent = "Run search test";
+    }
+  });
+
+  $("#plugin-list")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-plugin-toggle]");
+    if (!button) return;
+    button.disabled = true;
+    try {
+      await api(`/api/plugins/${encodeURIComponent(button.dataset.pluginToggle)}/state`, {
+        method: "PUT",
+        body: JSON.stringify({ enabled: button.dataset.pluginEnabled !== "true" }),
+      });
+      renderPlugins(await api("/api/plugins"));
+      toast("Plugin state saved locally.", "success");
+    } catch (error) {
+      toast(error.message, "error");
+      button.disabled = false;
+    }
+  });
+
+  $("#plugins-rescan")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      renderPlugins(await api("/api/plugins/rescan", { method: "POST" }));
+      toast("Installed plugin packages rescanned.", "success");
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
 
   activateSettingsTab(window.location.hash.slice(1) || "general");
   loadSettings();

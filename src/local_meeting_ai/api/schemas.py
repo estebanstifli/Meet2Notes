@@ -196,6 +196,12 @@ class SummaryApiKeyUpdate(BaseModel):
     api_key: str = Field(min_length=1, max_length=4096)
 
 
+class PluginStateUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+
+
 class DiarizationPreference(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -215,6 +221,67 @@ class DiarizationPreference(BaseModel):
     debug: bool = False
     keep_model_loaded: bool = True
     preload_on_start: bool = True
+
+
+class RagPreference(BaseModel):
+    """Historical retrieval settings; provider/store ids intentionally remain extensible."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    profile_id: Literal["bge-m3", "custom-gguf", "litellm-custom"] = "bge-m3"
+    embedding_provider: Literal["fastembed", "local", "litellm"] = "fastembed"
+    embedding_model: str = Field(default="BAAI/bge-m3", min_length=1, max_length=200)
+    base_url: str = Field(default="", max_length=500)
+    api_key_env: str = Field(default="OPENAI_API_KEY", max_length=120)
+    model_path: str | None = Field(default=None, max_length=2048)
+    context_length: int = Field(default=8192, ge=256, le=131072)
+    threads: int = Field(default=0, ge=0, le=128)
+    gpu_layers: int = Field(default=0, ge=-1, le=1000)
+    main_gpu: int = Field(default=0, ge=0, le=32)
+    use_mmap: bool = True
+    use_mlock: bool = False
+    keep_model_loaded: bool = True
+    preload_on_start: bool = False
+    vector_store: str = Field(default="sqlite", min_length=1, max_length=80)
+    vector_acceleration: Literal["auto", "sqlite-vec", "python"] = "auto"
+    chunk_size_chars: int = Field(default=1800, ge=300, le=12000)
+    chunk_overlap_chars: int = Field(default=300, ge=0, le=4000)
+    embedding_batch_size: int = Field(default=16, ge=1, le=128)
+    runtime_batch_size: int = Field(default=512, ge=32, le=4096)
+    top_k: int = Field(default=8, ge=1, le=50)
+    candidate_k: int = Field(default=40, ge=1, le=500)
+    min_score: float = Field(default=0.18, ge=0.0, le=1.0)
+    semantic_weight: float = Field(default=0.8, ge=0.0, le=1.0)
+    keyword_weight: float = Field(default=0.2, ge=0.0, le=1.0)
+    max_context_chars: int = Field(default=14000, ge=1000, le=100000)
+    request_timeout: int = Field(default=120, ge=5, le=600)
+    keep_alive: str = Field(default="5m", min_length=1, max_length=30)
+
+    @model_validator(mode="after")
+    def validate_rag(self) -> Self:
+        expected_provider = {
+            "bge-m3": "fastembed",
+            "custom-gguf": "local",
+            "litellm-custom": "litellm",
+        }[self.profile_id]
+        if self.embedding_provider != expected_provider:
+            raise ValueError(
+                f"Embedding profile {self.profile_id} requires provider {expected_provider}"
+            )
+        if self.profile_id == "bge-m3" and self.embedding_model != "BAAI/bge-m3":
+            raise ValueError("The BGE-M3 profile requires the BAAI/bge-m3 model")
+        if self.profile_id != "custom-gguf" and self.base_url and not self.base_url.startswith(
+            ("http://", "https://")
+        ):
+            raise ValueError("The embedding base URL must use HTTP or HTTPS")
+        if self.chunk_overlap_chars >= self.chunk_size_chars:
+            raise ValueError("RAG chunk overlap must be smaller than chunk size")
+        if self.candidate_k < self.top_k:
+            raise ValueError("RAG candidate count must be at least the result count")
+        if self.semantic_weight + self.keyword_weight <= 0:
+            raise ValueError("At least one RAG ranking weight must be greater than zero")
+        return self
 
 
 class PreferenceUpdate(BaseModel):
@@ -243,6 +310,7 @@ class PreferenceUpdate(BaseModel):
     faster_whisper: FasterWhisperPreference = Field(default_factory=FasterWhisperPreference)
     summary_engine: SummaryEnginePreference = Field(default_factory=SummaryEnginePreference)
     diarization: DiarizationPreference = Field(default_factory=DiarizationPreference)
+    rag: RagPreference = Field(default_factory=RagPreference)
 
 
 class PreferenceResponse(BaseModel):
@@ -272,6 +340,39 @@ class PreferenceResponse(BaseModel):
     faster_whisper: FasterWhisperPreference = Field(default_factory=FasterWhisperPreference)
     summary_engine: SummaryEnginePreference = Field(default_factory=SummaryEnginePreference)
     diarization: DiarizationPreference = Field(default_factory=DiarizationPreference)
+    rag: RagPreference = Field(default_factory=RagPreference)
+
+
+class RagIndexRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    meeting_id: int | None = Field(default=None, ge=1)
+    force: bool = False
+
+
+class RagSearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(min_length=1, max_length=4000)
+    meeting_id: int | None = Field(default=None, ge=1)
+    top_k: int | None = Field(default=None, ge=1, le=50)
+    ensure_index: bool = True
+
+
+class PromptTurn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=12000)
+
+
+class PromptRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    question: str = Field(min_length=1, max_length=4000)
+    meeting_id: int | None = Field(default=None, ge=1)
+    use_rag: bool = True
+    history: list[PromptTurn] = Field(default_factory=list, max_length=20)
 
 
 class ModelDirectoryMoveRequest(BaseModel):

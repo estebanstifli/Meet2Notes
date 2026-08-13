@@ -101,3 +101,21 @@ management flow for unattended installation.
 Schema changes live in numbered SQL files and are recorded in `schema_migrations`.
 Every connection enables foreign keys, WAL, a five-second busy timeout, and normal
 synchronous mode. Deleting a meeting cascades through its database records.
+
+## Historical retrieval
+
+Historical RAG uses the `EmbeddingProvider` boundary and defaults to BGE-M3 through
+FastEmbed and ONNX Runtime. Completed active transcripts are chunked on segment boundaries with meeting,
+speaker and timestamp provenance. Content hashes make indexing incremental and
+changing the embedding provider/model invalidates the relevant stored chunks.
+
+Vectors are persisted as portable float32 BLOBs in the main SQLite database. The
+optional sqlite-vec extension accelerates cosine scoring when installed; the same
+repository falls back to Python cosine ranking without changing or duplicating the
+database. Retrieval forms a candidate union from semantic and keyword results, then
+applies configurable hybrid weights and a minimum score before context assembly.
+
+The Prompt service either supplies one full transcript or embeds the question and
+retrieves from one/all meetings. Answers receive timestamped source labels and are
+instructed to make meeting claims only from that context. See `rag-and-mcp.md` for
+the modular extension points and the read-only MCP recommendation.

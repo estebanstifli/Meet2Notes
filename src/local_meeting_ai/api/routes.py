@@ -52,8 +52,12 @@ from local_meeting_ai.api.schemas import (
     MeetingUpdate,
     ModelDirectoryMoveRequest,
     ModelProfileResponse,
+    PluginStateUpdate,
     PreferenceResponse,
     PreferenceUpdate,
+    PromptRequest,
+    RagIndexRequest,
+    RagSearchRequest,
     RecordingResponse,
     SegmentUpdate,
     SpeakerNameUpdate,
@@ -79,6 +83,7 @@ from local_meeting_ai.application.ai_services import (
     SUMMARY_DEFAULTS,
     configured_values,
 )
+from local_meeting_ai.application.rag import RAG_DEFAULTS
 from local_meeting_ai.bootstrap import Container
 from local_meeting_ai.domain.enums import JobType
 from local_meeting_ai.domain.errors import (
@@ -91,6 +96,101 @@ from local_meeting_ai.paths import default_models_directory, schedule_data_direc
 router = APIRouter(prefix="/api")
 ContainerDependency = Annotated[Container, Depends(get_container)]
 logger = logging.getLogger(__name__)
+
+
+@router.get("/rag/status")
+async def rag_status(container: ContainerDependency) -> dict[str, Any]:
+    return await container.rag_service.status()
+
+
+@router.post("/rag/index")
+async def index_rag(
+    payload: RagIndexRequest,
+    container: ContainerDependency,
+) -> dict[str, Any]:
+    result = await container.rag_service.index(
+        meeting_id=payload.meeting_id,
+        force=payload.force,
+    )
+    logger.info(
+        "Historical RAG index refreshed: %d meetings, %d chunks",
+        result["indexed_meetings"],
+        result["indexed_chunks"],
+    )
+    return result
+
+
+@router.post("/rag/search")
+async def search_rag(
+    payload: RagSearchRequest,
+    container: ContainerDependency,
+) -> dict[str, Any]:
+    return await container.rag_service.search(
+        payload.query,
+        meeting_id=payload.meeting_id,
+        top_k=payload.top_k,
+        ensure_index=payload.ensure_index,
+    )
+
+
+@router.post("/prompt")
+async def prompt_meetings(
+    payload: PromptRequest,
+    container: ContainerDependency,
+) -> dict[str, Any]:
+    return await container.prompt_service.ask(
+        payload.question,
+        meeting_id=payload.meeting_id,
+        use_rag=payload.use_rag,
+        history=[turn.model_dump() for turn in payload.history],
+    )
+
+
+@router.get("/processing/pipeline")
+def processing_pipeline(container: ContainerDependency) -> dict[str, Any]:
+    """Describe the post-recording pipeline; Live ASR is intentionally excluded."""
+    return container.final_pipeline.description()
+
+
+@router.get("/plugins")
+def plugins(container: ContainerDependency) -> dict[str, Any]:
+    return {
+        **container.plugin_manager.api_info,
+        "plugins": container.plugin_manager.list(),
+    }
+
+
+@router.post("/plugins/rescan")
+def rescan_plugins(container: ContainerDependency) -> dict[str, Any]:
+    container.plugin_manager.reload()
+    logger.info("Plugin entry points rescanned")
+    return {
+        **container.plugin_manager.api_info,
+        "plugins": container.plugin_manager.list(),
+    }
+
+
+@router.put("/plugins/{plugin_id}/state")
+def set_plugin_state(
+    plugin_id: str,
+    payload: PluginStateUpdate,
+    container: ContainerDependency,
+) -> dict[str, Any]:
+    plugin = container.plugin_manager.set_enabled(plugin_id, payload.enabled)
+    logger.info(
+        "Plugin %s %s",
+        plugin_id,
+        "enabled" if payload.enabled else "disabled",
+    )
+    return plugin
+
+
+@router.get("/plugins/executions")
+def plugin_executions(
+    container: ContainerDependency,
+    limit: int = Query(default=50, ge=1, le=500),
+) -> list[dict[str, Any]]:
+    return container.plugin_executions.recent(limit)
 
 
 @router.get("/health")
@@ -209,6 +309,13 @@ def select_gguf_file(container: ContainerDependency) -> dict[str, str | None]:
             "The native model file picker is unavailable in this desktop session"
         ) from error
     return {"file": str(Path(selected).resolve()) if selected else None}
+
+
+@router.post("/models/embeddings/select-file")
+def select_embedding_gguf_file(
+    container: ContainerDependency,
+) -> dict[str, str | None]:
+    return select_gguf_file(container)
 
 
 @router.post("/settings/data-directory/schedule")
@@ -920,6 +1027,68 @@ def list_summary_models(container: ContainerDependency) -> list[dict[str, Any]]:
     return models
 
 
+@router.get("/models/embeddings")
+def list_embedding_models(container: ContainerDependency) -> list[dict[str, Any]]:
+    config = configured_values(container.preferences, "rag", RAG_DEFAULTS)
+    return list(container.embedding_provider.capability(config).get("models", []))
+
+
+@router.post("/engines/embeddings/prepare")
+async def prepare_embedding_engine(
+    container: ContainerDependency,
+    download: bool = Query(default=False),
+    profile_id: str | None = Query(default=None, min_length=1, max_length=80),
+) -> dict[str, Any]:
+    config = configured_values(container.preferences, "rag", RAG_DEFAULTS)
+    if profile_id:
+        model = next(
+            (
+                item
+                for item in container.embedding_provider.capability(config).get("models", [])
+                if isinstance(item, dict) and item.get("id") == profile_id
+            ),
+            None,
+        )
+        if model is None:
+            raise ValidationError("The requested embedding model is unavailable")
+        config.update(
+            {
+                "profile_id": profile_id,
+                "embedding_provider": model["provider"],
+                "embedding_model": (
+                    "BAAI/bge-m3"
+                    if profile_id == "bge-m3"
+                    else config.get("embedding_model", "")
+                ),
+            }
+        )
+    await container.embedding_provider.prepare(
+        config,
+        allow_model_download=download,
+    )
+    return container.embedding_provider.capability(config)
+
+
+@router.post("/engines/embeddings/uninstall")
+async def uninstall_embedding_model(
+    container: ContainerDependency,
+    profile_id: str = Query(..., min_length=1, max_length=80),
+) -> dict[str, Any]:
+    config = configured_values(container.preferences, "rag", RAG_DEFAULTS)
+    await container.embedding_provider.uninstall(profile_id, config)
+    return container.embedding_provider.capability(config)
+
+
+@router.post("/engines/embeddings/unload")
+async def unload_embedding_engine(
+    container: ContainerDependency,
+    profile_id: str | None = Query(default=None, min_length=1, max_length=80),
+) -> dict[str, Any]:
+    await container.embedding_provider.unload(profile_id)
+    config = configured_values(container.preferences, "rag", RAG_DEFAULTS)
+    return container.embedding_provider.capability(config)
+
+
 def _summary_template_response(
     template: Any,
     default_id: int,
@@ -1256,11 +1425,42 @@ async def update_settings(
             )
         elif config["provider"] != "local" or not config["keep_model_loaded"]:
             container.summary_engine.unload()
+    if "rag" in values:
+        config = configured_values(container.preferences, "rag", RAG_DEFAULTS)
+        capability = container.embedding_provider.capability(config)
+        selected = next(
+            (
+                item
+                for item in capability.get("models", [])
+                if isinstance(item, dict) and item.get("id") == config.get("profile_id")
+            ),
+            None,
+        )
+        prepare = getattr(container.embedding_provider, "prepare", None)
+        unload = getattr(container.embedding_provider, "unload", None)
+        if (
+            bool(config["enabled"])
+            and bool(config["keep_model_loaded"])
+            and selected is not None
+            and bool(selected.get("installed"))
+            and callable(prepare)
+        ):
+            _track_background_task(
+                request,
+                prepare(config, allow_model_download=False),
+                "reload-embedding-engine",
+            )
+        elif callable(unload):
+            _track_background_task(
+                request,
+                unload(),
+                "unload-embedding-engine",
+            )
     return _preference_response(container, updated)
 
 
 @router.post("/settings/models-directory/move", response_model=PreferenceResponse)
-def move_models_directory(
+async def move_models_directory(
     payload: ModelDirectoryMoveRequest,
     container: ContainerDependency,
 ) -> PreferenceResponse:
@@ -1290,6 +1490,9 @@ def move_models_directory(
         container.transcription_engine.unload()
         container.diarization_service.unload()
         container.summary_engine.unload()
+        unload_embeddings = getattr(container.embedding_provider, "unload", None)
+        if callable(unload_embeddings):
+            await unload_embeddings()
         if source.exists() and any(source.iterdir()):
             if target_has_files:
                 # Preserve unrelated files in the selected folder, while files
