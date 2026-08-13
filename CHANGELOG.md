@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Defined the independent community-plugin workflow, added a public JSON
+  listing and issue template, and coordinated the user, contributor, developer,
+  and roadmap documentation around that single flow.
+
 ## 0.5.0 - 2026-08-13
 
 - Replaced implicit final post-processing callbacks with an observable pipeline

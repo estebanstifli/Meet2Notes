@@ -223,9 +223,28 @@ speaker turns.
 Plugins are discovered through the standard `meet2notes.plugins` package entry
 point and managed from Settings -> Plugins. Hook executions have priorities,
 timeouts, failure policies, and a privacy-preserving provenance ledger. The
-canonical recording and transcript are never overwritten by a filter. See the
-[Plugin API guide](docs/plugins.md), [provider development guide](docs/plugin-development.md),
-and [public roadmap](docs/roadmap.md).
+canonical recording and transcript are never overwritten by a filter.
+
+Each community plugin is developed and released from its author's own
+repository. Authors do not need to merge plugin code into Meet2Notes: when it is
+ready, they may open a **Community plugin listing** issue with its public URL,
+installation source, compatibility, permissions, and test results. Maintainers
+may then add it to [community-plugins.json](community-plugins.json). Listing is
+discretionary and is not a security audit or endorsement.
+
+The catalog is currently an informational JSON file; Meet2Notes does not fetch
+or install entries automatically. A user chooses a listed plugin, reviews its
+repository, and installs it explicitly into the private environment, for
+example:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install package-name
+```
+
+Then open Settings -> Plugins, rescan installed packages, review the requested
+permissions, and enable it. See the [Plugin API and installation guide](docs/plugins.md),
+[plugin/provider development guide](docs/plugin-development.md),
+[documentation index](docs/README.md), and [public roadmap](docs/roadmap.md).
 
 ## Install from source
 
@@ -456,8 +475,9 @@ The main boundaries are:
 - `api/`: versioned request/response schemas and local HTTP endpoints.
 - `web/`: server-rendered pages plus the browser UI.
 
-Read [Architecture](docs/architecture.md), [Contributing](CONTRIBUTING.md), and
-the [Roadmap](docs/roadmap.md) before extending an engine or submitting changes.
+Start with the [documentation index](docs/README.md). Read
+[Architecture](docs/architecture.md), [Contributing](CONTRIBUTING.md), and the
+[Roadmap](docs/roadmap.md) before extending an engine or submitting core changes.
 
 ## Platform support
 

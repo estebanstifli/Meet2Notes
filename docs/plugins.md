@@ -6,9 +6,43 @@ to an existing provider, and provide a RAG vector store. The saved recording and
 canonical transcript remain owned by Meet2Notes; filters work with temporary,
 serializable artifacts used by downstream stages.
 
-See [Plugin and provider development](plugin-development.md) for the complete
-provider contracts, model metadata, composite speaker output, declarative
-settings, permissions, packaging, and test checklist.
+This page is the user and API reference. Package authors should also read
+[Plugin and provider development](plugin-development.md); the repository's
+[documentation index](README.md) explains the role of every document.
+
+## Community catalog and installation
+
+The public [community plugin catalog](../community-plugins.json) is a small,
+maintainer-controlled list of independently developed plugins. Plugin source
+code and releases stay in the author's repository. An entry means only that the
+maintainers chose to make the project discoverable; it is not a security audit,
+warranty, or endorsement.
+
+Meet2Notes does not currently download or install this catalog. Users must
+inspect the linked repository and install a chosen package explicitly into the
+private Meet2Notes `.venv`, using the exact command documented by that plugin.
+A typical PyPI installation on Windows is:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install package-name
+```
+
+For a Git repository it may be:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install git+https://github.com/author/repository.git
+```
+
+After installation, open **Settings -> Plugins**, select **Rescan installed
+plugins**, review the manifest and permissions, and enable the plugin. Rescan
+only discovers packages already installed in the environment; it does not
+contact the catalog, PyPI, or GitHub. To remove a plugin, disable it, uninstall
+the package with the same Python environment, and rescan.
+
+Plugin authors request a listing through the repository's **Community plugin
+listing** issue template. Maintainers may accept, decline, update, or remove an
+entry. The author remains responsible for releases, support, security fixes,
+and compatibility declarations.
 
 ## Package discovery
 
@@ -20,8 +54,9 @@ Plugins are regular Python packages installed into the private Meet2Notes
 example = "meet2notes_example.plugin:create_plugin"
 ```
 
-After installation, open **Settings -> Plugins** and select **Rescan installed
-plugins**. Discovery does not enable a third-party plugin automatically.
+Discovery does not enable a third-party plugin automatically. There is no
+watched `plugins/` directory: discovery uses installed Python package metadata
+from the `meet2notes.plugins` entry-point group.
 
 For local development on Windows:
 
@@ -134,6 +169,6 @@ content is never stored in the plugin execution ledger.
   operating-system keyring for secrets.
 - Pin dependencies and test against the declared Plugin API version.
 
-Third-party process isolation, signed packages, staged updates, and rollback are
-tracked in the [roadmap](roadmap.md) and are required before the public plugin
-catalog launches.
+Third-party process isolation, signed packages, in-app installation, staged
+updates, and rollback are tracked in the [roadmap](roadmap.md). The current JSON
+catalog remains informational until those protections exist.

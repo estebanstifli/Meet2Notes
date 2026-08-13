@@ -148,6 +148,8 @@ location are mandatory before remote mode is enabled outside localhost.
   compatibility, hooks, and recent errors.
 - [x] Ship a harmless reference filter and a community plugin example.
 - [x] Publish the versioned plugin API and contribution guide.
+- [x] Define an informational JSON list for independently maintained community
+  plugins and an issue-based listing workflow.
 
 ## Phase 2: richer local pipelines
 
@@ -185,7 +187,8 @@ location are mandatory before remote mode is enabled outside localhost.
   hooks without running arbitrary code during a core database migration.
 - [ ] Publish an extension SDK, JSON schemas, test harness, compatibility
   matrix, examples, and review checklist.
-- [ ] Establish a curated plugin index separately from the core release.
+- [ ] Replace the informational repository list with a signed, curated plugin
+  index distributed independently from the core release.
 - [ ] Add signed desktop installers and safe application updates.
 - [ ] Open the repository publicly with security policy, governance,
   contribution workflow, issue templates, and a stable Plugin API v1.

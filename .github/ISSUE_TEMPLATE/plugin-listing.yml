@@ -1,0 +1,75 @@
+name: Community plugin listing
+description: Propose an independently maintained Meet2Notes plugin for the public list.
+title: "[Plugin]: "
+labels:
+  - plugin
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Plugins remain in their author's repository. This issue requests a listing only; it does not transfer maintenance or imply a security endorsement.
+  - type: input
+    id: name
+    attributes:
+      label: Plugin name
+    validations:
+      required: true
+  - type: input
+    id: repository
+    attributes:
+      label: Public repository URL
+      placeholder: https://github.com/author/meet2notes-example
+    validations:
+      required: true
+  - type: input
+    id: package
+    attributes:
+      label: Installable package or release
+      description: PyPI package name or a stable Git repository/release URL.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Current version
+    validations:
+      required: true
+  - type: input
+    id: compatibility
+    attributes:
+      label: Meet2Notes and Plugin API compatibility
+      placeholder: Meet2Notes >=0.5; Plugin API 1
+    validations:
+      required: true
+  - type: textarea
+    id: capabilities
+    attributes:
+      label: Capabilities and hooks
+      description: Explain what the plugin adds and list every hook/provider/model it registers.
+    validations:
+      required: true
+  - type: textarea
+    id: permissions
+    attributes:
+      label: Permissions and network use
+      description: List declared permissions, remote services, model downloads, and where data is processed.
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: Verification performed
+      description: Include test commands, supported platforms, and CPU/GPU configurations tested.
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Author confirmation
+      options:
+        - label: The plugin imports its public SDK only from `local_meeting_ai.plugins`.
+          required: true
+        - label: Installation, model downloads, network use, and permissions are documented in the plugin repository.
+          required: true
+        - label: I understand that maintainers may list, decline, or later remove the plugin.
+          required: true
