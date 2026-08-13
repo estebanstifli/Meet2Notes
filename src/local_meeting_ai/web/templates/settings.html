@@ -2,23 +2,22 @@
 {% block title %}Settings · Meet2Notes{% endblock %}
 {% block content %}
 <div class="page settings-page">
-  <header class="simple-page-header">
-    <div>
-      <span class="eyebrow">Local control</span>
-      <h1>Settings</h1>
-      <p>Understand exactly where Meet2Notes runs and how it handles your data.</p>
+  <header class="meetings-page-header">
+    <div class="workspace-heading"><span class="workspace-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19.4 15 .1.1-1.8 3.1-.2-.1a2 2 0 0 0-2.4.3l-.6.4a2 2 0 0 0-.9 2.2v.2H10V21a2 2 0 0 0-.9-2.2l-.6-.4a2 2 0 0 0-2.4-.3l-.2.1-1.8-3.1.1-.1a2 2 0 0 0 1-2v-.8a2 2 0 0 0-1-2l-.1-.1L5.9 7l.2.1a2 2 0 0 0 2.4-.3l.6-.4A2 2 0 0 0 10 4.2V4h3.6v.2a2 2 0 0 0 .9 2.2l.6.4a2 2 0 0 0 2.4.3l.2-.1 1.8 3.1-.1.1a2 2 0 0 0-1 2v.8a2 2 0 0 0 1 2Z"/></svg></span><div><h1>Settings</h1><p>Control your local workspace, storage and AI engines.</p></div></div>
+    <div class="page-header-actions">
+      {% include "_theme_toggle.html" %}
+      <a class="icon-button" href="/settings" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19.4 15 .1.1-1.8 3.1-.2-.1a2 2 0 0 0-2.4.3l-.6.4a2 2 0 0 0-.9 2.2v.2H10V21a2 2 0 0 0-.9-2.2l-.6-.4a2 2 0 0 0-2.4-.3l-.2.1-1.8-3.1.1-.1a2 2 0 0 0 1-2v-.8a2 2 0 0 0-1-2l-.1-.1L5.9 7l.2.1a2 2 0 0 0 2.4-.3l.6-.4A2 2 0 0 0 10 4.2V4h3.6v.2a2 2 0 0 0 .9 2.2l.6.4a2 2 0 0 0 2.4.3l.2-.1 1.8 3.1-.1.1a2 2 0 0 0-1 2v.8a2 2 0 0 0 1 2Z"/></svg></a>
+      <span class="save-state" id="save-state"><i></i> Saved locally</span>
     </div>
-    <span class="save-state" id="save-state"><i></i> Saved locally</span>
   </header>
 
   <div class="settings-layout">
     <nav class="settings-tabs" aria-label="Settings sections" role="tablist">
-      <button type="button" role="tab" aria-selected="true" aria-controls="general" data-settings-tab="general">General</button>
-      <button type="button" role="tab" aria-selected="false" aria-controls="transcription-engine" data-settings-tab="transcription-engine">Transcription</button>
-      <button type="button" role="tab" aria-selected="false" aria-controls="speaker-engine" data-settings-tab="speaker-engine">Speakers</button>
-      <button type="button" role="tab" aria-selected="false" aria-controls="ai-engine" data-settings-tab="ai-engine">AI engine</button>
-      <button type="button" role="tab" aria-selected="false" aria-controls="privacy" data-settings-tab="privacy">Privacy</button>
-      <button type="button" role="tab" aria-selected="false" aria-controls="system" data-settings-tab="system">System</button>
+      <button type="button" role="tab" aria-selected="true" aria-controls="general" data-settings-tab="general"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M14 5v4M4 17h2M10 17h10M8 15v4"/></svg>General</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="transcription-engine" data-settings-tab="transcription-engine"><svg viewBox="0 0 24 24"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1"/></svg>Transcription</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="speaker-engine" data-settings-tab="speaker-engine"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>Speakers</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="ai-engine" data-settings-tab="ai-engine"><svg viewBox="0 0 24 24"><path d="m12 3 2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6Z"/></svg>AI engine</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="note-formats" data-settings-tab="note-formats"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg>Note formats</button>
     </nav>
     <div class="settings-content">
       <section class="settings-section active" id="general" role="tabpanel" data-settings-panel>
@@ -34,6 +33,14 @@
             <select id="ui-language"><option value="en">English</option><option value="es">Español</option></select>
           </label>
           <label class="setting-row">
+            <span><strong>Appearance</strong><small>Follow your operating system or choose a fixed theme.</small></span>
+            <select id="ui-theme">
+              <option value="system">Use system theme</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
+          <label class="setting-row">
             <span><strong>Retention period</strong><small>No automatic deletion occurs unless you set a period.</small></span>
             <select id="retention-days">
               <option value="">Keep indefinitely</option>
@@ -46,8 +53,34 @@
             <span><strong>Confirm permanent deletion</strong><small>Require an explicit confirmation before removing meeting files.</small></span>
             <span class="switch"><input id="confirm-delete" type="checkbox"><i></i></span>
           </label>
+          <section class="general-card model-storage-card storage-locations-card">
+            <div class="general-card-heading">
+              <span class="settings-icon engine-blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16M5 8l2-4h10l2 4M6 8v12h12V8M10 12h4"/></svg></span>
+              <div><strong>Data storage locations</strong><small>Choose where Meet2Notes keeps your meetings, recordings and downloaded local models.</small></div>
+            </div>
+            <div class="storage-location-row"><div><strong>Meeting data</strong><small id="storage-data-directory">Loading local folder…</small></div><button class="button secondary" type="button" data-select-folder="data">Choose folder</button></div>
+            <div class="storage-location-row"><div><strong>AI models</strong><small id="storage-models-directory">Loading model folder…</small><input id="models-directory" type="hidden"></div><button class="button secondary" type="button" data-select-folder="models">Choose folder</button></div>
+            <div class="engine-compatibility-note model-directory-note" id="models-directory-note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg><span>Changing this folder moves existing downloaded models safely. Meet2Notes must restart after the move so each AI worker uses the new location.</span></div>
+          </section>
+          <section class="general-card">
+            <div class="general-card-heading">
+              <span class="settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v5M12 16v5M4.2 7.2l3.5 3.5M16.3 13.3l3.5 3.5M3 12h5M16 12h5M4.2 16.8l3.5-3.5M16.3 10.7l3.5-3.5"/><circle cx="12" cy="12" r="4"/></svg></span>
+              <div><strong>Local web address</strong><small>This changes the local HTTP port. A restart is required before the new address is used.</small></div>
+            </div>
+            <label class="inline-setting port-setting"><span>Port</span><input id="http-port" type="number" min="1024" max="65535" step="1" inputmode="numeric"><small id="port-restart-note">Current address is loading…</small></label>
+          </section>
           <div class="settings-actions"><button class="button primary" type="submit">Save general settings</button></div>
         </form>
+        <section class="general-card system-card">
+          <div class="general-card-heading diagnostic-heading"><span class="settings-icon dark"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><div><strong>System &amp; Diagnostic</strong><small>Runtime, hardware and media capabilities detected on this computer.</small></div><button class="button primary" id="run-diagnostics" type="button">Run diagnostics</button></div>
+          <dl class="system-list">
+            <div><dt>Application data</dt><dd id="data-directory">Loading…</dd></div>
+            <div><dt>Platform</dt><dd id="platform-version">Loading…</dd></div>
+            <div><dt>FFmpeg</dt><dd id="ffmpeg-capability">Checking…</dd></div>
+            <div><dt>Audio capture</dt><dd id="capture-capability"><span class="neutral-pill">Checking…</span></dd></div>
+            <div><dt>Transcription</dt><dd id="transcription-capability"><span class="neutral-pill">Checking…</span></dd></div>
+          </dl>
+        </section>
       </section>
 
       <section class="settings-section engine-settings-section" id="transcription-engine" role="tabpanel" data-settings-panel hidden>
@@ -62,7 +95,7 @@
         </div>
 
         <form id="engine-settings-form" class="engine-settings-form">
-          <div class="engine-identity-card">
+          <div class="engine-identity-card" hidden>
             <span class="engine-logo-large">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg>
             </span>
@@ -80,34 +113,55 @@
             <span class="engine-runtime-pill" id="engine-runtime-state"><i></i> Checking worker…</span>
           </div>
 
+          <div class="transcription-purpose-tabs" role="tablist" aria-label="Transcription stages">
+            <button type="button" role="tab" aria-selected="true" aria-controls="live-transcription-settings" data-transcription-purpose="live">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M6.4 6.4a8 8 0 0 0 0 11.2M17.6 6.4a8 8 0 0 1 0 11.2M3.6 3.6a12 12 0 0 0 0 16.8M20.4 3.6a12 12 0 0 1 0 16.8"/></svg>
+              Live transcription
+            </button>
+            <button type="button" role="tab" aria-selected="false" aria-controls="final-transcription-settings" data-transcription-purpose="final">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/><path d="M4 20h16"/></svg>
+              Final transcription
+            </button>
+          </div>
+
+          <section class="transcription-purpose-panel active" id="live-transcription-settings" role="tabpanel" data-transcription-purpose-panel="live">
+            <div class="purpose-intro"><div><strong>Fast meeting preview</strong><small>Optimized for low latency while audio is still being captured. The text remains provisional until the final pass.</small></div><span class="recommended-chip">Faster Whisper recommended</span></div>
+            <section class="engine-catalog" aria-label="Live transcription models">
+              <div class="model-table-wrap"><table class="model-table"><thead><tr><th aria-label="Selected"></th><th>Model</th><th>Installed locally</th><th>Actions</th></tr></thead><tbody id="live-transcription-model-list"></tbody></table></div>
+            </section>
+          </section>
+
+          <section class="transcription-purpose-panel" id="final-transcription-settings" role="tabpanel" data-transcription-purpose-panel="final" hidden>
+            <div class="purpose-intro"><div><strong>Quality refinement pass</strong><small>Runs on the complete recording after Stop or after importing media. It can use a larger, slower engine than the live preview.</small></div><span class="recommended-chip">Independent engine</span></div>
+            <section class="engine-catalog" aria-label="Final transcription models">
+              <div class="model-table-wrap"><table class="model-table"><thead><tr><th aria-label="Selected"></th><th>Model</th><th>Installed locally</th><th>Actions</th></tr></thead><tbody id="final-transcription-model-list"></tbody></table></div>
+            </section>
+            <div class="engine-compatibility-note vibevoice-note">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+              <span><strong>8 GB GPU guidance:</strong> NVIDIA Parakeet and Nemotron 3.5 are the practical GPU options. BitNet is compact and CPU-only, but Microsoft does not yet validate Spanish for it.</span>
+            </div>
+          </section>
+
+          <div class="engine-config-group basic-engine-options">
+            <div class="engine-config-heading"><div><strong>Basic options</strong><small>These are the only options most meetings need.</small></div><span class="recommended-chip">Recommended defaults</span></div>
+            <div class="engine-field-grid">
+              <label class="engine-field wide"><span>Transcription language</span><select id="fw-language"><option value="">Auto detect · recommended</option></select><small>Auto detection works well for multilingual meetings.</small></label>
+              <label class="engine-field" id="faster-whisper-device-option"><span>GPU use</span><select id="fw-device"><option value="auto">Auto · recommended</option><option value="cpu">CPU</option><option value="cuda">CUDA · NVIDIA GPU</option></select><small id="engine-device-note">Detecting available acceleration…</small></label>
+              <label class="engine-toggle"><span><strong>Load transcription models at application start</strong><small>Preloads the selected Live and Final transcription models so they are ready when you need them.</small></span><span class="switch"><input id="fw-preload-on-start" type="checkbox"><i></i></span></label>
+            </div>
+          </div>
+
+          <details class="advanced-settings" id="advanced-transcription-settings" open>
+            <summary><span id="advanced-transcription-title">Advanced Faster Whisper options</span><small id="advanced-transcription-subtitle">Shared tuning for Faster Whisper profiles</small></summary>
+
+          <div id="faster-whisper-advanced-options">
+
           <div class="engine-config-group">
             <div class="engine-config-heading">
               <div><strong>Model and acceleration</strong><small>Controls quality, memory and inference speed.</small></div>
-              <span id="engine-loaded-model">No model loaded</span>
             </div>
             <div class="engine-field-grid">
-              <label class="engine-field wide">
-                <span>Whisper model</span>
-                <select id="fw-model">
-                  <option value="tiny">Tiny · fastest / lowest memory</option>
-                  <option value="base">Base · compact</option>
-                  <option value="small">Small · recommended</option>
-                  <option value="medium">Medium · higher accuracy</option>
-                  <option value="large-v3">Large v3 · maximum accuracy</option>
-                  <option value="distil-large-v3">Distil Large v3 · fast high quality</option>
-                  <option value="turbo">Turbo · optimized large model</option>
-                </select>
-                <small>The model stays in memory after its first load by default.</small>
-              </label>
-              <label class="engine-field">
-                <span>Compute device</span>
-                <select id="fw-device">
-                  <option value="auto">Auto · recommended</option>
-                  <option value="cpu">CPU</option>
-                  <option value="cuda">CUDA · NVIDIA GPU</option>
-                </select>
-                <small id="engine-device-note">Detecting available acceleration…</small>
-              </label>
+              <input id="fw-model" type="hidden" value="small">
               <label class="engine-field compact">
                 <span>Device index</span>
                 <input id="fw-device-index" type="number" min="0" max="31" step="1">
@@ -145,11 +199,6 @@
               <div><strong>Recognition</strong><small>Defaults used when a transcription does not override them.</small></div>
             </div>
             <div class="engine-field-grid">
-              <label class="engine-field wide">
-                <span>Transcription language</span>
-                <select id="fw-language"><option value="">Auto detect · recommended</option></select>
-                <small>Whisper supports automatic detection or an explicit language hint.</small>
-              </label>
               <label class="engine-field">
                 <span>Task</span>
                 <select id="fw-task">
@@ -181,10 +230,6 @@
                 <span><strong>Previous-text context</strong><small>Improves continuity across consecutive segments.</small></span>
                 <span class="switch"><input id="fw-condition-previous" type="checkbox"><i></i></span>
               </label>
-              <label class="engine-toggle">
-                <span><strong>Keep model in memory</strong><small>Recommended for instant subsequent transcriptions.</small></span>
-                <span class="switch"><input id="fw-keep-loaded" type="checkbox"><i></i></span>
-              </label>
             </div>
           </div>
 
@@ -207,10 +252,29 @@
             </div>
           </div>
 
+          </div>
+
+          <div class="engine-config-group native-engine-options" id="native-transcription-advanced-options" hidden>
+            <div class="engine-config-heading">
+              <div><strong id="native-engine-options-title">Selected model runtime</strong><small id="native-engine-options-description">Loading the selected engine options…</small></div>
+            </div>
+            <div class="engine-field-grid">
+              <div class="engine-field compact"><span>Execution device</span><strong id="native-engine-device">Checking…</strong><small id="native-engine-device-note">Detecting local acceleration.</small></div>
+              <div class="engine-field compact"><span>Timing output</span><strong id="native-engine-timing">Checking…</strong><small id="native-engine-timing-note">Model-specific timing details.</small></div>
+              <div class="engine-field compact"><span>Decoding</span><strong id="native-engine-decoding">Checking…</strong><small id="native-engine-decoding-note">Model-specific decoding settings.</small></div>
+              <div class="engine-field compact"><span>Memory</span><strong id="native-engine-memory">Checking…</strong><small id="native-engine-memory-note">Local model residency policy.</small></div>
+            </div>
+            <div class="engine-compatibility-note">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+              <span id="native-engine-options-note">This model uses its own safe engine defaults.</span>
+            </div>
+          </div>
+
           <div class="engine-settings-actions">
             <span id="engine-worker-summary">Dedicated Faster Whisper worker</span>
             <button class="button primary" type="submit">Save engine settings</button>
           </div>
+          </details>
         </form>
       </section>
 
@@ -222,7 +286,7 @@
           <div><h2>Speaker recognition</h2><p>Separate participants locally after speech recognition.</p></div>
         </div>
         <form id="diarization-form" class="engine-settings-form">
-          <div class="engine-identity-card">
+          <div class="engine-identity-card" hidden>
             <span class="engine-logo-large">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 18a4 4 0 0 0-8 0M12 4a4 4 0 1 0 0 8M4 20h16"/></svg>
             </span>
@@ -233,81 +297,97 @@
             </div>
             <span class="engine-runtime-pill" id="diarization-runtime-state"><i></i> Checking worker…</span>
           </div>
+          <section class="engine-catalog compact-catalog" aria-label="Speaker engine models">
+            <div class="model-table-wrap"><table class="model-table"><thead><tr><th aria-label="Selected"></th><th>Model</th><th>Installed locally</th><th>Actions</th></tr></thead><tbody id="diarization-engine-model-list"></tbody></table></div>
+          </section>
           <div class="engine-config-group">
             <div class="engine-config-heading">
-              <div><strong>Models and runtime</strong><small>INT8 segmentation is the recommended low-memory default.</small></div>
-              <span id="diarization-model-state">Models not installed</span>
+              <div><strong id="diarization-basic-title">Basic options</strong><small id="diarization-basic-description">Choose the common settings used by the selected speaker engine.</small></div>
+              <span id="diarization-model-state-detail">Models not installed</span>
             </div>
             <div class="engine-field-grid">
-              <label class="engine-field">
+              <input id="diarization-engine" type="hidden" value="sherpa-onnx">
+              <label class="engine-field compact">
+                <span>Number of speakers</span>
+                <input id="diarization-speakers" type="number" min="-1" max="50">
+                <small>Use -1 for automatic detection, or enter the known number.</small>
+              </label>
+              <label class="engine-field" data-diarization-provider>
+                <span id="diarization-provider-label">Execution device</span>
+                <select id="diarization-provider">
+                  <option value="cpu">CPU · universal</option>
+                  <option value="cuda">CUDA · NVIDIA</option>
+                  <option value="coreml">CoreML · Apple</option>
+                </select>
+                <small id="diarization-provider-help">Only devices supported by this engine are shown.</small>
+              </label>
+            </div>
+            <div class="engine-toggle-grid">
+              <label class="engine-toggle">
+                <span><strong>Load at application start</strong><small>Preload this speaker model so the first diarization starts immediately.</small></span>
+                <span class="switch"><input id="diarization-preload-on-start" type="checkbox"><i></i></span>
+              </label>
+              <label class="engine-toggle">
+                <span><strong>Recognize Saved voices</strong><small>Try to match detected speakers with the voice samples stored in Speakers.</small></span>
+                <span class="switch"><input id="diarization-recognize-saved" type="checkbox"><i></i></span>
+              </label>
+            </div>
+            <p class="engine-compatibility-note" id="diarization-engine-note"></p>
+          </div>
+          <details class="advanced-settings">
+            <summary><span id="diarization-advanced-title">Advanced Sherpa-ONNX options</span><small id="diarization-advanced-description">Segmentation, embeddings and clustering</small></summary>
+            <div class="engine-config-group">
+            <div class="engine-field-grid">
+              <label class="engine-field" data-diarization-sherpa>
                 <span>Segmentation model</span>
                 <select id="diarization-segmentation"><option value="pyannote-3.0">Pyannote segmentation 3.0</option></select>
               </label>
-              <label class="engine-field">
+              <label class="engine-field" data-diarization-sherpa>
                 <span>Embedding model</span>
                 <select id="diarization-embedding">
                   <option value="3d-speaker">3D-Speaker · recommended</option>
                   <option value="nemo-titanet">NeMo TitaNet · faster</option>
                 </select>
               </label>
-              <label class="engine-field">
-                <span>ONNX provider</span>
-                <select id="diarization-provider">
-                  <option value="cpu">CPU · universal</option>
-                  <option value="cuda">CUDA · NVIDIA</option>
-                  <option value="coreml">CoreML · Apple</option>
-                </select>
-              </label>
-              <label class="engine-field compact">
+              <label class="engine-field compact" data-diarization-sherpa>
                 <span>Runtime threads</span>
                 <input id="diarization-threads" type="number" min="1" max="64">
               </label>
-              <label class="engine-field compact">
-                <span>Known speakers</span>
-                <input id="diarization-speakers" type="number" min="-1" max="50">
-                <small>-1 detects automatically.</small>
-              </label>
-              <label class="engine-field compact">
+              <label class="engine-field compact" data-diarization-sherpa>
                 <span>Cluster threshold</span>
                 <input id="diarization-threshold" type="number" min="0.01" max="0.99" step="0.01">
                 <small>Higher produces fewer speakers.</small>
               </label>
-              <label class="engine-field compact">
+              <label class="engine-field compact" data-diarization-sherpa>
                 <span>Minimum speech</span>
                 <input id="diarization-min-on" type="number" min="0" max="10" step="0.05">
                 <small>Seconds.</small>
               </label>
-              <label class="engine-field compact">
+              <label class="engine-field compact" data-diarization-sherpa>
                 <span>Minimum silence</span>
                 <input id="diarization-min-off" type="number" min="0" max="10" step="0.05">
                 <small>Seconds.</small>
               </label>
-              <label class="engine-field compact">
+              <label class="engine-field compact" data-diarization-global>
                 <span>Assignment overlap</span>
                 <input id="diarization-overlap" type="number" min="0" max="1" step="0.05">
                 <small>Minimum ratio for assigning a transcript segment.</small>
               </label>
             </div>
             <div class="engine-toggle-grid">
-              <label class="engine-toggle">
+              <label class="engine-toggle" data-diarization-sherpa>
                 <span><strong>Quantized segmentation</strong><small>Uses the 1.5 MB INT8 model instead of the 5.7 MB FP32 model.</small></span>
                 <span class="switch"><input id="diarization-quantized" type="checkbox"><i></i></span>
               </label>
-              <label class="engine-toggle">
-                <span><strong>Keep engine in memory</strong><small>Avoids rebuilding the ONNX sessions between meetings.</small></span>
-                <span class="switch"><input id="diarization-keep-loaded" type="checkbox"><i></i></span>
-              </label>
-              <label class="engine-toggle">
+              <label class="engine-toggle" data-diarization-sherpa>
                 <span><strong>Debug logging</strong><small>Detailed native runtime diagnostics.</small></span>
                 <span class="switch"><input id="diarization-debug" type="checkbox"><i></i></span>
               </label>
             </div>
           </div>
+          </details>
           <div class="engine-settings-actions multi-action">
             <span id="diarization-worker-summary">Dedicated diarization worker</span>
-            <button class="button" id="diarization-unload" type="button">Unload</button>
-            <button class="button" id="diarization-load" type="button">Load</button>
-            <button class="button" id="diarization-install" type="button">Install models</button>
             <button class="button primary" type="submit">Save settings</button>
           </div>
         </form>
@@ -318,10 +398,10 @@
           <span class="settings-icon engine-blue">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8l4 4v8l-4 4H8l-4-4V8l4-4Z"/><path d="M9 9h6v6H9z"/></svg>
           </span>
-          <div><h2>AI engine</h2><p>Prepare local or OpenAI-compatible providers for meeting summaries.</p></div>
+          <div><h2>AI engine</h2><p>Choose a managed local model or connect any provider through LiteLLM.</p></div>
         </div>
         <form id="ai-engine-form" class="engine-settings-form">
-          <div class="engine-identity-card">
+          <div class="engine-identity-card" hidden>
             <span class="engine-logo-large">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8l4 4v8l-4 4H8l-4-4V8l4-4Z"/><path d="M9 9h6v6H9z"/></svg>
             </span>
@@ -330,22 +410,54 @@
               <strong>Pluggable AI runtime</strong>
               <small>Local LFM2.5 GGUF by default · remote API is explicit opt-in</small>
             </div>
-            <label class="engine-provider-select">
-              <span>Provider</span>
-              <select id="ai-provider">
-                <option value="disabled">Disabled</option>
-                <option value="local">Local model</option>
-                <option value="openai-compatible">OpenAI-compatible API</option>
-              </select>
-            </label>
             <span class="engine-runtime-pill" id="ai-runtime-state"><i></i> Configuration only</span>
           </div>
-          <div class="engine-config-group">
+          <section class="engine-catalog compact-catalog" aria-label="Legacy AI summary model" hidden>
+            <div class="model-table-wrap"><table class="model-table"><thead><tr><th aria-label="Selected"></th><th>Model</th><th>Installed locally</th><th>Actions</th></tr></thead><tbody><tr><td class="model-selected" id="ai-model-selected">✓</td><td><strong>LFM2.5 1.2B Q4</strong><small>Fast local meeting summaries with llama.cpp</small></td><td id="ai-model-state">Checking…</td><td><button class="table-action" id="ai-install-table" type="button">Install</button><button class="table-action" id="ai-load-table" type="button">Load</button></td></tr></tbody></table></div>
+          </section>
+          <section class="engine-catalog compact-catalog" aria-label="AI summary models">
+            <div class="model-table-wrap"><table class="model-table"><thead><tr><th aria-label="Selected"></th><th>Model</th><th>Installed locally</th><th>Actions</th></tr></thead><tbody id="ai-model-list"><tr><td></td><td><strong>Loading model catalog...</strong></td><td>Checking...</td><td></td></tr></tbody></table></div>
+          </section>
+          <input id="ai-profile-id" type="hidden" value="lfm2.5-1.2b-q4">
+          <div class="engine-config-group" id="ai-friendly-basic">
+            <div class="engine-config-heading"><div><strong>Basic options</strong><small id="ai-basic-description">The selected local model stays loaded after use.</small></div></div>
+            <div class="engine-toggle-grid" id="ai-local-basic">
+              <label class="engine-toggle"><span><strong>Load in memory at startup</strong><small>Starts ready for the first summary. Enabled by default.</small></span><span class="switch"><input id="ai-preload-on-start" type="checkbox"><i></i></span></label>
+            </div>
+            <div class="engine-field-grid" id="ai-custom-gguf-basic" hidden>
+              <label class="engine-field wide">
+                <span>GGUF model file</span>
+                <div class="path-input-row">
+                  <input id="ai-custom-gguf-path" type="text" readonly placeholder="Choose an existing .gguf file">
+                  <button class="button" id="ai-custom-gguf-browse" type="button">Browse...</button>
+                </div>
+                <small>The file stays in its current location. It must be compatible with the installed llama.cpp runtime, and Meet2Notes will never delete it.</small>
+              </label>
+              <div class="engine-toggle-grid wide">
+                <label class="engine-toggle"><span><strong>Load in memory at startup</strong><small>Starts ready for the first summary. Enabled by default.</small></span><span class="switch"><input id="ai-custom-preload-on-start" type="checkbox"><i></i></span></label>
+              </div>
+            </div>
+            <div class="engine-field-grid" id="ai-litellm-basic" hidden>
+              <label class="engine-field wide"><span>LiteLLM model</span><input id="ai-litellm-model" type="text" placeholder="openai/gpt-4.1-mini or ollama/qwen3:8b"><small>The provider prefix tells LiteLLM how to connect.</small></label>
+              <label class="engine-field wide"><span>API base URL <small>optional</small></span><input id="ai-litellm-base-url" type="url" placeholder="http://127.0.0.1:11434"><small>Leave empty when LiteLLM already knows the provider endpoint.</small></label>
+              <label class="engine-field wide"><span>API key <small>optional</small></span><input id="ai-api-key" type="password" autocomplete="new-password" placeholder="Leave blank to keep the saved key"><small id="ai-api-key-status">Checking secure credential storage...</small></label>
+              <div class="engine-field"><span>&nbsp;</span><button class="button" id="ai-api-key-clear" type="button">Remove saved API key</button></div>
+            </div>
+          </div>
+          <div class="engine-config-group" hidden>
             <div class="engine-config-heading">
-              <div><strong>Runtime and model</strong><small>llama.cpp provides a small cross-platform GGUF runtime with CPU and GPU acceleration.</small></div>
+              <div><strong>Basic options</strong><small>llama.cpp provides a small cross-platform GGUF runtime with CPU and GPU acceleration.</small></div>
               <span class="recommended-chip">Recommended · LFM2.5 1.2B Q4</span>
             </div>
             <div class="engine-field-grid">
+              <label class="engine-field">
+                <span>Provider</span>
+                <select id="ai-provider">
+                  <option value="disabled">Disabled</option>
+                  <option value="local">Local model</option>
+                  <option value="litellm">Custom local / remote via LiteLLM</option>
+                </select>
+              </label>
               <label class="engine-field">
                 <span>Local runtime</span>
                 <select id="ai-local-runtime">
@@ -363,19 +475,25 @@
                   <option value="custom">Custom GGUF / model name</option>
                 </select>
               </label>
-              <label class="engine-field wide">
+            </div>
+          </div>
+          <details class="advanced-settings">
+            <summary><span>Advanced runtime options</span><small>Context, performance and hardware tuning</small></summary>
+            <div class="engine-config-group">
+            <div class="engine-field-grid">
+              <label class="engine-field wide" hidden>
                 <span>Local model path</span>
                 <input id="ai-model-path" type="text" placeholder="Optional path to an existing .gguf file">
               </label>
-              <label class="engine-field wide">
+              <label class="engine-field wide" hidden>
                 <span>GGUF model file</span>
                 <input id="ai-model-file" type="text" value="LFM2.5-1.2B-Instruct-Q4_K_M.gguf">
               </label>
-              <label class="engine-field wide">
+              <label class="engine-field wide" hidden>
                 <span>Compatible API base URL</span>
                 <input id="ai-base-url" type="url" placeholder="http://127.0.0.1:8080/v1">
               </label>
-              <label class="engine-field">
+              <label class="engine-field" hidden>
                 <span>API key environment variable</span>
                 <input id="ai-key-env" type="text" value="MEET2NOTES_AI_API_KEY">
                 <small>The secret itself is never saved.</small>
@@ -405,6 +523,9 @@
               <label class="engine-field"><span>Multi-GPU split</span><select id="ai-split-mode"><option value="layer">Layer · recommended</option><option value="row">Row</option><option value="none">Single GPU</option></select></label>
             </div>
           </div>
+          </details>
+          <details class="advanced-settings">
+            <summary><span>Advanced AI options</span><small>Context, generation, memory and GPU tuning</small></summary>
           <div class="engine-config-group">
             <div class="engine-config-heading"><div><strong>Summary generation</strong><small>Conservative defaults reduce hallucinations in meeting notes.</small></div></div>
             <div class="engine-field-grid">
@@ -431,48 +552,86 @@
               <span>LFM2.5 summaries run in an independent worker. Keep it resident for repeated summaries, or unload it to recover RAM/VRAM.</span>
             </div>
           </div>
+          </details>
           <div class="engine-settings-actions multi-action">
             <span id="ai-worker-summary">Dedicated summary worker · no API keys stored</span>
             <button class="button" id="ai-unload" type="button">Unload</button>
-            <button class="button" id="ai-load" type="button">Load</button>
-            <button class="button" id="ai-install" type="button">Install LFM2.5 Q4</button>
+            <button id="ai-install" type="button" hidden></button>
             <button class="button primary" type="submit">Save AI settings</button>
           </div>
         </form>
       </section>
-
-      <section class="settings-section" id="privacy" role="tabpanel" data-settings-panel hidden>
-        <div class="settings-section-header">
-          <span class="settings-icon green">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.9 8.1 7 10 4.1-1.9 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-5"/></svg>
-          </span>
-          <div><h2>Privacy posture</h2><p>Safe defaults are enforced in the application, not just promised.</p></div>
+      <section class="settings-section engine-settings-section" id="note-formats" role="tabpanel" data-settings-panel hidden>
+        <div class="settings-section-header note-format-header">
+          <span class="settings-icon engine-blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg></span>
+          <div><h2>Note formats</h2><p>Choose how AI turns a transcript into structured meeting notes.</p></div>
+          <button class="button primary" id="note-format-new" type="button">New custom format</button>
         </div>
-        <div class="privacy-grid">
-          <div><i class="status-dot"></i><span><strong>Loopback only</strong><small id="listen-address">Checking address…</small></span></div>
-          <div><i class="status-dot"></i><span><strong>No telemetry</strong><small>No analytics or usage events are sent.</small></span></div>
-          <div><i class="status-dot"></i><span><strong>Remote AI opt-in only</strong><small>External providers remain disabled until explicitly configured.</small></span></div>
-          <div><i class="status-dot"></i><span><strong>Explicit recording</strong><small>Audio capture can never start automatically.</small></span></div>
+        <div class="engine-compatibility-note note-format-intro">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+          <span>Formats only change the AI notes. They never modify the recording or transcription. The selected default is saved locally and used for new meeting summaries.</span>
         </div>
-      </section>
-
-      <section class="settings-section" id="system" role="tabpanel" data-settings-panel hidden>
-        <div class="settings-section-header">
-          <span class="settings-icon dark">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-          </span>
-          <div><h2>System</h2><p>Runtime and media capabilities detected on this computer.</p></div>
-        </div>
-        <dl class="system-list">
-          <div><dt>Application data</dt><dd id="data-directory">Loading…</dd></div>
-          <div><dt>Platform</dt><dd id="platform-version">Loading…</dd></div>
-          <div><dt>FFmpeg</dt><dd id="ffmpeg-capability">Checking…</dd></div>
-          <div><dt>Audio capture</dt><dd id="capture-capability"><span class="neutral-pill">Checking…</span></dd></div>
-          <div><dt>Transcription</dt><dd id="transcription-capability"><span class="neutral-pill">Checking…</span></dd></div>
-        </dl>
+        <section class="engine-catalog" aria-label="Summary note formats">
+          <div class="model-table-wrap"><table class="model-table note-format-table"><thead><tr><th aria-label="Default"></th><th>Format</th><th>Sections</th><th>Actions</th></tr></thead><tbody id="note-format-list"><tr><td></td><td><strong>Loading note formats...</strong></td><td></td><td></td></tr></tbody></table></div>
+        </section>
+        <form id="note-format-form" class="note-format-editor" hidden>
+          <input id="note-format-id" type="hidden">
+          <div class="engine-config-heading">
+            <div><strong id="note-format-editor-title">New custom format</strong><small>Combine a general instruction with an ordered output structure.</small></div>
+            <button class="icon-button" id="note-format-cancel" type="button" aria-label="Close editor">×</button>
+          </div>
+          <div class="engine-field-grid">
+            <label class="engine-field"><span>Name</span><input id="note-format-name" type="text" maxlength="120" required placeholder="Customer discovery"></label>
+            <label class="engine-field wide"><span>Description</span><input id="note-format-description" type="text" maxlength="500" placeholder="What this format is useful for"></label>
+            <label class="engine-field wide"><span>General AI instruction</span><textarea id="note-format-system-prompt" rows="3" maxlength="4000" required placeholder="Create accurate notes using only the transcript..."></textarea></label>
+            <label class="engine-field wide"><span>Summary task</span><textarea id="note-format-user-prompt" rows="2" maxlength="4000" required placeholder="Turn the transcript into structured notes..."></textarea></label>
+          </div>
+          <div class="note-format-sections-heading"><div><strong>Output sections</strong><small>These headings are sent to the LLM in this exact order.</small></div><button class="button" id="note-format-add-section" type="button">Add section</button></div>
+          <div class="note-format-sections" id="note-format-sections"></div>
+          <div class="engine-settings-actions"><button class="button" id="note-format-cancel-bottom" type="button">Cancel</button><button class="button primary" type="submit">Save custom format</button></div>
+        </form>
       </section>
     </div>
   </div>
 </div>
+<dialog class="modal compact-modal" id="models-move-dialog" aria-labelledby="models-move-title">
+  <div class="modal-panel model-move-modal">
+    <div class="modal-header"><div><span class="eyebrow">Local storage</span><h2 id="models-move-title">Moving your AI models</h2><p id="models-move-message">Preparing the model files…</p></div></div>
+    <div class="progress-track indeterminate"><span></span></div>
+    <p class="modal-note">The AI workers are unloaded first. Restart Meet2Notes when this finishes to use the new folder.</p>
+  </div>
+</dialog>
+<dialog class="modal compact-modal" id="models-overwrite-dialog" aria-labelledby="models-overwrite-title">
+  <form method="dialog" class="modal-panel model-move-modal">
+    <div class="modal-header"><div><span class="eyebrow">Confirmation required</span><h2 id="models-overwrite-title">Existing models found</h2><p id="models-overwrite-message">This folder already contains model files.</p></div></div>
+    <p class="modal-note">Files with the same model name will be replaced by your current Meet2Notes models. Other files in the selected folder will be kept.</p>
+    <div class="modal-actions"><button class="button secondary" value="cancel" type="submit">Cancel</button><button class="button danger" value="overwrite" type="submit">Overwrite and move</button></div>
+  </form>
+</dialog>
+<dialog class="modal compact-modal" id="pytorch-cuda-dialog" aria-labelledby="pytorch-cuda-title">
+  <form method="dialog" class="modal-panel model-move-modal">
+    <div class="modal-header"><div><span class="eyebrow">GPU acceleration</span><h2 id="pytorch-cuda-title">Install CUDA PyTorch?</h2><p id="pytorch-cuda-message">This model needs CUDA PyTorch before it can use the NVIDIA GPU.</p></div></div>
+    <p class="modal-note">Only packages inside Meet2Notes' <code>.venv</code> will change. Your system Python and existing recordings are not modified.</p>
+    <div class="modal-actions"><button class="button secondary" value="cancel" type="submit">Keep CPU setup</button><button class="button primary" value="install" type="submit">Download CUDA packages</button></div>
+  </form>
+</dialog>
+<dialog class="modal compact-modal" id="model-install-dialog" aria-labelledby="model-install-title">
+  <div class="modal-panel model-install-modal">
+    <div class="modal-header"><div><span class="eyebrow">Local AI engine</span><h2 id="model-install-title">Installing model</h2><p id="model-install-status">Preparing the local installation…</p></div></div>
+    <div class="install-progress-copy"><span id="model-install-percent">0%</span><span id="model-install-phase">Preparing</span></div>
+    <div class="progress-track"><span id="model-install-bar"></span></div>
+    <label class="install-log-label" for="model-install-log">Installation log</label>
+    <textarea id="model-install-log" class="install-log" readonly spellcheck="false" aria-live="polite"></textarea>
+    <div class="modal-actions"><button class="button primary" id="model-install-close" type="button" disabled>Close</button></div>
+  </div>
+</dialog>
+<dialog class="modal" id="diagnostics-dialog" aria-labelledby="diagnostics-title">
+  <div class="modal-panel diagnostics-modal">
+    <div class="modal-header"><div><span class="eyebrow">Support report</span><h2 id="diagnostics-title">System diagnostics</h2><p id="diagnostics-status">Collecting hardware, software and Meet2Notes configuration…</p></div><button class="icon-button close-button" id="diagnostics-close" type="button" aria-label="Close">×</button></div>
+    <div class="progress-track indeterminate" id="diagnostics-progress"><span></span></div>
+    <textarea id="diagnostics-report" class="diagnostics-report" readonly spellcheck="false" aria-label="Diagnostic report"></textarea>
+    <div class="modal-actions"><button class="button secondary" id="copy-diagnostics" type="button">Copy report</button><button class="button primary" id="download-diagnostics" type="button">Download report</button></div>
+  </div>
+</dialog>
 {% endblock %}
-{% block scripts %}<script src="/static/js/settings.js" defer></script>{% endblock %}
+{% block scripts %}<script src="/static/js/settings.js?v={{ asset_version }}" defer></script>{% endblock %}

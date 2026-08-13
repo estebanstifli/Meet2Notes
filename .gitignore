@@ -35,5 +35,8 @@ temp/
 *.mkv
 *.webm
 *.mov
+.tmp-*/
+.meet2notes-data-location.json
+.meet2notes.instance.lock*
 .DS_Store
 Thumbs.db

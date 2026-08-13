@@ -6,12 +6,13 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from local_meeting_ai.domain.entities import Job
-from local_meeting_ai.domain.enums import JobType
+from local_meeting_ai.domain.enums import JobStatus, JobType
 from local_meeting_ai.domain.errors import JobCancelledError
 from local_meeting_ai.infrastructure.database.repositories import JobRepository
 
 logger = logging.getLogger(__name__)
 JobHandler = Callable[[Job, "JobContext"], Awaitable[dict[str, Any]]]
+JobTerminalHandler = Callable[[Job, JobStatus], Awaitable[None]]
 
 
 class JobContext:
@@ -37,12 +38,16 @@ class LocalJobQueue:
         self.repository = repository
         self.worker_count = worker_count
         self.handlers: dict[JobType, JobHandler] = {}
+        self.terminal_handlers: list[JobTerminalHandler] = []
         self._queue: asyncio.Queue[str] = asyncio.Queue()
         self._workers: list[asyncio.Task[None]] = []
         self._started = False
 
     def register(self, job_type: JobType, handler: JobHandler) -> None:
         self.handlers[job_type] = handler
+
+    def register_terminal_handler(self, handler: JobTerminalHandler) -> None:
+        self.terminal_handlers.append(handler)
 
     async def start(self) -> None:
         if self._started:
@@ -94,6 +99,7 @@ class LocalJobQueue:
         job = self.repository.start(job_uuid)
         if not job:
             return
+        logger.info("Started %s job %s", job.job_type.value, job_uuid)
 
         handler = self.handlers.get(job.job_type)
         if not handler:
@@ -105,10 +111,26 @@ class LocalJobQueue:
             result = await handler(job, context)
             await context.raise_if_cancelled()
             self.repository.complete(job_uuid, result)
+            logger.info("Completed %s job %s", job.job_type.value, job_uuid)
+            await self._notify_terminal(job, JobStatus.COMPLETED)
         except JobCancelledError:
             self.repository.mark_cancelled(job_uuid)
+            logger.info("Cancelled %s job %s", job.job_type.value, job_uuid)
+            await self._notify_terminal(job, JobStatus.CANCELLED)
         except asyncio.CancelledError:
             raise
         except Exception as error:
-            logger.exception("Job %s failed", job_uuid)
+            logger.exception("Job %s failed: %s", job_uuid, error)
             self.repository.fail(job_uuid, str(error) or type(error).__name__)
+            await self._notify_terminal(job, JobStatus.FAILED)
+
+    async def _notify_terminal(self, job: Job, status: JobStatus) -> None:
+        for handler in self.terminal_handlers:
+            try:
+                await handler(job, status)
+            except Exception:
+                logger.exception(
+                    "Terminal handler failed for %s job %s",
+                    job.job_type.value,
+                    job.uuid,
+                )

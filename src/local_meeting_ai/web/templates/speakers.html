@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Speakers · Meet2Notes{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/css/meetings.css?v={{ asset_version }}"><link rel="stylesheet" href="/static/css/speakers.css?v={{ asset_version }}">{% endblock %}
+{% block content %}
+<div class="page meetings-library-page speakers-page">
+  <header class="meetings-page-header">
+    <div class="workspace-heading"><span class="workspace-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M14 19.5a4 4 0 0 1 6.5-3.1"/></svg></span><div><h1>Speakers</h1><p>Remember voices once and find the meetings where they participated.</p></div></div>
+    <div class="page-header-actions">{% include "_theme_toggle.html" %}<a class="icon-button" href="/settings" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19.4 15 .1.1-1.8 3.1-.2-.1a2 2 0 0 0-2.4.3l-.6.4a2 2 0 0 0-.9 2.2v.2H10V21a2 2 0 0 0-.9-2.2l-.6-.4a2 2 0 0 0-2.4-.3l-.2.1-1.8-3.1.1-.1a2 2 0 0 0 1-2v-.8a2 2 0 0 0-1-2l-.1-.1L5.9 7l.2.1a2 2 0 0 0 2.4-.3l.6-.4A2 2 0 0 0 10 4.2V4h3.6v.2a2 2 0 0 0 .9 2.2l.6.4a2 2 0 0 0 2.4.3l.2-.1 1.8 3.1-.1.1a2 2 0 0 0-1 2v.8a2 2 0 0 0 1 2Z"/></svg></a></div>
+  </header>
+  <div class="settings-tabs speakers-tabs" role="tablist"><button class="active" data-speaker-tab="directory">Voice directory</button><button data-speaker-tab="meetings">Meeting finder</button></div>
+  <section class="panel speaker-panel" data-speaker-panel="directory">
+    <header class="speaker-directory-head"><div><h2>Saved voices</h2><p>Saved voice samples are used to recognize people in future meetings.</p></div><button class="button primary" id="add-speaker-profile">Add voice sample</button></header>
+    <div class="speaker-profile-list" id="speaker-profile-list"></div>
+  </section>
+  <section class="panel speaker-panel" data-speaker-panel="meetings" hidden>
+    <header class="speaker-directory-head"><div><h2>Find meetings by speaker</h2><p>Select one or more saved voices. Results include every selected person.</p></div></header>
+    <div class="speaker-filter-options" id="speaker-filter-options"></div><div class="speaker-meeting-results" id="speaker-meeting-results"></div>
+  </section>
+</div>
+<dialog class="modal" id="speaker-profile-dialog"><form class="modal-panel" id="speaker-profile-form"><div class="modal-header"><div><span class="eyebrow">Voice directory</span><h2>Add a saved voice</h2><p>Use a clear WAV or MP3 sample with one person speaking.</p></div><button type="button" class="icon-button close-button" data-close-dialog aria-label="Close">×</button></div><label class="field"><span>Speaker name</span><input name="name" maxlength="100" required placeholder="e.g. Ana García"></label><label class="drop-zone compact"><input name="file" type="file" accept=".wav,.mp3" required><strong>Choose a WAV or MP3 voice sample</strong><small>For best results: 15–60 seconds, clear speech, no music.</small></label><div class="modal-actions"><button type="button" class="button secondary" data-close-dialog>Cancel</button><button class="button primary" type="submit">Save voice</button></div></form></dialog>
+{% endblock %}
+{% block scripts %}<script src="/static/js/speakers.js?v={{ asset_version }}" defer></script>{% endblock %}

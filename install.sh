@@ -5,8 +5,10 @@ INSTALLER_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ENVIRONMENT_ROOT="${INSTALLER_ROOT}/.venv"
 MODELS="all"
 WHISPER_MODEL="small"
+MODELS_DIRECTORY=""
 DEV="false"
 START="false"
+AI_BACKEND="auto"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -14,6 +16,18 @@ while [[ $# -gt 0 ]]; do
     --whisper-model)
       shift
       WHISPER_MODEL="${1:?Missing Whisper model name}"
+      ;;
+    --models-dir)
+      shift
+      MODELS_DIRECTORY="${1:?Missing models directory}"
+      ;;
+    --ai-backend)
+      shift
+      AI_BACKEND="${1:?Missing AI backend}"
+      if [[ "${AI_BACKEND}" != "auto" && "${AI_BACKEND}" != "cpu" && "${AI_BACKEND}" != "cuda" ]]; then
+        echo "--ai-backend must be auto, cpu, or cuda" >&2
+        exit 2
+      fi
       ;;
     --dev) DEV="true" ;;
     --start) START="true" ;;
@@ -59,21 +73,62 @@ fi
 PYTHON="${ENVIRONMENT_ROOT}/bin/python"
 step "Installing Meet2Notes and native audio/AI runtimes"
 "${PYTHON}" -m pip install --upgrade pip setuptools wheel
-"${PYTHON}" -m pip install -e ".[capture,transcription,diarization]"
-"${PYTHON}" -m pip install "huggingface-hub>=0.27,<2"
 
 PYTHON_MINOR="$("${PYTHON}" -c 'import sys; print(sys.version_info.minor)')"
-LLAMA_INDEX="https://abetlen.github.io/llama-cpp-python/whl/cpu"
-if [[ "$(uname -s)" == "Darwin" ]]; then
-  LLAMA_INDEX="https://abetlen.github.io/llama-cpp-python/whl/metal"
-elif command -v nvidia-smi >/dev/null 2>&1 && [[ "${PYTHON_MINOR}" -le 12 ]]; then
-  LLAMA_INDEX="https://abetlen.github.io/llama-cpp-python/whl/cu124"
+NVIDIA_AVAILABLE="false"
+if command -v nvidia-smi >/dev/null 2>&1; then
+  NVIDIA_AVAILABLE="true"
 fi
+
+RESOLVED_BACKEND="${AI_BACKEND}"
+if [[ "${RESOLVED_BACKEND}" == "auto" ]]; then
+  if [[ "${NVIDIA_AVAILABLE}" == "true" ]]; then
+    RESOLVED_BACKEND="cuda"
+  else
+    RESOLVED_BACKEND="cpu"
+  fi
+fi
+if [[ "${RESOLVED_BACKEND}" == "cuda" && "${NVIDIA_AVAILABLE}" != "true" ]]; then
+  echo "No NVIDIA driver was detected. Install the driver or use --ai-backend cpu." >&2
+  exit 1
+fi
+
+if [[ "${RESOLVED_BACKEND}" == "cuda" ]]; then
+  TORCH_VERSION="2.13.0+cu126"
+  TORCH_INDEX="https://download.pytorch.org/whl/cu126"
+else
+  TORCH_VERSION="2.13.0+cpu"
+  TORCH_INDEX="https://download.pytorch.org/whl/cpu"
+fi
+step "Installing PyTorch ${RESOLVED_BACKEND} runtime inside .venv"
+"${PYTHON}" -m pip install --upgrade --force-reinstall --no-cache-dir \
+  --progress-bar off --disable-pip-version-check "torch==${TORCH_VERSION}" \
+  --index-url "${TORCH_INDEX}"
+
+"${PYTHON}" -m pip install -e ".[capture,transcription,diarization,nvidia-asr,pyannote-diarization]"
+"${PYTHON}" -m pip install "huggingface-hub>=0.27,<2"
+
+LLAMA_BACKEND="cpu"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  LLAMA_BACKEND="metal"
+elif [[ "${RESOLVED_BACKEND}" == "cuda" && "${PYTHON_MINOR}" -le 12 ]]; then
+  LLAMA_BACKEND="cuda"
+elif [[ "${RESOLVED_BACKEND}" == "cuda" ]]; then
+  echo "CUDA PyTorch is installed for transcription models, but the prebuilt llama.cpp CUDA wheel requires Python 3.10-3.12. Local summaries will use CPU."
+fi
+LLAMA_INDEX="https://abetlen.github.io/llama-cpp-python/whl/${LLAMA_BACKEND}"
+echo "PyTorch backend: ${RESOLVED_BACKEND}"
+echo "llama.cpp backend: ${LLAMA_BACKEND}"
 if ! "${PYTHON}" -m pip install "llama-cpp-python>=0.3.8,<1" \
   --extra-index-url "${LLAMA_INDEX}"; then
-  echo "Accelerated llama.cpp wheel unavailable; using the portable CPU wheel."
-  "${PYTHON}" -m pip install --force-reinstall "llama-cpp-python>=0.3.8,<1" \
-    --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/cpu"
+  if [[ "${AI_BACKEND}" == "auto" && "${LLAMA_BACKEND}" == "cuda" ]]; then
+    echo "Accelerated llama.cpp wheel unavailable; using the portable CPU wheel."
+    "${PYTHON}" -m pip install --force-reinstall "llama-cpp-python>=0.3.8,<1" \
+      --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/cpu"
+  else
+    echo "llama.cpp could not be installed for backend '${LLAMA_BACKEND}'." >&2
+    exit 1
+  fi
 fi
 
 if [[ "${DEV}" == "true" ]]; then
@@ -98,9 +153,15 @@ fi
 
 if [[ "${MODELS}" == "all" ]]; then
   step "Downloading and verifying the recommended local AI models"
-  "${PYTHON}" -m local_meeting_ai.model_setup \
-    --models all \
+  MODEL_ARGUMENTS=(
+    -m local_meeting_ai.model_setup
+    --models all
     --whisper-model "${WHISPER_MODEL}"
+  )
+  if [[ -n "${MODELS_DIRECTORY}" ]]; then
+    MODEL_ARGUMENTS+=(--models-dir "${MODELS_DIRECTORY}")
+  fi
+  "${PYTHON}" "${MODEL_ARGUMENTS[@]}"
 fi
 
 step "Verifying the installation"

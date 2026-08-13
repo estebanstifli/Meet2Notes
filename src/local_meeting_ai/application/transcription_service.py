@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import logging
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -37,6 +38,8 @@ from local_meeting_ai.infrastructure.database.repositories import (
 from local_meeting_ai.infrastructure.jobs import JobContext, LocalJobQueue
 from local_meeting_ai.infrastructure.storage import MeetingStorage
 
+logger = logging.getLogger(__name__)
+
 
 class TranscriptionService:
     def __init__(
@@ -71,27 +74,56 @@ class TranscriptionService:
         return self.profiles.list()
 
     async def preload_default(self) -> None:
-        profile = self.profiles.get("default")
-        if not profile.keep_model_loaded or not profile.installed:
+        config = faster_whisper_config(self.preferences.get_all())
+        if not config["preload_on_start"]:
             return
-        await self.engine.prepare(profile, allow_model_download=False)
+        seen_profiles: set[tuple[str, str]] = set()
+        for purpose in ("live", "final"):
+            profile = self.profiles.resolve("default", purpose=purpose)
+            profile_key = (profile.engine, profile.model)
+            if profile_key in seen_profiles:
+                logger.info(
+                    "The selected %s transcription model is already preloaded: %s",
+                    purpose,
+                    profile.display_name,
+                )
+                continue
+            seen_profiles.add(profile_key)
+            if not profile.installed:
+                logger.info(
+                    "Selected %s transcription model is not installed: %s",
+                    purpose,
+                    profile.display_name,
+                )
+                continue
+            logger.info(
+                "Preloading selected %s transcription model: %s",
+                purpose,
+                profile.display_name,
+            )
+            await self.engine.prepare(profile, allow_model_download=False)
 
     def validate_configuration(
         self,
         profile_id: str,
         *,
+        purpose: str,
         allow_model_download: bool,
     ) -> ModelProfile:
+        profile = self.profiles.resolve(profile_id, purpose=purpose)
         capability = self.engine.capability()
-        if not capability.get("available"):
-            raise CapabilityUnavailableError(
-                'Faster Whisper is not installed. Run: python -m pip install -e ".[transcription]"'
-            )
-        profile = self.profiles.get(profile_id)
+        engines = capability.get("engines")
+        selected_capability = (
+            engines.get(profile.engine, {}) if isinstance(engines, dict) else capability
+        )
         if not profile.installed and not allow_model_download:
             raise ConfirmationRequiredError(
                 f"The {profile.model} model is not installed. "
                 "Confirm the model download to continue."
+            )
+        if not allow_model_download and not selected_capability.get("available", True):
+            raise CapabilityUnavailableError(
+                f"The {profile.display_name} runtime is not available on this computer"
             )
         return profile
 
@@ -104,6 +136,8 @@ class TranscriptionService:
         task: str | None,
         allow_model_download: bool,
         title: str | None = None,
+        postprocess: bool = False,
+        postprocess_options: dict[str, Any] | None = None,
     ) -> tuple[Transcription, Job]:
         meeting = self.meetings.get(meeting_id)
         if not meeting:
@@ -114,11 +148,13 @@ class TranscriptionService:
 
         profile = self.validate_configuration(
             profile_id,
+            purpose="final",
             allow_model_download=allow_model_download,
         )
         clean_language = self._resolve_language(language)
         resolved_task = self._resolve_task(task)
         clean_title = title.strip() if title and title.strip() else None
+        workflow_options = _postprocess_options(postprocess_options)
         transcription = self.transcriptions.create(
             meeting_id=meeting_id,
             title=clean_title or self.transcriptions.next_default_title(),
@@ -152,6 +188,8 @@ class TranscriptionService:
                 "language": clean_language,
                 "task": resolved_task,
                 "allow_model_download": allow_model_download,
+                "postprocess": postprocess,
+                "postprocess_options": workflow_options,
             },
             message="Waiting to normalize audio",
         )
@@ -173,6 +211,7 @@ class TranscriptionService:
             raise NotFoundError("Meeting not found")
         profile = self.validate_configuration(
             profile_id,
+            purpose="live",
             allow_model_download=allow_model_download,
         )
         clean_language = self._resolve_language(language)
@@ -216,6 +255,8 @@ class TranscriptionService:
         language: str | None,
         task: str,
         allow_model_download: bool,
+        run_final_pass: bool = True,
+        postprocess_options: dict[str, Any] | None = None,
     ) -> tuple[Transcription, Job]:
         transcription = self.transcriptions.get(transcription_id)
         recording = self.recordings.get(recording_id)
@@ -223,10 +264,15 @@ class TranscriptionService:
             raise NotFoundError("The live transcription source no longer exists")
         if transcription.meeting_id != recording.meeting_id:
             raise ValidationError("The live recording does not match its transcription")
-        profile = self.validate_configuration(
-            profile_id,
-            allow_model_download=allow_model_download,
-        )
+        workflow_options = _postprocess_options(postprocess_options)
+        profile_id = "default"
+        if run_final_pass:
+            profile = self.validate_configuration(
+                profile_id,
+                purpose="final",
+                allow_model_download=allow_model_download,
+            )
+            profile_id = profile.id
         self.transcriptions.set_status(transcription_id, "queued")
         job = self.jobs.create(
             meeting_id=transcription.meeting_id,
@@ -234,13 +280,20 @@ class TranscriptionService:
             payload={
                 "transcription_id": transcription_id,
                 "recording_id": recording_id,
-                "profile_id": profile.id,
+                "profile_id": profile_id,
                 "language": language,
                 "task": task,
                 "allow_model_download": allow_model_download,
                 "preserve_existing_segments": True,
+                "postprocess": True,
+                "postprocess_options": workflow_options,
+                "skip_final_pass": not run_final_pass,
             },
-            message="Refining the live transcript",
+            message=(
+                "Refining the live transcript"
+                if run_final_pass
+                else "Keeping the live transcript without a final pass"
+            ),
         )
         await self.queue.submit(job.uuid)
         queued = self.transcriptions.get(transcription_id)
@@ -270,6 +323,17 @@ class TranscriptionService:
         meeting = self.meetings.get(job.meeting_id or -1)
         if not transcription or not recording or not meeting:
             raise NotFoundError("The transcription source no longer exists")
+        if bool(job.payload.get("skip_final_pass", False)):
+            await context.update(0.5, "Keeping the live transcript")
+            completed = self.transcriptions.complete_realtime(transcription_id)
+            if not completed:
+                raise NotFoundError("The live transcription no longer exists")
+            await context.update(0.96, "Saving the live transcript")
+            return {
+                "transcription_id": transcription_id,
+                "segment_count": len(self.transcriptions.segments(transcription_id)),
+                "skipped_final_pass": True,
+            }
         profile = self.profiles.get(profile_id)
         self.transcriptions.mark_running(transcription_id)
         if not bool(job.payload.get("preserve_existing_segments", False)):
@@ -343,17 +407,14 @@ class TranscriptionService:
                     task=str(job.payload.get("task", "transcribe")),
                     beam_size=profile.beam_size,
                     vad_filter=profile.vad_filter,
-                    allow_model_download=bool(
-                        job.payload.get("allow_model_download", False)
-                    ),
+                    allow_model_download=bool(job.payload.get("allow_model_download", False)),
+                    engine=profile.engine,
                     device_index=profile.device_index,
                     cpu_threads=profile.cpu_threads,
                     num_workers=profile.num_workers,
                     vad_min_silence_ms=profile.vad_min_silence_ms,
                     word_timestamps=profile.word_timestamps,
-                    condition_on_previous_text=(
-                        profile.condition_on_previous_text
-                    ),
+                    condition_on_previous_text=(profile.condition_on_previous_text),
                     keep_model_loaded=profile.keep_model_loaded,
                 ),
                 report_progress,
@@ -376,6 +437,8 @@ class TranscriptionService:
                 "language_probability": result.language_probability,
                 "duration_ms": result.duration_ms,
                 "normalized_recording_id": normalized.id,
+                "speaker_count": 0,
+                "assigned_segments": 0,
             }
         except JobCancelledError:
             self.transcriptions.set_status(transcription_id, "cancelled")
@@ -389,9 +452,7 @@ class TranscriptionService:
             raise NotFoundError("Meeting not found")
         return self.transcriptions.list_for_meeting(meeting_id)
 
-    def get(
-        self, transcription_id: int
-    ) -> tuple[Transcription, Sequence[TranscriptSegment]]:
+    def get(self, transcription_id: int) -> tuple[Transcription, Sequence[TranscriptSegment]]:
         transcription = self.transcriptions.get(transcription_id)
         if not transcription:
             raise NotFoundError("Transcription not found")
@@ -458,6 +519,16 @@ class TranscriptionService:
         config = faster_whisper_config(self.preferences.get_all())
         configured = str(config.get("task", "transcribe"))
         return configured if configured in {"transcribe", "translate"} else "transcribe"
+
+
+def _postprocess_options(options: dict[str, Any] | None) -> dict[str, Any]:
+    source = options if isinstance(options, dict) else {}
+    speaker_count = source.get("speaker_count")
+    return {
+        "diarization": bool(source.get("diarization", True)),
+        "speaker_count": speaker_count if isinstance(speaker_count, int) else None,
+        "summary": bool(source.get("summary", True)),
+    }
 
 
 def _sha256_file(path: Path) -> str:

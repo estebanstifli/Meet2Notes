@@ -168,6 +168,21 @@ class WindowsWasapiCaptureBackend:
             module = self._module()
             manager = module.PyAudio()
             stream: Any | None = None
+            sample_ready = threading.Event()
+            sampled_level = 0.0
+
+            def callback(
+                input_data: bytes,
+                frame_count: int,
+                time_info: dict[str, float],
+                status_flags: int,
+            ) -> tuple[None, int]:
+                del frame_count, time_info, status_flags
+                nonlocal sampled_level
+                sampled_level = _pcm_level(input_data)
+                sample_ready.set()
+                return None, module.paComplete
+
             try:
                 channels = max(1, min(source.channels, 2))
                 frames = min(4096, max(512, round(source.sample_rate * 0.08)))
@@ -178,10 +193,12 @@ class WindowsWasapiCaptureBackend:
                     input=True,
                     input_device_index=int(source_id.split(":", maxsplit=1)[1]),
                     frames_per_buffer=frames,
+                    stream_callback=callback,
                     start=True,
                 )
-                data = stream.read(frames, exception_on_overflow=False)
-                return _pcm_level(data)
+                if not sample_ready.wait(timeout=0.5):
+                    raise TimeoutError("the device did not provide an audio sample")
+                return sampled_level
             except Exception as error:
                 raise CapabilityUnavailableError(
                     f"Could not monitor {source.name}: {error}"

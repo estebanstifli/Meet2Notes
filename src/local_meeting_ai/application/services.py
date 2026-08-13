@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -106,6 +107,11 @@ class ImportService:
 
         stored = await self.storage.save_import(meeting.uuid, upload)
         try:
+            if meeting.started_at is None:
+                self.meetings.update(
+                    meeting.id,
+                    {"started_at": datetime.now(UTC).isoformat(timespec="milliseconds")},
+                )
             recording = self.recordings.create(
                 meeting_id=meeting.id,
                 role="original",

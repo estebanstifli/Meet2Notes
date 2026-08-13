@@ -52,6 +52,65 @@ class MeetingStorage:
         temp_dir = self.ensure_meeting(meeting_uuid) / "temp"
         return temp_dir / f"live-chunk-{uuid4().hex}.wav"
 
+    def speaker_export_path(
+        self,
+        meeting_uuid: str,
+        speaker_id: int,
+        output_format: str,
+    ) -> Path:
+        export_dir = self.ensure_meeting(meeting_uuid) / "exports"
+        return export_dir / f"speaker-{speaker_id}.{output_format}"
+
+    def speaker_profile_path(self, profile_id: int) -> Path:
+        directory = self.paths.root / "speaker_profiles"
+        directory.mkdir(parents=True, exist_ok=True)
+        return directory / f"voice-{profile_id}.wav"
+
+    def speaker_profile_upload_path(self, profile_id: int, extension: str) -> Path:
+        directory = self.paths.root / "speaker_profiles" / "uploads"
+        directory.mkdir(parents=True, exist_ok=True)
+        return directory / f"voice-{profile_id}.source{extension}"
+
+    async def save_speaker_profile_sample(
+        self,
+        profile_id: int,
+        upload: AsyncUpload,
+    ) -> StoredMedia:
+        original_filename = Path(upload.filename or "voice-sample").name
+        if Path(original_filename).suffix.lower() not in {".wav", ".mp3"}:
+            raise ValidationError("Voice samples must be a WAV or MP3 file")
+        destination = self.speaker_profile_upload_path(
+            profile_id,
+            Path(original_filename).suffix.lower(),
+        )
+        hasher = hashlib.sha256()
+        size = 0
+        try:
+            async with aiofiles.open(destination, "wb") as output:
+                while chunk := await upload.read(1024 * 1024):
+                    size += len(chunk)
+                    if size > self.max_upload_bytes:
+                        raise UploadTooLargeError(
+                            "Voice sample exceeds the configured upload limit"
+                        )
+                    hasher.update(chunk)
+                    await output.write(chunk)
+        except Exception:
+            destination.unlink(missing_ok=True)
+            raise
+        finally:
+            await upload.close()
+        if not size:
+            destination.unlink(missing_ok=True)
+            raise ValidationError("The voice sample is empty")
+        return StoredMedia(
+            str(destination),
+            original_filename,
+            upload.content_type,
+            size,
+            hasher.hexdigest(),
+        )
+
     async def save_import(self, meeting_uuid: str, upload: AsyncUpload) -> StoredMedia:
         original_filename = Path(upload.filename or "unnamed").name
         extension = Path(original_filename).suffix.lower()

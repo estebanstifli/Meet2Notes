@@ -4,15 +4,14 @@ import asyncio
 import gc
 import importlib
 import importlib.util
-import json
+import logging
 import os
 import threading
-import urllib.error
-import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, cast
 
+from local_meeting_ai.application.summary_templates import render_summary_template
 from local_meeting_ai.domain.entities import SummaryResult
 from local_meeting_ai.domain.errors import (
     CapabilityUnavailableError,
@@ -20,8 +19,62 @@ from local_meeting_ai.domain.errors import (
 )
 from local_meeting_ai.domain.protocols import CancellationCheck, ProgressReporter
 
+from .credentials import get_litellm_api_key, secure_storage_status
+
 DEFAULT_REPOSITORY = "LiquidAI/LFM2.5-1.2B-Instruct-GGUF"
 DEFAULT_FILE = "LFM2.5-1.2B-Instruct-Q4_K_M.gguf"
+DEFAULT_PROFILE = "lfm2.5-1.2b-q4"
+LOCAL_MODELS: dict[str, dict[str, Any]] = {
+    DEFAULT_PROFILE: {
+        "id": DEFAULT_PROFILE,
+        "display_name": "LFM2.5 1.2B Q4",
+        "description": "Recommended balance for private local meeting summaries.",
+        "repository": DEFAULT_REPOSITORY,
+        "model_file": DEFAULT_FILE,
+        "download_size": "731 MB",
+        "quantization": "Q4_K_M",
+    },
+    "qwen3-0.6b": {
+        "id": "qwen3-0.6b",
+        "display_name": "Qwen3 0.6B",
+        "description": "Smallest multilingual local option.",
+        "repository": "Qwen/Qwen3-0.6B-GGUF",
+        "model_file": "Qwen3-0.6B-Q8_0.gguf",
+        "download_size": "639 MB",
+        "quantization": "Q8_0",
+    },
+    "qwen3-1.7b": {
+        "id": "qwen3-1.7b",
+        "display_name": "Qwen3 1.7B",
+        "description": "Higher-quality multilingual local summaries.",
+        "repository": "Qwen/Qwen3-1.7B-GGUF",
+        "model_file": "Qwen3-1.7B-Q8_0.gguf",
+        "download_size": "1.83 GB",
+        "quantization": "Q8_0",
+    },
+}
+LITELLM_PROFILE: dict[str, Any] = {
+    "id": "litellm-custom",
+    "display_name": "Custom local / remote via LiteLLM",
+    "description": "Connect hosted APIs, Ollama, LM Studio or another LiteLLM provider.",
+    "repository": None,
+    "model_file": None,
+    "download_size": "No local installation",
+    "quantization": None,
+    "managed": False,
+}
+CUSTOM_GGUF_PROFILE: dict[str, Any] = {
+    "id": "custom-gguf",
+    "display_name": "Custom GGUF",
+    "description": "Load an existing GGUF file directly with llama.cpp.",
+    "repository": None,
+    "model_file": None,
+    "download_size": "User-provided file",
+    "quantization": "Detected by llama.cpp",
+    "managed": False,
+    "external_file": True,
+}
+logger = logging.getLogger(__name__)
 
 
 class LlamaCppSummaryEngine:
@@ -70,6 +123,31 @@ class LlamaCppSummaryEngine:
             state = self._state
             active = self._active_requests
             error = self._last_error
+        profiles = []
+        for profile in LOCAL_MODELS.values():
+            item = dict(profile)
+            item.update(
+                {
+                    "managed": True,
+                    "installed": (self.models_dir / str(profile["model_file"])).is_file(),
+                    "runtime_available": dependency,
+                }
+            )
+            profiles.append(item)
+        profiles.append(
+            {
+                **CUSTOM_GGUF_PROFILE,
+                "installed": False,
+                "runtime_available": dependency,
+            }
+        )
+        profiles.append(
+            {
+                **LITELLM_PROFILE,
+                "installed": True,
+                "runtime_available": importlib.util.find_spec("litellm") is not None,
+            }
+        )
         return {
             "engine": self.name,
             "display_name": "llama.cpp · LFM2.5 1.2B Q4_K_M",
@@ -81,6 +159,8 @@ class LlamaCppSummaryEngine:
             "models_directory": str(self.models_dir),
             "backend": backend.lower(),
             "system_info": system_info.strip(),
+            "models": profiles,
+            "secure_credentials": secure_storage_status(),
             "worker": {
                 "dedicated": True,
                 "thread_prefix": "llama-summary",
@@ -99,6 +179,9 @@ class LlamaCppSummaryEngine:
         allow_model_download: bool,
     ) -> None:
         await self._submit(self._prepare_sync, config, allow_model_download)
+
+    async def uninstall(self, profile_id: str) -> None:
+        await self._submit(self._uninstall_sync, profile_id)
 
     async def summarize(
         self,
@@ -154,7 +237,11 @@ class LlamaCppSummaryEngine:
         self._request_started("loading")
         failure: Exception | None = None
         try:
-            if config.get("provider") == "openai-compatible":
+            if config.get("provider") in {"litellm", "openai-compatible"}:
+                if importlib.util.find_spec("litellm") is None:
+                    raise CapabilityUnavailableError(
+                        'LiteLLM is not installed. Run: python -m pip install -e ".[summaries]"'
+                    )
                 return
             path = self._resolve_model_path(config, allow_model_download)
             self._get_model(path, config)
@@ -178,26 +265,52 @@ class LlamaCppSummaryEngine:
                 raise JobCancelledError("Summary generation was cancelled")
             progress(0.05, "Preparing the meeting transcript")
             response_language = str(config.get("response_language") or "").lower()
-            if response_language == "es":
+            speaker_scope = config.get("summary_scope") == "speaker"
+            speaker_name = str(config.get("speaker_name") or "the speaker")
+            if speaker_scope and response_language == "es":
                 task_prompt = (
-                    "Responde exclusivamente en español. Resume esta reunión "
-                    "con: visión general, puntos clave, decisiones explícitas, "
-                    "tareas y preguntas pendientes. No inventes responsables, "
-                    "decisiones, fechas ni hechos. Una persona solo es responsable "
-                    "si el texto lo dice expresamente."
+                    f"Responde exclusivamente en español. Resume únicamente lo que "
+                    f"ha dicho {speaker_name}: sus ideas, argumentos, datos, opiniones, "
+                    "propuestas y compromisos explícitos. No resumas la reunión completa, "
+                    "no atribuyas palabras de otras personas y no inventes información."
+                )
+            elif speaker_scope:
+                task_prompt = (
+                    f"Write in the transcript language. Summarize only what {speaker_name} "
+                    "said: their ideas, arguments, facts, opinions, proposals, and explicit "
+                    "commitments. Do not summarize the whole meeting, attribute other "
+                    "speakers' words, or invent information."
+                )
+            elif response_language == "es":
+                template = config.get("summary_template")
+                task_prompt = "Responde exclusivamente en español. " + (
+                    render_summary_template(template)
+                    if isinstance(template, dict)
+                    else "Resume la reunión con puntos clave, decisiones y tareas."
                 )
             else:
-                task_prompt = (
-                    "Write the answer in the same language as the transcript. "
-                    "Create a useful meeting summary with: overview, key points, "
-                    "explicit decisions, action items, and unresolved questions. "
-                    "Never invent an owner, decision, deadline, or fact; say that "
-                    "it was not specified or omit it."
+                template = config.get("summary_template")
+                task_prompt = "Write in the transcript language. " + (
+                    render_summary_template(template)
+                    if isinstance(template, dict)
+                    else "Create a useful meeting summary with decisions and actions."
+                )
+            template_system = ""
+            if not speaker_scope and isinstance(config.get("summary_template"), dict):
+                template_system = str(
+                    config["summary_template"].get("system_prompt") or ""
                 )
             messages = [
                 {
                     "role": "system",
-                    "content": str(config.get("system_prompt", "")),
+                    "content": "\n\n".join(
+                        part
+                        for part in (
+                            str(config.get("system_prompt", "")),
+                            template_system,
+                        )
+                        if part
+                    ),
                 },
                 {
                     "role": "user",
@@ -206,8 +319,9 @@ class LlamaCppSummaryEngine:
                     ),
                 },
             ]
-            if config.get("provider") == "openai-compatible":
-                result = self._remote_completion(messages, config)
+            if config.get("provider") in {"litellm", "openai-compatible"}:
+                progress(0.2, "Generating the summary through LiteLLM")
+                result = self._litellm_completion(messages, config)
             else:
                 path = self._resolve_model_path(config, False)
                 model = self._get_model(path, config)
@@ -327,15 +441,25 @@ class LlamaCppSummaryEngine:
         config: dict[str, Any],
         allow_download: bool,
     ) -> Path:
-        configured = config.get("model_path")
-        path = Path(str(configured)).expanduser().resolve() if configured else (
-            self.models_dir / str(config.get("model_file", DEFAULT_FILE))
-        )
+        if config.get("profile_id") == "custom-gguf":
+            configured = str(config.get("model_path") or "").strip()
+            if not configured:
+                raise CapabilityUnavailableError(
+                    "Choose a local GGUF file in Settings before loading this model."
+                )
+            path = Path(configured).expanduser().resolve()
+            if path.suffix.lower() != ".gguf":
+                raise CapabilityUnavailableError("The selected file must use the .gguf extension")
+            if not path.is_file():
+                raise CapabilityUnavailableError(f"The selected GGUF file does not exist: {path}")
+            return path
+        profile = self._profile(config.get("profile_id"))
+        path = self.models_dir / str(profile["model_file"])
         if path.is_file():
             return path
         if not allow_download:
             raise CapabilityUnavailableError(
-                "LFM2.5 1.2B Q4_K_M is not installed. "
+                f"{profile['display_name']} is not installed. "
                 "Use the explicit installation action in Settings."
             )
         if importlib.util.find_spec("huggingface_hub") is None:
@@ -344,49 +468,82 @@ class LlamaCppSummaryEngine:
             )
         hub = importlib.import_module("huggingface_hub")
         try:
+            logger.info(
+                "Downloading %s from %s into %s",
+                profile["model_file"],
+                profile["repository"],
+                self.models_dir,
+            )
             downloaded = hub.hf_hub_download(
-                repo_id=str(config.get("model", DEFAULT_REPOSITORY)),
-                filename=str(config.get("model_file", DEFAULT_FILE)),
+                repo_id=str(profile["repository"]),
+                filename=str(profile["model_file"]),
                 local_dir=str(self.models_dir),
             )
         except Exception as error:
             raise CapabilityUnavailableError(
-                f"Could not download LFM2.5: {error}"
+                f"Could not download {profile['display_name']}: {error}"
             ) from error
+        logger.info("Saved local summary model %s", downloaded)
         return Path(downloaded)
 
-    def _remote_completion(
+    def _litellm_completion(
         self,
         messages: list[dict[str, str]],
         config: dict[str, Any],
     ) -> dict[str, Any]:
-        base_url = str(config.get("base_url", "")).rstrip("/")
-        key = os.getenv(str(config.get("api_key_env", "")), "")
-        request = urllib.request.Request(
-            f"{base_url}/chat/completions",
-            data=json.dumps(
-                {
-                    "model": config.get("model"),
-                    "messages": messages,
-                    "max_tokens": config.get("max_output_tokens", 1024),
-                    "temperature": config.get("temperature", 0.2),
-                    "top_p": config.get("top_p", 0.9),
-                    "seed": config.get("seed", -1),
-                }
-            ).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                **({"Authorization": f"Bearer {key}"} if key else {}),
-            },
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=300) as response:
-                return cast(dict[str, Any], json.load(response))
-        except (urllib.error.URLError, OSError, ValueError) as error:
+        if importlib.util.find_spec("litellm") is None:
             raise CapabilityUnavailableError(
-                f"The compatible AI provider could not complete the request: {error}"
+                'LiteLLM is not installed. Run: python -m pip install -e ".[summaries]"'
+            )
+        litellm = importlib.import_module("litellm")
+        key = get_litellm_api_key() or os.getenv(str(config.get("api_key_env", "")), "")
+        base_url = str(config.get("base_url") or "").rstrip("/")
+        arguments: dict[str, Any] = {
+            "model": str(config.get("model", "")),
+            "messages": messages,
+            "max_tokens": int(config.get("max_output_tokens", 1024)),
+            "temperature": float(config.get("temperature", 0.2)),
+            "top_p": float(config.get("top_p", 0.9)),
+            "drop_params": True,
+            "timeout": 300,
+        }
+        if base_url:
+            arguments["api_base"] = base_url
+        if key:
+            arguments["api_key"] = key
+        try:
+            response = litellm.completion(**arguments)
+            if hasattr(response, "model_dump"):
+                return cast(dict[str, Any], response.model_dump())
+            return cast(dict[str, Any], response)
+        except Exception as error:
+            raise CapabilityUnavailableError(
+                f"LiteLLM could not complete the request: {error}"
             ) from error
+
+    def _uninstall_sync(self, profile_id: str) -> None:
+        profile = self._profile(profile_id)
+        path = (self.models_dir / str(profile["model_file"])).resolve()
+        if path.parent != self.models_dir.resolve():
+            raise CapabilityUnavailableError(
+                "Refusing to remove a model outside the managed folder"
+            )
+        with self._model_lock:
+            loaded_path = Path(str(self._model_key[0])).resolve() if self._model_key else None
+            if loaded_path == path:
+                self._model = None
+                self._model_key = None
+        if path.is_file():
+            path.unlink()
+            logger.info("Removed local summary model %s", path)
+        gc.collect()
+
+    @staticmethod
+    def _profile(profile_id: Any) -> dict[str, Any]:
+        profile = LOCAL_MODELS.get(str(profile_id or DEFAULT_PROFILE))
+        if not profile:
+            raise CapabilityUnavailableError("The selected local AI model is not managed")
+        return profile
 
     def _default_model_path(self) -> Path:
         return self.models_dir / DEFAULT_FILE

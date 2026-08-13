@@ -111,6 +111,43 @@ class TranscriptSegment:
 
 
 @dataclass(frozen=True, slots=True)
+class Speaker:
+    id: int
+    meeting_id: int
+    stable_key: str | None
+    display_name: str
+    confidence: float | None
+    created_at: str
+    segment_count: int = 0
+    talk_time_ms: int = 0
+    summary_status: str | None = None
+    summary_markdown: str | None = None
+    summary_provider: str | None = None
+    summary_model: str | None = None
+    summary_updated_at: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SpeakerProfile:
+    id: int
+    name: str
+    sample_path: str | None
+    created_at: str
+    updated_at: str
+    meeting_count: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class SpeakerTurn:
+    id: int
+    meeting_id: int
+    transcription_id: int
+    speaker_id: int
+    start_ms: int
+    end_ms: int
+
+
+@dataclass(frozen=True, slots=True)
 class SegmentDraft:
     index: int
     start_ms: int
@@ -139,11 +176,12 @@ class TranscriptionEngineRequest:
     beam_size: int
     vad_filter: bool
     allow_model_download: bool
+    engine: str = "faster-whisper"
     device_index: int = 0
     cpu_threads: int = 0
     num_workers: int = 1
     vad_min_silence_ms: int = 500
-    word_timestamps: bool = False
+    word_timestamps: bool = True
     condition_on_previous_text: bool = True
     keep_model_loaded: bool = True
 
@@ -163,11 +201,16 @@ class ModelProfile:
     cpu_threads: int = 0
     num_workers: int = 1
     vad_min_silence_ms: int = 500
-    word_timestamps: bool = False
+    word_timestamps: bool = True
     condition_on_previous_text: bool = True
     keep_model_loaded: bool = True
     recommended: bool = False
     installed: bool = False
+    supports_live: bool = True
+    supports_final: bool = True
+    runtime_available: bool = True
+    download_size: str | None = None
+    compatibility_note: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -233,6 +276,7 @@ class Summary:
     id: int
     meeting_id: int
     transcription_id: int
+    template_id: int | None
     provider: str
     model: str
     status: str
@@ -240,6 +284,19 @@ class Summary:
     structured: dict[str, Any] | None
     created_at: str
     completed_at: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class SummaryTemplate:
+    id: int
+    name: str
+    description: str | None
+    system_prompt: str
+    user_prompt_template: str
+    sections: list[dict[str, Any]]
+    is_builtin: bool
+    created_at: str
+    updated_at: str
 
 
 @dataclass(frozen=True, slots=True)

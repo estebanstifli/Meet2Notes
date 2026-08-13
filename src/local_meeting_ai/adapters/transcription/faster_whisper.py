@@ -4,12 +4,14 @@ import asyncio
 import gc
 import importlib
 import importlib.util
+import logging
 import math
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, cast
 
+from local_meeting_ai.adapters.model_files import remove_managed_model_tree
 from local_meeting_ai.application.transcription_config import (
     COMPUTE_TYPES,
     FASTER_WHISPER_MODEL_REPOSITORIES,
@@ -30,6 +32,8 @@ from local_meeting_ai.domain.protocols import (
     ProgressReporter,
     SegmentReporter,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class FasterWhisperEngine:
@@ -122,6 +126,9 @@ class FasterWhisperEngine:
             profile,
             allow_model_download,
         )
+
+    async def uninstall(self, profile: ModelProfile) -> None:
+        await self._submit(self._uninstall_model_sync, profile.model)
 
     async def transcribe(
         self,
@@ -347,9 +354,18 @@ class FasterWhisperEngine:
         with self._model_lock:
             cached = self._models.get(key)
             if cached is not None:
+                logger.debug("Reusing resident Faster Whisper model %s", model)
                 return cached, self._model_slots[key], key
             self._models.clear()
             self._model_slots.clear()
+            logger.info(
+                "%s Faster Whisper model %s on %s with %s compute (model directory: %s)",
+                "Downloading and loading" if allow_model_download else "Loading",
+                model,
+                device,
+                compute_type,
+                self.models_dir,
+            )
             model_instance = model_class(
                 model,
                 device=device,
@@ -363,6 +379,7 @@ class FasterWhisperEngine:
             self._models[key] = model_instance
             self._model_slots[key] = threading.BoundedSemaphore(num_workers)
             self._resident_models = (model,)
+            logger.info("Faster Whisper model %s is resident in memory", model)
             return model_instance, self._model_slots[key], key
 
     def _unload_model(self, key: tuple[Any, ...]) -> None:
@@ -373,6 +390,32 @@ class FasterWhisperEngine:
                 sorted({str(model_key[0]) for model_key in self._models})
             )
         gc.collect()
+
+    def _uninstall_model_sync(self, model: str) -> None:
+        with self._state_lock:
+            if self._active_requests:
+                raise CapabilityUnavailableError(
+                    "Wait for the active Faster Whisper task to finish before uninstalling a model"
+                )
+        repository = FASTER_WHISPER_MODEL_REPOSITORIES.get(model)
+        if repository is None:
+            raise CapabilityUnavailableError(f"Unknown Faster Whisper model '{model}'")
+        self.unload()
+        removed = False
+        for candidate in (
+            self.models_dir / f"models--{repository.replace('/', '--')}",
+            self.models_dir / model,
+        ):
+            removed = remove_managed_model_tree(
+                root=self.models_dir,
+                target=candidate,
+                label=f"Faster Whisper {model}",
+            ) or removed
+        if not removed:
+            raise CapabilityUnavailableError(
+                f"The Faster Whisper {model} files are not installed locally"
+            )
+        logger.info("Removed Faster Whisper model %s from %s", model, self.models_dir)
 
     def _request_started(self, state: str) -> None:
         with self._state_lock:

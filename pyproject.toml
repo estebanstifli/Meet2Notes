@@ -31,6 +31,8 @@ dependencies = [
     "aiofiles>=24.1.0,<25",
     "fastapi>=0.115.0,<1",
     "jinja2>=3.1.4,<4",
+    "keyring>=25.6,<26",
+    "litellm>=1.75,<2",
     "platformdirs>=4.3.0,<5",
     "pydantic>=2.10.0,<3",
     "pydantic-settings>=2.7.0,<3",
@@ -42,6 +44,13 @@ dependencies = [
 transcription = [
     "faster-whisper>=1.1.0,<2",
 ]
+nvidia-asr = [
+    "torch>=2.6,<3",
+    "transformers>=5.13,<6",
+    "accelerate>=1.2,<2",
+    "soundfile>=0.12,<1",
+    "scipy>=1.12,<2",
+]
 capture = [
     "PyAudioWPatch>=0.2.12.7,<0.3; sys_platform == 'win32'",
     "sounddevice>=0.5.3,<1; sys_platform != 'win32'",
@@ -49,6 +58,10 @@ capture = [
 diarization = [
     "sherpa-onnx>=1.10.28,<2",
     "numpy>=1.26,<3",
+]
+pyannote-diarization = [
+    "pyannote-audio>=4.0,<5",
+    "huggingface-hub>=0.28.1,<2",
 ]
 summaries = [
     "huggingface-hub>=0.27,<2",

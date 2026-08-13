@@ -12,11 +12,12 @@ DEFAULT_FASTER_WHISPER_CONFIG: dict[str, Any] = {
     "beam_size": 5,
     "vad_filter": True,
     "vad_min_silence_ms": 500,
-    "word_timestamps": False,
+    "word_timestamps": True,
     "condition_on_previous_text": True,
     "cpu_threads": 0,
     "num_workers": 1,
     "keep_model_loaded": True,
+    "preload_on_start": True,
     "realtime_chunk_seconds": 3.0,
     "realtime_overlap_seconds": 1.0,
 }
@@ -39,6 +40,18 @@ FASTER_WHISPER_MODEL_REPOSITORIES = {
     "large-v3": "Systran/faster-whisper-large-v3",
     "distil-large-v3": "Systran/faster-distil-whisper-large-v3",
     "turbo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+}
+
+# Download sizes for the CTranslate2 repositories used by this application.
+# They describe the model package before the small Hugging Face cache overhead.
+FASTER_WHISPER_MODEL_DOWNLOAD_SIZES = {
+    "tiny": "78.2 MB",
+    "base": "148 MB",
+    "small": "486 MB",
+    "medium": "1.53 GB",
+    "large-v3": "3.09 GB",
+    "distil-large-v3": "1.52 GB",
+    "turbo": "1.62 GB",
 }
 
 COMPUTE_DEVICES = ("auto", "cpu", "cuda")

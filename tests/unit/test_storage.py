@@ -11,7 +11,12 @@ from local_meeting_ai.paths import AppPaths
 
 
 def test_storage_refuses_directory_traversal(tmp_path: Path) -> None:
-    paths = AppPaths.from_settings(AppSettings(data_dir=tmp_path / "data"))
+    paths = AppPaths.from_settings(
+        AppSettings(
+            data_dir=tmp_path / "data",
+            models_dir=tmp_path / "models",
+        )
+    )
     paths.ensure()
     storage = MeetingStorage(paths, max_upload_bytes=1024)
 

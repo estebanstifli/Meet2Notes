@@ -3,47 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
+  <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#ffffff">
   <title>{% block title %}Meet2Notes{% endblock %}</title>
   <link rel="icon" href="/static/icons/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/css/app.css">
-  <link rel="stylesheet" href="/static/css/ui-refresh.css">
+  <script src="/static/js/theme-bootstrap.js?v={{ asset_version }}"></script>
+  <link rel="stylesheet" href="/static/css/app.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/static/css/ui-refresh.css?v={{ asset_version }}">
   {% block head %}{% endblock %}
+  <link rel="stylesheet" href="/static/css/themes.css?v={{ asset_version }}">
 </head>
 <body data-page="{{ page }}">
-  <header class="classic-menu-bar">
-    <div class="window-title">
-      <img src="/static/icons/mark.svg" alt="">
-      <span>Meet2Notes</span>
-    </div>
-    <nav class="classic-menu" aria-label="Application menu">
-      <div class="classic-menu-group">
-        <button type="button" data-menu-toggle="file" data-i18n="menu.file">File</button>
-        <div class="classic-menu-popover" data-menu-panel="file">
-          <a href="/" data-i18n="menu.transcription">Transcription workspace</a>
-          <span class="menu-separator"></span>
-          <a href="/settings" data-i18n="menu.settings">Settings</a>
-        </div>
-      </div>
-      <div class="classic-menu-group">
-        <button type="button" data-menu-toggle="view" data-i18n="menu.view">View</button>
-        <div class="classic-menu-popover" data-menu-panel="view">
-          <a href="/" data-i18n="nav.transcribe">Transcribe</a>
-          <a href="/#meetings" data-i18n="nav.meetings">Meetings</a>
-          <a href="/settings" data-i18n="nav.settings">Settings</a>
-        </div>
-      </div>
-      <div class="classic-menu-group">
-        <button type="button" data-menu-toggle="help" data-i18n="menu.help">Help</button>
-        <div class="classic-menu-popover" data-menu-panel="help">
-          <button type="button" data-open-about data-i18n="menu.about">About Meet2Notes</button>
-          <a href="/api/docs" target="_blank" rel="noreferrer" data-i18n="menu.api">Local API documentation</a>
-        </div>
-      </div>
-    </nav>
-  </header>
-
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
       <a class="brand" href="/" aria-label="Meet2Notes">
@@ -55,38 +25,45 @@
       </a>
 
       <nav class="primary-nav" aria-label="Main navigation">
-        <a href="/" class="{{ 'active' if page == 'dashboard' else '' }}">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg>
-          <span data-i18n="nav.transcribe">Transcribe</span>
+        <a href="/?new=1" class="sidebar-new-meeting">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <span data-i18n="nav.new_meeting">New meeting</span>
         </a>
-        <a href="/#meetings" class="{{ 'active' if page == 'meetings' else '' }}">
+        <a href="/meetings" class="{{ 'active' if page == 'meetings' else '' }}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>
           <span data-i18n="nav.meetings">Meetings</span>
         </a>
-        <a href="/settings#speaker-engine">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM17 11l2 2 3-4"/></svg>
-          <span data-i18n="nav.speakers">Speakers</span>
+        <a href="/speakers" class="{{ 'active' if page == 'speakers' else '' }}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M14 19.5a4 4 0 0 1 6.5-3.1"/></svg>
+          <span>Speakers</span>
         </a>
-        <a href="/settings#ai-engine">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM8 8h8M8 12h8M8 16h5"/></svg>
-          <span data-i18n="nav.summaries">Summaries</span>
-        </a>
-        <button class="nav-button" data-coming-soon="Exports">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12m0 0 5-5m-5 5-5-5M5 20h14"/></svg>
-          <span data-i18n="nav.exports">Exports</span>
+        <button class="nav-button" data-coming-soon="Action items" aria-label="Action items, coming soon">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>
+          <span data-i18n="nav.action_items">Action items</span>
           <span class="nav-soon" data-i18n="common.soon">Soon</span>
         </button>
       </nav>
 
       <div class="sidebar-bottom">
-        <div class="engine-card" id="global-engine-card">
-          <span class="engine-card-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg>
-          </span>
-          <div>
-            <strong data-i18n="engine.title">Transcription engine</strong>
-            <span class="engine-state"><i></i><b data-i18n="engine.checking">Checking…</b></span>
-            <small data-i18n="engine.local">Private local processing</small>
+        <div class="engine-card system-engine-card" id="global-engine-card">
+          <div class="engine-card-header">
+            <a class="engine-card-settings-link" href="/settings" aria-label="Settings" title="Settings">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19.4 15 .1.1-1.8 3.1-.2-.1a2 2 0 0 0-2.4.3l-.6.4a2 2 0 0 0-.9 2.2v.2H10V21a2 2 0 0 0-.9-2.2l-.6-.4a2 2 0 0 0-2.4-.3l-.2.1-1.8-3.1.1-.1a2 2 0 0 0 1-2v-.8a2 2 0 0 0-1-2l-.1-.1L5.9 7l.2.1a2 2 0 0 0 2.4-.3l.6-.4A2 2 0 0 0 10 4.2V4h3.6v.2a2 2 0 0 0 .9 2.2l.6.4a2 2 0 0 0 2.4.3l.2-.1 1.8 3.1-.1.1a2 2 0 0 0-1 2v.8a2 2 0 0 0 1 2Z"/></svg>
+            </a>
+            <span>
+              <strong data-i18n="engine.system_title">Local AI status</strong>
+              <small id="engine-process-label" data-i18n="engine.checking">Checking…</small>
+            </span>
+          </div>
+          <div class="engine-status-list" id="global-engine-list" aria-live="polite">
+            <span class="engine-card-loading" data-i18n="engine.checking">Checking…</span>
+          </div>
+          <div class="hardware-status-list" id="global-hardware-list"></div>
+          <div class="engine-card-actions">
+            <button class="engine-card-shutdown" id="application-shutdown" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M6.35 6.35a8 8 0 1 0 11.3 0"/></svg>
+              <span data-i18n="engine.shutdown">Shut down</span>
+            </button>
           </div>
         </div>
         <div class="version-row">
@@ -153,21 +130,24 @@
     </form>
   </dialog>
 
-  <dialog class="modal compact-modal" id="about-dialog">
-    <div class="modal-panel about-panel">
-      <img src="/static/icons/mark.svg" alt="">
-      <div>
-        <span class="eyebrow" data-i18n="about.local">Local-first software</span>
-        <h2>Meet2Notes</h2>
-        <p data-i18n="about.description">Private transcription and meeting intelligence on your own computer.</p>
-        <small>Version {{ version }}</small>
+  <dialog class="modal compact-modal" id="shutdown-dialog" aria-labelledby="shutdown-title">
+    <form method="dialog" class="modal-panel">
+      <div class="modal-header">
+        <div>
+          <span class="eyebrow">Meet2Notes</span>
+          <h2 id="shutdown-title" data-i18n="engine.shutdown_title">Shut down Meet2Notes?</h2>
+          <p data-i18n="engine.shutdown_description">Active local work will stop, the loaded models will be released from RAM and VRAM, and the Python server will close.</p>
+        </div>
       </div>
-      <button type="button" class="button primary" data-close-about data-i18n="common.close">Close</button>
-    </div>
+      <div class="modal-actions">
+        <button type="submit" class="button secondary" data-i18n="common.cancel">Cancel</button>
+        <button type="button" class="button danger" id="confirm-application-shutdown" data-i18n="engine.shutdown_confirm">Shut down</button>
+      </div>
+    </form>
   </dialog>
 
   <div class="toast-region" id="toast-region" aria-live="polite"></div>
-  <script src="/static/js/app.js" defer></script>
+  <script src="/static/js/app.js?v={{ asset_version }}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

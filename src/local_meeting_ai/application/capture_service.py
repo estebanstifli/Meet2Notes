@@ -90,14 +90,10 @@ class LiveCaptureService:
             **self.backend.capability(),
             "realtime_transcription": True,
             "realtime_chunk_seconds": (
-                float(config["realtime_chunk_seconds"])
-                if configured
-                else self.chunk_seconds
+                float(config["realtime_chunk_seconds"]) if configured else self.chunk_seconds
             ),
             "realtime_overlap_seconds": (
-                float(config["realtime_overlap_seconds"])
-                if configured
-                else self.overlap_seconds
+                float(config["realtime_overlap_seconds"]) if configured else self.overlap_seconds
             ),
         }
 
@@ -125,19 +121,11 @@ class LiveCaptureService:
             clean_language = (
                 language.strip()
                 if language and language.strip()
-                else (
-                    str(configured_language).strip()
-                    if configured_language
-                    else None
-                )
+                else (str(configured_language).strip() if configured_language else None)
             )
             if isinstance(preference_values.get("faster_whisper"), dict):
-                self._active_chunk_seconds = float(
-                    engine_config["realtime_chunk_seconds"]
-                )
-                self._active_overlap_seconds = float(
-                    engine_config["realtime_overlap_seconds"]
-                )
+                self._active_chunk_seconds = float(engine_config["realtime_chunk_seconds"])
+                self._active_overlap_seconds = float(engine_config["realtime_overlap_seconds"])
             else:
                 self._active_chunk_seconds = self.chunk_seconds
                 self._active_overlap_seconds = self.overlap_seconds
@@ -171,6 +159,8 @@ class LiveCaptureService:
                 self.meetings.delete(meeting.id)
                 raise
             self._reset_realtime_state()
+            started_at = datetime.now(UTC).isoformat(timespec="milliseconds")
+            self.meetings.update(meeting.id, {"started_at": started_at})
             session = LiveCaptureSession(
                 session_id=session_id,
                 meeting_id=meeting.id,
@@ -180,8 +170,8 @@ class LiveCaptureService:
                 source=status.source,
                 elapsed_ms=status.elapsed_ms,
                 level=status.level,
-                started_at=datetime.now(UTC).isoformat(timespec="milliseconds"),
-                profile_id=profile_id,
+                started_at=started_at,
+                profile_id=profile.id,
                 language=clean_language,
                 realtime_status=self._realtime_status,
                 realtime_message=self._realtime_message,
@@ -190,7 +180,7 @@ class LiveCaptureService:
             self._session = session
             self._profile = profile
             self._settings = {
-                "profile_id": profile_id,
+                "profile_id": profile.id,
                 "language": clean_language,
                 "task": resolved_task,
                 "allow_model_download": allow_model_download,
@@ -200,6 +190,11 @@ class LiveCaptureService:
             self._realtime_task = asyncio.create_task(
                 self._run_realtime(session_id),
                 name=f"live-transcription-{session_id}",
+            )
+            logger.info(
+                "Live transcription started from %s with %s-second chunks",
+                session.source.name,
+                self._active_chunk_seconds,
             )
             return session
 
@@ -216,17 +211,22 @@ class LiveCaptureService:
         with self._lock:
             session = self._require_session(session_id)
             self._session = self._with_status(session, self.backend.pause())
+            logger.info("Live transcription paused")
             return self._session
 
     def resume(self, session_id: str) -> LiveCaptureSession:
         with self._lock:
             session = self._require_session(session_id)
             self._session = self._with_status(session, self.backend.resume())
+            logger.info("Live transcription resumed")
             return self._session
 
     async def stop(
         self,
         session_id: str,
+        *,
+        final_transcription: bool = True,
+        postprocess_options: dict[str, Any] | None = None,
     ) -> tuple[LiveCaptureSession, Recording, Job, Transcription, Job]:
         with self._lock:
             session = self._require_session(session_id)
@@ -239,10 +239,17 @@ class LiveCaptureService:
             await asyncio.gather(realtime_task, return_exceptions=True)
 
         captured = self.backend.stop()
+        self.meetings.update(
+            session.meeting_id,
+            {
+                "ended_at": datetime.now(UTC).isoformat(timespec="milliseconds"),
+                "duration_ms": captured.duration_ms,
+            },
+        )
         try:
             await self._process_available_audio(force=True)
-        except Exception:
-            logger.exception("Could not process the final real-time audio window")
+        except Exception as error:
+            logger.exception("Could not process the final real-time audio window: %s", error)
 
         stopped_session = LiveCaptureSession(
             session_id=session.session_id,
@@ -264,17 +271,15 @@ class LiveCaptureService:
             session.meeting_id,
             captured,
         )
-        transcription, transcription_job = (
-            await self.transcription_service.finalize_realtime(
-                session.transcription_id,
-                recording.id,
-                profile_id=str(settings["profile_id"]),
-                language=settings.get("language"),
-                task=str(settings.get("task", "transcribe")),
-                allow_model_download=bool(
-                    settings.get("allow_model_download", False)
-                ),
-            )
+        transcription, transcription_job = await self.transcription_service.finalize_realtime(
+            session.transcription_id,
+            recording.id,
+            profile_id=str(settings["profile_id"]),
+            language=settings.get("language"),
+            task=str(settings.get("task", "transcribe")),
+            allow_model_download=bool(settings.get("allow_model_download", False)),
+            run_final_pass=final_transcription,
+            postprocess_options=postprocess_options,
         )
         with self._lock:
             self._session = None
@@ -282,6 +287,10 @@ class LiveCaptureService:
             self._profile = None
             self._realtime_task = None
             self._stopping = False
+        logger.info(
+            "Live transcription stopped after %.1f seconds; final processing queued",
+            captured.duration_ms / 1000,
+        )
         return (
             stopped_session,
             recording,
@@ -294,9 +303,7 @@ class LiveCaptureService:
         with self._lock:
             self._stopping = True
             realtime_task = self._realtime_task
-            transcription_id = (
-                self._session.transcription_id if self._session is not None else None
-            )
+            transcription_id = self._session.transcription_id if self._session is not None else None
         if realtime_task is not None:
             await asyncio.gather(realtime_task, return_exceptions=True)
         self.backend.shutdown()
@@ -318,7 +325,7 @@ class LiveCaptureService:
             except asyncio.CancelledError:
                 raise
             except Exception as error:
-                logger.exception("Real-time transcription window failed")
+                logger.exception("Real-time transcription window failed: %s", error)
                 self._set_realtime_state(
                     "error",
                     "Live text is temporarily unavailable; the final pass will retry",
@@ -350,16 +357,10 @@ class LiveCaptureService:
         frame_width = batch.channels * 2
         if not self._live_buffer:
             self._live_buffer_start_frame = batch.start_frame
-        elif (
-            batch.sample_rate != self._live_sample_rate
-            or batch.channels != self._live_channels
-        ):
+        elif batch.sample_rate != self._live_sample_rate or batch.channels != self._live_channels:
             raise ValidationError("The live audio format changed during capture")
         else:
-            expected_start = (
-                self._live_buffer_start_frame
-                + len(self._live_buffer) // frame_width
-            )
+            expected_start = self._live_buffer_start_frame + len(self._live_buffer) // frame_width
             if batch.start_frame > expected_start:
                 self._live_buffer.clear()
                 self._live_overlap = b""
@@ -381,8 +382,7 @@ class LiveCaptureService:
         window_start_frame = max(0, chunk_start_frame - overlap_frames)
         overlap_target = max(
             0,
-            round(self._live_sample_rate * self._active_overlap_seconds)
-            * frame_width,
+            round(self._live_sample_rate * self._active_overlap_seconds) * frame_width,
         )
         self._live_overlap = chunk[-overlap_target:] if overlap_target else b""
         await self._transcribe_window(window, window_start_frame)
@@ -416,17 +416,14 @@ class LiveCaptureService:
                     task=str(settings.get("task", "transcribe")),
                     beam_size=min(profile.beam_size, 2),
                     vad_filter=True,
-                    allow_model_download=bool(
-                        settings.get("allow_model_download", False)
-                    ),
+                    allow_model_download=bool(settings.get("allow_model_download", False)),
+                    engine=profile.engine,
                     device_index=profile.device_index,
                     cpu_threads=profile.cpu_threads,
                     num_workers=profile.num_workers,
                     vad_min_silence_ms=profile.vad_min_silence_ms,
                     word_timestamps=profile.word_timestamps,
-                    condition_on_previous_text=(
-                        profile.condition_on_previous_text
-                    ),
+                    condition_on_previous_text=(profile.condition_on_previous_text),
                     keep_model_loaded=profile.keep_model_loaded,
                 ),
                 lambda _progress, _message: None,

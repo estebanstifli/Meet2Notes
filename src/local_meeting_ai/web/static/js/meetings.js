@@ -1,0 +1,53 @@
+(() => {
+  "use strict";
+
+  const rows = [...document.querySelectorAll(".meeting-library-row")];
+  const search = document.querySelector("#meeting-search");
+  const empty = document.querySelector("#meetings-search-empty");
+  const count = document.querySelector("#visible-meeting-count");
+
+  document.querySelectorAll("[data-local-date]").forEach((element) => {
+    const date = new Date(element.dataset.localDate);
+    if (!Number.isNaN(date.getTime())) {
+      element.textContent = date.toLocaleDateString([], {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    }
+  });
+
+  document.querySelectorAll("[data-local-time]").forEach((element) => {
+    const date = new Date(element.dataset.localTime);
+    if (!Number.isNaN(date.getTime())) {
+      element.textContent = date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    }
+  });
+
+  document.querySelectorAll("[data-duration-ms]").forEach((element) => {
+    const totalSeconds = Math.max(0, Math.round(Number(element.dataset.durationMs) / 1000));
+    if (!totalSeconds) return;
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    element.textContent = hours
+      ? `${hours}h ${String(minutes).padStart(2, "0")}m`
+      : `${minutes}:${String(seconds).padStart(2, "0")}`;
+  });
+
+  search?.addEventListener("input", () => {
+    const query = search.value.trim().toLocaleLowerCase();
+    let visible = 0;
+    rows.forEach((row) => {
+      const match = !query || row.dataset.meetingSearch.includes(query);
+      row.classList.toggle("hidden", !match);
+      if (match) visible += 1;
+    });
+    count.textContent = String(visible);
+    empty.classList.toggle("hidden", visible > 0 || rows.length === 0);
+  });
+})();

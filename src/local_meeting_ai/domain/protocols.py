@@ -43,6 +43,17 @@ class AudioNormalizer(Protocol):
     ) -> MediaProbe: ...
 
 
+class AudioRangeExporter(Protocol):
+    async def export_audio_ranges(
+        self,
+        source: Path,
+        destination: Path,
+        ranges: list[tuple[int, int]],
+        *,
+        output_format: str,
+    ) -> None: ...
+
+
 class ProgressReporter(Protocol):
     def __call__(self, progress: float, message: str) -> None: ...
 
@@ -66,6 +77,8 @@ class TranscriptionEngine(Protocol):
         *,
         allow_model_download: bool,
     ) -> None: ...
+
+    async def uninstall(self, profile: ModelProfile) -> None: ...
 
     async def transcribe(
         self,
@@ -122,6 +135,8 @@ class DiarizationEngine(Protocol):
         allow_model_download: bool,
     ) -> None: ...
 
+    async def uninstall(self, engine_id: str) -> None: ...
+
     async def diarize(
         self,
         audio_path: Path,
@@ -129,6 +144,31 @@ class DiarizationEngine(Protocol):
         progress: ProgressReporter,
         is_cancelled: CancellationCheck,
     ) -> list[DiarizationSegment]: ...
+
+    def unload(self) -> None: ...
+
+    def shutdown(self) -> None: ...
+
+
+class SpeakerProfileMatcher(Protocol):
+    """Maps diarization cluster ids to saved local speaker WAV profiles."""
+
+    def capability(self) -> dict[str, Any]: ...
+
+    async def prepare(
+        self,
+        config: dict[str, Any],
+        *,
+        allow_model_download: bool,
+    ) -> None: ...
+
+    async def match(
+        self,
+        audio_path: Path,
+        turns: list[DiarizationSegment],
+        profiles: list[Any],
+        config: dict[str, Any],
+    ) -> dict[int, Any]: ...
 
     def unload(self) -> None: ...
 
@@ -146,6 +186,8 @@ class SummaryEngine(Protocol):
         *,
         allow_model_download: bool,
     ) -> None: ...
+
+    async def uninstall(self, profile_id: str) -> None: ...
 
     async def summarize(
         self,

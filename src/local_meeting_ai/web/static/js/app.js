@@ -2,7 +2,30 @@
   "use strict";
 
   const jobSubscribers = new Set();
+  const activitySubscribers = new Set();
+  let eventSource = null;
   let currentLanguage = "en";
+  let currentThemePreference = document.documentElement.dataset.themePreference || "system";
+  let lastSidebarSystemState = null;
+  let sidebarSystemTimer = null;
+  const themeStorageKey = "meet2notes-ui-theme";
+  const performanceLogThresholdMs = 250;
+
+  function timingLog(event, details = {}) {
+    const timestamp = new Date().toISOString();
+    console.info(`[Meet2Notes][${timestamp}] ${event}`, details);
+  }
+
+  timingLog("page navigation started", {
+    path: `${window.location.pathname}${window.location.search}`,
+    navigationType: performance.getEntriesByType("navigation")[0]?.type || "unknown",
+  });
+  window.addEventListener("DOMContentLoaded", () => {
+    timingLog("DOM ready", { elapsed_ms: Math.round(performance.now()) });
+  }, { once: true });
+  window.addEventListener("load", () => {
+    timingLog("page fully loaded", { elapsed_ms: Math.round(performance.now()) });
+  }, { once: true });
   const translations = {
     en: {
       "menu.file": "File",
@@ -17,8 +40,10 @@
       "menu.about": "About Meet2Notes",
       "menu.api": "Local API documentation",
       "brand.subtitle": "Private meeting workspace",
+      "nav.new_meeting": "New meeting",
       "nav.transcribe": "Transcribe",
       "nav.meetings": "Meetings",
+      "nav.action_items": "Action items",
       "nav.speakers": "Speakers",
       "nav.summaries": "Summaries",
       "nav.exports": "Exports",
@@ -35,6 +60,31 @@
       "engine.ready_cpu": "Ready · CPU",
       "engine.install": "Optional install required",
       "engine.local": "Private local processing",
+      "engine.system_title": "Local AI status",
+      "engine.process": "Python PID {pid} · in-process workers",
+      "engine.role.live_transcription": "Live transcript",
+      "engine.role.final_transcription": "Final transcript",
+      "engine.role.diarization": "Diarization",
+      "engine.role.summary": "AI notes",
+      "engine.state.ready": "Ready",
+      "engine.state.running": "Working",
+      "engine.state.idle": "Idle",
+      "engine.state.error": "Error",
+      "engine.state.unavailable": "Unavailable",
+      "engine.state.not_installed": "Not installed",
+      "engine.state.disabled": "Disabled",
+      "engine.in_memory": "In memory",
+      "engine.thread_hint": "Runs as a thread inside Python PID {pid}",
+      "engine.shutdown": "Shut down",
+      "engine.shutdown_title": "Shut down Meet2Notes?",
+      "engine.shutdown_description": "Active local work will stop, the loaded models will be released from RAM and VRAM, and the Python server will close.",
+      "engine.shutdown_confirm": "Shut down",
+      "engine.shutdown_requested": "Meet2Notes is shutting down safely…",
+      "hardware.ram": "RAM",
+      "hardware.vram": "VRAM",
+      "hardware.free": "{free} free of {total}",
+      "hardware.app_memory": "App {used}",
+      "hardware.no_gpu": "No NVIDIA GPU detected",
       "workspace.title": "Transcription",
       "workspace.subtitle": "Import a conversation and turn it into clear, editable text.",
       "workspace.meeting": "Meeting",
@@ -111,8 +161,10 @@
       "menu.about": "Acerca de Meet2Notes",
       "menu.api": "Documentación de la API local",
       "brand.subtitle": "Espacio privado para reuniones",
+      "nav.new_meeting": "Nueva reunión",
       "nav.transcribe": "Transcribir",
       "nav.meetings": "Reuniones",
+      "nav.action_items": "Tareas",
       "nav.speakers": "Hablantes",
       "nav.summaries": "Resúmenes",
       "nav.exports": "Exportaciones",
@@ -129,6 +181,31 @@
       "engine.ready_cpu": "Listo · CPU",
       "engine.install": "Requiere instalación opcional",
       "engine.local": "Procesamiento local y privado",
+      "engine.system_title": "Estado de IA local",
+      "engine.process": "Python PID {pid} · motores internos",
+      "engine.role.live_transcription": "Transcripción en vivo",
+      "engine.role.final_transcription": "Transcripción final",
+      "engine.role.diarization": "Diarización",
+      "engine.role.summary": "Notas con IA",
+      "engine.state.ready": "Listo",
+      "engine.state.running": "Trabajando",
+      "engine.state.idle": "En espera",
+      "engine.state.error": "Error",
+      "engine.state.unavailable": "No disponible",
+      "engine.state.not_installed": "No instalado",
+      "engine.state.disabled": "Desactivado",
+      "engine.in_memory": "En memoria",
+      "engine.thread_hint": "Se ejecuta como hilo dentro del Python PID {pid}",
+      "engine.shutdown": "Apagar",
+      "engine.shutdown_title": "¿Apagar Meet2Notes?",
+      "engine.shutdown_description": "Se detendrá el trabajo local activo, se liberarán los modelos cargados de la RAM y la VRAM y se cerrará el servidor Python.",
+      "engine.shutdown_confirm": "Apagar",
+      "engine.shutdown_requested": "Meet2Notes se está apagando de forma segura…",
+      "hardware.ram": "RAM",
+      "hardware.vram": "VRAM",
+      "hardware.free": "{free} libres de {total}",
+      "hardware.app_memory": "App {used}",
+      "hardware.no_gpu": "No se detectó una GPU NVIDIA",
       "workspace.title": "Transcripción",
       "workspace.subtitle": "Importa una conversación y conviértela en texto claro y editable.",
       "workspace.meeting": "Reunión",
@@ -205,11 +282,28 @@
   }
 
   async function api(path, options = {}) {
+    const startedAt = performance.now();
     const headers = new Headers(options.headers || {});
     if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json");
     }
-    const response = await fetch(path, { ...options, headers });
+    let response;
+    try {
+      response = await fetch(path, { ...options, headers });
+    } catch (error) {
+      timingLog("API request failed", {
+        method: options.method || "GET", path,
+        elapsed_ms: Math.round(performance.now() - startedAt),
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+    const elapsed = Math.round(performance.now() - startedAt);
+    if (elapsed >= performanceLogThresholdMs || !response.ok) {
+      timingLog("API request completed", {
+        method: options.method || "GET", path, status: response.status, elapsed_ms: elapsed,
+      });
+    }
     if (response.status === 204) return null;
     const contentType = response.headers.get("content-type") || "";
     const body = contentType.includes("json") ? await response.json() : await response.text();
@@ -310,9 +404,15 @@
     return () => jobSubscribers.delete(callback);
   }
 
+  function subscribeActivity(callback) {
+    activitySubscribers.add(callback);
+    return () => activitySubscribers.delete(callback);
+  }
+
   function connectEvents() {
-    if (!window.EventSource) return;
+    if (!window.EventSource || eventSource) return;
     const source = new EventSource("/api/events");
+    eventSource = source;
     source.addEventListener("jobs", (event) => {
       try {
         const jobs = JSON.parse(event.data);
@@ -321,6 +421,22 @@
         // Ignore a malformed update and let the next event recover the UI.
       }
     });
+    source.addEventListener("activity", (event) => {
+      try {
+        const entries = JSON.parse(event.data);
+        activitySubscribers.forEach((callback) => callback(entries));
+      } catch {
+        // Ignore a malformed update and let the next event recover the UI.
+      }
+    });
+    const closeEvents = () => {
+      if (eventSource !== source) return;
+      source.close();
+      eventSource = null;
+      timingLog("event stream closed before navigation");
+    };
+    window.addEventListener("pagehide", closeEvents, { once: true });
+    window.addEventListener("beforeunload", closeEvents, { once: true });
   }
 
   function bindNavigation() {
@@ -371,59 +487,153 @@
       });
     });
     api("/api/settings")
-      .then((preferences) => applyLanguage(preferences.ui_language || "en"))
-      .catch(() => applyLanguage("en"));
+      .then((preferences) => {
+        applyLanguage(preferences.ui_language || "en");
+        applyTheme(preferences.ui_theme || "system");
+      })
+      .catch(() => {
+        applyLanguage("en");
+        applyTheme(document.documentElement.dataset.themePreference || "system");
+      });
   }
 
-  function closeClassicMenus() {
-    document.querySelectorAll(".classic-menu-group.open").forEach((group) => {
-      group.classList.remove("open");
+  function resolveTheme(preference) {
+    if (preference === "light" || preference === "dark") return preference;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+
+  function applyTheme(preference = "system") {
+    currentThemePreference = ["system", "light", "dark"].includes(preference)
+      ? preference
+      : "system";
+    const resolved = resolveTheme(currentThemePreference);
+    document.documentElement.dataset.themePreference = currentThemePreference;
+    document.documentElement.dataset.theme = resolved;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute(
+      "content",
+      resolved === "dark" ? "#0d111a" : "#ffffff",
+    );
+    document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
+      const target = resolved === "dark" ? "light" : "dark";
+      const label = `Switch to ${target} theme`;
+      button.setAttribute("aria-label", label);
+      button.setAttribute("title", label);
+    });
+    document.querySelectorAll("#ui-theme").forEach((select) => {
+      select.value = currentThemePreference;
+    });
+    try {
+      window.localStorage.setItem(themeStorageKey, currentThemePreference);
+    } catch (_error) {
+      // API persistence remains authoritative when browser storage is unavailable.
+    }
+    document.dispatchEvent(new CustomEvent("meet2notes:themechange", {
+      detail: { preference: currentThemePreference, theme: resolved },
+    }));
+  }
+
+  function bindThemeControls() {
+    document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const previous = currentThemePreference;
+        const next = resolveTheme(currentThemePreference) === "dark" ? "light" : "dark";
+        applyTheme(next);
+        try {
+          await api("/api/settings", {
+            method: "PUT",
+            body: JSON.stringify({ ui_theme: next }),
+          });
+        } catch (error) {
+          applyTheme(previous);
+          toast(error.message, "error");
+        }
+      });
+    });
+    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
+    systemTheme.addEventListener?.("change", () => {
+      if (currentThemePreference === "system") applyTheme("system");
     });
   }
 
-  function bindClassicMenu() {
-    document.querySelectorAll("[data-menu-toggle]").forEach((button) => {
-      button.addEventListener("click", (event) => {
-        event.stopPropagation();
-        const group = button.closest(".classic-menu-group");
-        const shouldOpen = !group.classList.contains("open");
-        closeClassicMenus();
-        group.classList.toggle("open", shouldOpen);
-      });
-    });
-    document.addEventListener("click", (event) => {
-      if (!event.target.closest(".classic-menu-group")) closeClassicMenus();
-    });
-    document.querySelectorAll(".classic-menu-popover a, .classic-menu-popover [data-open-import]")
-      .forEach((item) => item.addEventListener("click", closeClassicMenus));
-    document.querySelectorAll("[data-open-about]").forEach((button) => {
-      button.addEventListener("click", () => {
-        closeClassicMenus();
-        document.querySelector("#about-dialog")?.showModal();
-      });
-    });
-    document.querySelectorAll("[data-close-about]").forEach((button) => {
-      button.addEventListener("click", () => document.querySelector("#about-dialog")?.close());
-    });
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") closeClassicMenus();
-    });
+  function renderGlobalEngineState(status) {
+    const card = document.querySelector("#global-engine-card");
+    if (!card) return;
+    lastSidebarSystemState = status;
+    card.querySelector("#engine-process-label").textContent = t(
+      "engine.process",
+      { pid: status.process_id || "—" },
+    );
+    card.querySelector("#global-engine-list").innerHTML = (status.engines || [])
+      .map((engine) => {
+        const role = t(`engine.role.${engine.role}`);
+        const state = t(`engine.state.${engine.status}`);
+        const memoryBadge = engine.in_memory
+          ? `<em>${escapeHTML(t("engine.in_memory"))}</em>`
+          : "";
+        const title = engine.execution === "thread" && engine.process_id
+          ? t("engine.thread_hint", { pid: engine.process_id })
+          : engine.name;
+        return `
+          <div class="engine-status-row ${escapeHTML(engine.status)}" title="${escapeHTML(title)}">
+            <i class="engine-status-dot"></i>
+            <span class="engine-status-copy">
+              <b>${escapeHTML(role)}</b>
+              <small>${escapeHTML(engine.name)}</small>
+            </span>
+            <span class="engine-status-value">
+              <strong>${escapeHTML(state)}</strong>
+              ${memoryBadge}
+            </span>
+          </div>`;
+      }).join("");
+
+    const memory = status.memory || {};
+    const memoryRow = memory.total_bytes
+      ? `
+        <div class="hardware-status-row">
+          <span>
+            <b>${escapeHTML(t("hardware.ram"))}</b>
+            <small>${escapeHTML(t("hardware.app_memory", {
+              used: formatBytes(memory.process_bytes || 0),
+            }))}</small>
+          </span>
+          <strong>${escapeHTML(t("hardware.free", {
+            free: formatBytes(memory.available_bytes),
+            total: formatBytes(memory.total_bytes),
+          }))}</strong>
+        </div>`
+      : "";
+    const gpuRows = (status.gpus || []).map((gpu) => `
+      <div class="hardware-status-row gpu-status-row">
+        <span>
+          <b>${escapeHTML(gpu.name)}</b>
+          <small>${escapeHTML(t("hardware.vram"))} · ${gpu.utilization_percent}% GPU</small>
+        </span>
+        <strong>${escapeHTML(t("hardware.free", {
+          free: formatBytes(gpu.free_bytes),
+          total: formatBytes(gpu.total_bytes),
+        }))}</strong>
+      </div>`).join("");
+    card.querySelector("#global-hardware-list").innerHTML = memoryRow + (gpuRows || `
+      <div class="hardware-empty">${escapeHTML(t("hardware.no_gpu"))}</div>`);
+    card.classList.toggle(
+      "unavailable",
+      (status.engines || []).some((engine) => ["error", "unavailable"].includes(engine.status)),
+    );
   }
 
   function loadGlobalEngineState() {
     const card = document.querySelector("#global-engine-card");
     if (!card) return;
-    api("/api/capabilities").then((capabilities) => {
-      const available = capabilities.features.transcription === "available";
-      const state = available
-        ? t(capabilities.transcription.cuda_available ? "engine.ready_cuda" : "engine.ready_cpu")
-        : t("engine.install");
-      card.classList.toggle("unavailable", !available);
-      card.querySelector(".engine-state b").textContent = state;
-    }).catch(() => {
-      card.classList.add("unavailable");
-      card.querySelector(".engine-state b").textContent = t("engine.install");
-    });
+    api("/api/sidebar-system")
+      .then(renderGlobalEngineState)
+      .catch(() => {
+        card.classList.add("unavailable");
+        card.querySelector("#engine-process-label").textContent = t("engine.install");
+      });
+    if (!sidebarSystemTimer) {
+      sidebarSystemTimer = window.setInterval(loadGlobalEngineState, 10000);
+    }
   }
 
   function bindComingSoon() {
@@ -445,6 +655,29 @@
       } catch (error) {
         toast(error.message, "error");
         target.disabled = false;
+      }
+    });
+  }
+
+  function bindApplicationShutdown() {
+    const trigger = document.querySelector("#application-shutdown");
+    const dialog = document.querySelector("#shutdown-dialog");
+    const confirm = document.querySelector("#confirm-application-shutdown");
+    if (!trigger || !dialog || !confirm) return;
+
+    trigger.addEventListener("click", () => dialog.showModal());
+    confirm.addEventListener("click", async () => {
+      trigger.disabled = true;
+      confirm.disabled = true;
+      try {
+        await api("/api/application/shutdown", { method: "POST" });
+        dialog.close();
+        document.querySelector("#engine-process-label").textContent = t("engine.shutdown_requested");
+        toast(t("engine.shutdown_requested"));
+      } catch (error) {
+        toast(error.message, "error");
+        trigger.disabled = false;
+        confirm.disabled = false;
       }
     });
   }
@@ -587,13 +820,22 @@
   }
 
   bindNavigation();
-  document.addEventListener("localmeet:languagechange", loadGlobalEngineState);
-  bindClassicMenu();
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest("a[href]");
+    if (link && link.origin === window.location.origin && !link.target) {
+      timingLog("navigation requested", { href: link.getAttribute("href") });
+    }
+  });
+  bindThemeControls();
   bindLanguageControls();
   bindComingSoon();
   bindJobCancellation();
+  bindApplicationShutdown();
   bindImportDialog();
   connectEvents();
+  document.addEventListener("localmeet:languagechange", () => {
+    if (lastSidebarSystemState) renderGlobalEngineState(lastSidebarSystemState);
+  });
   loadGlobalEngineState();
 
   window.Meet2Notes = {
@@ -604,8 +846,11 @@
     formatBytes,
     renderJobCard,
     subscribeJobs,
+    subscribeActivity,
     toast,
     t,
+    applyTheme,
+    timingLog,
     get currentLanguage() {
       return currentLanguage;
     },

@@ -19,6 +19,7 @@ def data_dir(tmp_path: Path) -> Path:
 def settings(data_dir: Path) -> AppSettings:
     return AppSettings(
         data_dir=data_dir,
+        models_dir=data_dir / "models",
         testing=True,
         open_browser=False,
         max_upload_mb=2,

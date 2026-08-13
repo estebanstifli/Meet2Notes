@@ -69,6 +69,7 @@ class JobResponse(BaseModel):
     status: JobStatus
     progress: float
     message: str | None
+    payload: dict[str, Any]
     result: dict[str, Any] | None
     error_text: str | None
     created_at: str
@@ -105,11 +106,12 @@ class FasterWhisperPreference(BaseModel):
     beam_size: int = Field(default=5, ge=1, le=10)
     vad_filter: bool = True
     vad_min_silence_ms: int = Field(default=500, ge=100, le=5000)
-    word_timestamps: bool = False
+    word_timestamps: bool = True
     condition_on_previous_text: bool = True
     cpu_threads: int = Field(default=0, ge=0, le=128)
     num_workers: int = Field(default=1, ge=1, le=4)
     keep_model_loaded: bool = True
+    preload_on_start: bool = True
     realtime_chunk_seconds: float = Field(default=3.0, ge=1.0, le=30.0)
     realtime_overlap_seconds: float = Field(default=1.0, ge=0.0, le=10.0)
 
@@ -125,10 +127,15 @@ class SummaryEnginePreference(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    provider: Literal["disabled", "local", "openai-compatible"] = "local"
-    local_runtime: Literal["managed-llama-cpp", "external-openai"] = (
-        "managed-llama-cpp"
-    )
+    provider: Literal["disabled", "local", "litellm", "openai-compatible"] = "local"
+    profile_id: Literal[
+        "lfm2.5-1.2b-q4",
+        "qwen3-0.6b",
+        "qwen3-1.7b",
+        "custom-gguf",
+        "litellm-custom",
+    ] = "lfm2.5-1.2b-q4"
+    local_runtime: Literal["managed-llama-cpp", "external-openai"] = "managed-llama-cpp"
     model: str = Field(
         default="LiquidAI/LFM2.5-1.2B-Instruct-GGUF",
         min_length=1,
@@ -166,6 +173,7 @@ class SummaryEnginePreference(BaseModel):
     flash_attention: bool = True
     numa: bool = False
     keep_model_loaded: bool = True
+    preload_on_start: bool = True
     system_prompt: str = Field(
         default=(
             "You are a precise meeting analyst. Summarize only information "
@@ -177,68 +185,127 @@ class SummaryEnginePreference(BaseModel):
 
     @model_validator(mode="after")
     def validate_remote_provider(self) -> Self:
-        if self.provider == "openai-compatible" and (
-            not self.base_url
-            or not self.base_url.startswith(("http://", "https://"))
-        ):
-            raise ValueError(
-                "An HTTP(S) base URL is required for an OpenAI-compatible provider"
-            )
+        if self.base_url and not self.base_url.startswith(("http://", "https://")):
+            raise ValueError("The AI base URL must use HTTP or HTTPS")
         return self
+
+
+class SummaryApiKeyUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    api_key: str = Field(min_length=1, max_length=4096)
 
 
 class DiarizationPreference(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    engine: Literal["sherpa-onnx"] = "sherpa-onnx"
+    engine: Literal["sherpa-onnx", "diarize", "pyannote-community-1"] = "sherpa-onnx"
     segmentation_model: Literal["pyannote-3.0"] = "pyannote-3.0"
     embedding_model: Literal["3d-speaker", "nemo-titanet"] = "3d-speaker"
     quantized_segmentation: bool = True
     provider: Literal["cpu", "cuda", "coreml"] = "cpu"
     num_threads: int = Field(default=2, ge=1, le=64)
     num_speakers: int = Field(default=-1, ge=-1, le=50)
-    cluster_threshold: float = Field(default=0.5, gt=0.0, lt=1.0)
+    cluster_threshold: float = Field(default=0.7, gt=0.0, lt=1.0)
     min_duration_on: float = Field(default=0.3, ge=0.0, le=10.0)
     min_duration_off: float = Field(default=0.5, ge=0.0, le=10.0)
     minimum_overlap_ratio: float = Field(default=0.15, ge=0.0, le=1.0)
+    recognize_saved_speakers: bool = True
+    pyannote_exclusive: bool = True
     debug: bool = False
     keep_model_loaded: bool = True
+    preload_on_start: bool = True
 
 
 class PreferenceUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ui_language: Literal["en", "es"] | None = None
+    ui_theme: Literal["system", "light", "dark"] | None = None
+    models_directory: str | None = Field(default=None, max_length=2048)
+    http_port: int | None = Field(default=None, ge=1024, le=65535)
     default_transcription_language: str | None = Field(default=None, max_length=20)
     retention_days: int | None = Field(default=None, ge=1, le=3650)
     confirm_permanent_delete: bool | None = None
+    default_summary_template_id: int | None = Field(default=None, ge=1)
     transcription_engine: Literal["faster-whisper"] = "faster-whisper"
-    faster_whisper: FasterWhisperPreference = Field(
-        default_factory=FasterWhisperPreference
-    )
-    summary_engine: SummaryEnginePreference = Field(
-        default_factory=SummaryEnginePreference
-    )
-    diarization: DiarizationPreference = Field(
-        default_factory=DiarizationPreference
-    )
+    live_transcription_engine: Literal[
+        "faster-whisper", "nvidia-nemotron"
+    ] = "faster-whisper"
+    live_transcription_profile: str = Field(default="default", max_length=40)
+    final_transcription_engine: Literal[
+        "faster-whisper",
+        "vibevoice-asr-bitnet",
+        "nvidia-parakeet",
+        "nvidia-nemotron",
+    ] = "faster-whisper"
+    final_transcription_profile: str = Field(default="default", max_length=40)
+    faster_whisper: FasterWhisperPreference = Field(default_factory=FasterWhisperPreference)
+    summary_engine: SummaryEnginePreference = Field(default_factory=SummaryEnginePreference)
+    diarization: DiarizationPreference = Field(default_factory=DiarizationPreference)
 
 
 class PreferenceResponse(BaseModel):
     ui_language: Literal["en", "es"] = "en"
+    ui_theme: Literal["system", "light", "dark"] = "system"
+    models_directory: str
+    active_models_directory: str
+    models_directory_restart_required: bool = False
+    models_directory_runtime_override: bool = False
+    http_port: int = Field(default=8765, ge=1024, le=65535)
     default_transcription_language: str | None = None
     retention_days: int | None = None
     confirm_permanent_delete: bool = True
+    default_summary_template_id: int | None = None
     transcription_engine: Literal["faster-whisper"] = "faster-whisper"
-    faster_whisper: FasterWhisperPreference = Field(
-        default_factory=FasterWhisperPreference
-    )
-    summary_engine: SummaryEnginePreference = Field(
-        default_factory=SummaryEnginePreference
-    )
-    diarization: DiarizationPreference = Field(
-        default_factory=DiarizationPreference
-    )
+    live_transcription_engine: Literal[
+        "faster-whisper", "nvidia-nemotron"
+    ] = "faster-whisper"
+    live_transcription_profile: str = "default"
+    final_transcription_engine: Literal[
+        "faster-whisper",
+        "vibevoice-asr-bitnet",
+        "nvidia-parakeet",
+        "nvidia-nemotron",
+    ] = "faster-whisper"
+    final_transcription_profile: str = "default"
+    faster_whisper: FasterWhisperPreference = Field(default_factory=FasterWhisperPreference)
+    summary_engine: SummaryEnginePreference = Field(default_factory=SummaryEnginePreference)
+    diarization: DiarizationPreference = Field(default_factory=DiarizationPreference)
+
+
+class ModelDirectoryMoveRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    models_directory: str = Field(min_length=1, max_length=2048)
+    overwrite_existing: bool = False
+
+
+class SummaryTemplateSection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=120)
+    instruction: str = Field(min_length=1, max_length=1000)
+    format: Literal["paragraph", "list", "text"] = "list"
+    item_format: str | None = Field(default=None, max_length=500)
+
+
+class SummaryTemplateWrite(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+    system_prompt: str = Field(min_length=1, max_length=4000)
+    user_prompt_template: str = Field(min_length=1, max_length=4000)
+    sections: list[SummaryTemplateSection] = Field(min_length=1, max_length=20)
+
+
+class SummaryTemplateResponse(SummaryTemplateWrite):
+    id: int
+    is_builtin: bool
+    is_default: bool = False
+    created_at: str
+    updated_at: str
 
 
 class ModelProfileResponse(BaseModel):
@@ -262,6 +329,21 @@ class ModelProfileResponse(BaseModel):
     keep_model_loaded: bool
     recommended: bool
     installed: bool
+    supports_live: bool
+    supports_final: bool
+    runtime_available: bool
+    download_size: str | None
+    compatibility_note: str | None
+
+
+class PostprocessOptions(BaseModel):
+    """Per-meeting choices for the work that follows transcription."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    diarization: bool = True
+    speaker_count: int | None = Field(default=None, ge=1, le=20)
+    summary: bool = True
 
 
 class TranscriptionCreate(BaseModel):
@@ -272,6 +354,8 @@ class TranscriptionCreate(BaseModel):
     task: Literal["transcribe", "translate"] | None = None
     allow_model_download: bool = False
     title: str | None = Field(default=None, min_length=1, max_length=200)
+    postprocess: bool = False
+    postprocess_options: PostprocessOptions = Field(default_factory=lambda: PostprocessOptions())
 
 
 class TranscriptionResponse(BaseModel):
@@ -306,9 +390,57 @@ class TranscriptSegmentResponse(BaseModel):
     metadata: dict[str, Any]
 
 
+class SpeakerResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    meeting_id: int
+    stable_key: str | None
+    display_name: str
+    confidence: float | None
+    created_at: str
+    segment_count: int
+    talk_time_ms: int
+    summary_status: str | None
+    summary_markdown: str | None
+    summary_provider: str | None
+    summary_model: str | None
+    summary_updated_at: str | None
+
+
+class SpeakerProfileResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    sample_path: str | None
+    created_at: str
+    updated_at: str
+    meeting_count: int = 0
+
+
+class SpeakerProfileUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=100)
+
+
+class SpeakerTurnResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    meeting_id: int
+    transcription_id: int
+    speaker_id: int
+    start_ms: int
+    end_ms: int
+
+
 class TranscriptionDetailResponse(BaseModel):
     transcription: TranscriptionResponse
     segments: list[TranscriptSegmentResponse]
+    speakers: list[SpeakerResponse] = []
+    speaker_turns: list[SpeakerTurnResponse] = []
 
 
 class TranscriptionStartResponse(BaseModel):
@@ -320,6 +452,17 @@ class TranscriptionTitleUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title: str = Field(min_length=1, max_length=200)
+
+
+class SpeakerNameUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    display_name: str = Field(min_length=1, max_length=100)
+
+
+class SpeakerSummaryStartResponse(BaseModel):
+    speaker: SpeakerResponse
+    job: JobResponse
 
 
 class AudioCaptureSourceResponse(BaseModel):
@@ -352,6 +495,13 @@ class LiveCaptureStart(BaseModel):
     language: str | None = Field(default=None, max_length=20)
     task: Literal["transcribe", "translate"] | None = None
     allow_model_download: bool = False
+
+
+class LiveCaptureStop(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    final_transcription: bool = True
+    postprocess_options: PostprocessOptions = Field(default_factory=lambda: PostprocessOptions())
 
 
 class LiveCaptureSessionResponse(BaseModel):
@@ -412,6 +562,7 @@ class SummaryResponse(BaseModel):
     id: int
     meeting_id: int
     transcription_id: int
+    template_id: int | None
     provider: str
     model: str
     status: str

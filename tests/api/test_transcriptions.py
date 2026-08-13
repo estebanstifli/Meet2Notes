@@ -231,6 +231,28 @@ def test_transcription_pipeline_editor_and_versions(tmp_path: Path) -> None:
         assert 'id="transcription-dialog"' in workspace.text
         assert "Choose your audio source" in workspace.text
         assert "Import media" not in workspace.text
+        assert 'href="/?new=1"' in workspace.text
+        assert "New meeting" in workspace.text
+        assert "Action items" in workspace.text
+        assert 'href="/settings"' in workspace.text
+        assert "minimal-settings-link" not in workspace.text
+        assert 'id="postprocess-dialog"' in workspace.text
+        assert 'data-meeting-tab="transcript"' in workspace.text
+        assert 'data-meeting-tab="speakers"' in workspace.text
+        assert 'data-meeting-tab="intelligence"' in workspace.text
+        assert 'data-meeting-tab="utilities"' in workspace.text
+
+        library = client.get("/meetings")
+        assert library.status_code == 200
+        assert "Product review" in library.text
+        assert f'href="/?meeting={meeting["id"]}"' in library.text
+
+        meeting_redirect = client.get(
+            f"/meetings/{meeting['id']}",
+            follow_redirects=False,
+        )
+        assert meeting_redirect.status_code == 307
+        assert meeting_redirect.headers["location"] == f"/?meeting={meeting['id']}"
 
 
 def test_model_download_requires_explicit_confirmation(tmp_path: Path) -> None:

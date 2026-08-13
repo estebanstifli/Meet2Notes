@@ -180,6 +180,78 @@ class FFmpegClient:
             raise ValidationError(f"FFmpeg could not normalize this media: {detail[:500]}")
         return await self.probe_media(destination)
 
+    async def export_audio_ranges(
+        self,
+        source: Path,
+        destination: Path,
+        ranges: list[tuple[int, int]],
+        *,
+        output_format: str,
+    ) -> None:
+        if not self.ffmpeg_path:
+            raise CapabilityUnavailableError(
+                "FFmpeg is required to export speaker audio"
+            )
+        if output_format not in {"wav", "mp3"}:
+            raise ValidationError("Speaker audio can only be exported as WAV or MP3")
+        merged = _merge_audio_ranges(ranges)
+        if not merged:
+            raise ValidationError("This speaker has no audio turns to export")
+
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.unlink(missing_ok=True)
+        filter_script = destination.with_suffix(f".{output_format}.filter.txt")
+        filters = []
+        labels = []
+        for index, (start_ms, end_ms) in enumerate(merged):
+            label = f"a{index}"
+            labels.append(f"[{label}]")
+            filters.append(
+                f"[0:a]atrim=start={start_ms / 1000:.3f}:end={end_ms / 1000:.3f},"
+                f"asetpts=PTS-STARTPTS[{label}]"
+            )
+        filters.append(
+            f"{''.join(labels)}concat=n={len(labels)}:v=0:a=1[out]"
+        )
+        filter_script.write_text(";\n".join(filters), encoding="utf-8")
+        codec = ["-c:a", "pcm_s16le"] if output_format == "wav" else [
+            "-c:a",
+            "libmp3lame",
+            "-q:a",
+            "2",
+        ]
+        process = await asyncio.create_subprocess_exec(
+            self.ffmpeg_path,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-nostdin",
+            "-y",
+            "-i",
+            str(source),
+            "-filter_complex_script",
+            str(filter_script),
+            "-map",
+            "[out]",
+            *codec,
+            str(destination),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            _, stderr = await asyncio.wait_for(process.communicate(), timeout=4 * 60 * 60)
+        except TimeoutError as error:
+            process.kill()
+            await process.communicate()
+            destination.unlink(missing_ok=True)
+            raise ValidationError("Speaker audio export timed out") from error
+        finally:
+            filter_script.unlink(missing_ok=True)
+        if process.returncode != 0:
+            destination.unlink(missing_ok=True)
+            detail = stderr.decode("utf-8", errors="replace").strip()
+            raise ValidationError(f"FFmpeg could not export speaker audio: {detail[:500]}")
+
 
 def _optional_int(value: Any) -> int | None:
     try:
@@ -193,3 +265,22 @@ def _optional_float(value: Any) -> float | None:
         return float(value) if value is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def _merge_audio_ranges(
+    ranges: list[tuple[int, int]],
+    *,
+    join_gap_ms: int = 180,
+) -> list[tuple[int, int]]:
+    ordered = sorted(
+        (max(0, int(start)), int(end))
+        for start, end in ranges
+        if int(end) > int(start)
+    )
+    merged: list[tuple[int, int]] = []
+    for start, end in ordered:
+        if merged and start <= merged[-1][1] + join_gap_ms:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged

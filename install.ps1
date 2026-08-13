@@ -17,6 +17,8 @@ param(
     )]
     [string]$WhisperModel = "small",
 
+    [string]$ModelsDirectory = "",
+
     [switch]$SkipFfmpeg,
     [switch]$Dev,
     [switch]$Start
@@ -114,12 +116,6 @@ if ([int]$VersionParts[0] -lt 3 -or (
 
 Write-Step "Installing Meet2Notes and native audio/AI runtimes"
 Invoke-Checked $EnvironmentPython @("-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel")
-Invoke-Checked $EnvironmentPython @(
-    "-m", "pip", "install", "-e", ".[capture,transcription,diarization]"
-)
-Invoke-Checked $EnvironmentPython @(
-    "-m", "pip", "install", "huggingface-hub>=0.27,<2"
-)
 
 $ResolvedBackend = $AiBackend
 $NvidiaAvailable = [bool](Get-Command nvidia-smi -ErrorAction SilentlyContinue)
@@ -135,22 +131,51 @@ if ($ResolvedBackend -eq "auto") {
         "cpu"
     }
 }
-if ($ResolvedBackend -eq "cuda" -and -not $CudaWheelCompatible) {
+if ($ResolvedBackend -eq "cuda" -and -not $NvidiaAvailable) {
     if ($AiBackend -eq "cuda") {
-        throw "The prebuilt llama.cpp CUDA wheel requires Python 3.10-3.12."
+        throw "No NVIDIA driver was detected. Install the driver or use -AiBackend cpu."
     }
     $ResolvedBackend = "cpu"
 }
 
-$LlamaIndex = if ($ResolvedBackend -eq "cuda") {
+$TorchVersion = if ($ResolvedBackend -eq "cuda") { "2.13.0+cu126" } else { "2.13.0+cpu" }
+$TorchIndex = if ($ResolvedBackend -eq "cuda") {
+    "https://download.pytorch.org/whl/cu126"
+} else {
+    "https://download.pytorch.org/whl/cpu"
+}
+Write-Step "Installing PyTorch $ResolvedBackend runtime inside .venv"
+Invoke-Checked $EnvironmentPython @(
+    "-m", "pip", "install", "--upgrade", "--force-reinstall", "--no-cache-dir",
+    "--progress-bar", "off", "--disable-pip-version-check", "torch==$TorchVersion",
+    "--index-url", $TorchIndex
+)
+
+Invoke-Checked $EnvironmentPython @(
+    "-m", "pip", "install", "-e", ".[capture,transcription,diarization,nvidia-asr,pyannote-diarization]"
+)
+Invoke-Checked $EnvironmentPython @(
+    "-m", "pip", "install", "huggingface-hub>=0.27,<2"
+)
+
+$LlamaBackend = if ($ResolvedBackend -eq "cuda" -and $CudaWheelCompatible) {
+    "cuda"
+} else {
+    "cpu"
+}
+if ($ResolvedBackend -eq "cuda" -and $LlamaBackend -eq "cpu") {
+    Write-Warning "CUDA PyTorch is installed for transcription models, but the prebuilt llama.cpp CUDA wheel requires Python 3.10-3.12. Local summaries will use CPU."
+}
+$LlamaIndex = if ($LlamaBackend -eq "cuda") {
     "https://abetlen.github.io/llama-cpp-python/whl/cu124"
 } else {
     "https://abetlen.github.io/llama-cpp-python/whl/cpu"
 }
-Write-Host "llama.cpp backend: $ResolvedBackend"
+Write-Host "PyTorch backend: $ResolvedBackend"
+Write-Host "llama.cpp backend: $LlamaBackend"
 & $EnvironmentPython -m pip install "llama-cpp-python>=0.3.8,<1" `
     --extra-index-url $LlamaIndex
-if ($LASTEXITCODE -ne 0 -and $AiBackend -eq "auto" -and $ResolvedBackend -eq "cuda") {
+if ($LASTEXITCODE -ne 0 -and $AiBackend -eq "auto" -and $LlamaBackend -eq "cuda") {
     Write-Warning "CUDA wheel installation failed; falling back to the portable CPU wheel."
     Invoke-Checked $EnvironmentPython @(
         "-m", "pip", "install", "--force-reinstall",
@@ -171,11 +196,15 @@ Install-Ffmpeg
 
 if ($Models -eq "all") {
     Write-Step "Downloading and verifying the recommended local AI models"
-    Invoke-Checked $EnvironmentPython @(
+    $ModelArguments = @(
         "-m", "local_meeting_ai.model_setup",
         "--models", "all",
         "--whisper-model", $WhisperModel
     )
+    if ($ModelsDirectory) {
+        $ModelArguments += @("--models-dir", $ModelsDirectory)
+    }
+    Invoke-Checked $EnvironmentPython $ModelArguments
 }
 
 Write-Step "Verifying the installation"
@@ -184,7 +213,7 @@ Invoke-Checked $EnvironmentPython @("scripts/check_environment.py")
 
 Write-Host ""
 Write-Host "Meet2Notes is ready." -ForegroundColor Green
-Write-Host "Run: .\.venv\Scripts\meet2notes.exe"
+Write-Host "Run: .\start.bat"
 
 if ($Start) {
     & (Join-Path $EnvironmentRoot "Scripts\meet2notes.exe")

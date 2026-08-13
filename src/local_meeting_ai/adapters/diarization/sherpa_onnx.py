@@ -4,7 +4,10 @@ import asyncio
 import gc
 import importlib
 import importlib.util
+import logging
+import os
 import shutil
+import sys
 import tarfile
 import threading
 import urllib.request
@@ -14,12 +17,16 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, cast
 
+from local_meeting_ai.adapters.model_files import remove_managed_model_tree
 from local_meeting_ai.domain.entities import DiarizationSegment
 from local_meeting_ai.domain.errors import (
     CapabilityUnavailableError,
     JobCancelledError,
 )
 from local_meeting_ai.domain.protocols import CancellationCheck, ProgressReporter
+
+logger = logging.getLogger(__name__)
+_CUDA_DLL_HANDLES: list[Any] = []
 
 SEGMENTATION_URL = (
     "https://github.com/k2-fsa/sherpa-onnx/releases/download/"
@@ -96,6 +103,10 @@ class SherpaOnnxDiarizationEngine:
         allow_model_download: bool,
     ) -> None:
         await self._submit(self._prepare_sync, config, allow_model_download)
+
+    async def uninstall(self, engine_id: str) -> None:
+        del engine_id
+        await self._submit(self._uninstall_models_sync)
 
     async def diarize(
         self,
@@ -194,14 +205,40 @@ class SherpaOnnxDiarizationEngine:
             raw = diarizer.process(audio, callback=callback).sort_by_start_time()
             if is_cancelled():
                 raise JobCancelledError("Diarization was cancelled")
-            return [
+            labels = {
+                speaker: index
+                for index, speaker in enumerate(
+                    sorted({int(item.speaker) for item in raw})
+                )
+            }
+            segments = [
                 DiarizationSegment(
                     start_ms=round(float(item.start) * 1000),
                     end_ms=round(float(item.end) * 1000),
-                    speaker=int(item.speaker),
+                    speaker=labels[int(item.speaker)],
                 )
                 for item in raw
             ]
+            durations = {
+                speaker: sum(
+                    item.end_ms - item.start_ms
+                    for item in segments
+                    if item.speaker == speaker
+                )
+                for speaker in labels.values()
+            }
+            logger.info(
+                "Diarization completed: provider=%s threshold=%.2f requested_speakers=%d "
+                "detected_speakers=%d turns=%d talk_time_ms=%s raw_labels=%s",
+                config.get("provider", "cpu"),
+                float(config.get("cluster_threshold", 0.7)),
+                int(config.get("num_speakers", -1)),
+                len(labels),
+                len(segments),
+                durations,
+                sorted(labels),
+            )
+            return segments
         except Exception as error:
             failure = error
             raise
@@ -227,7 +264,7 @@ class SherpaOnnxDiarizationEngine:
             config.get("provider", "cpu"),
             int(config.get("num_threads", 2)),
             int(config.get("num_speakers", -1)),
-            float(config.get("cluster_threshold", 0.5)),
+            float(config.get("cluster_threshold", 0.7)),
             float(config.get("min_duration_on", 0.3)),
             float(config.get("min_duration_off", 0.5)),
             bool(config.get("debug", False)),
@@ -237,6 +274,8 @@ class SherpaOnnxDiarizationEngine:
                 return self._diarizer
             sherpa = importlib.import_module("sherpa_onnx")
             provider = str(config.get("provider", "cpu"))
+            if provider == "cuda":
+                _configure_cuda_dlls()
             threads = int(config.get("num_threads", 2))
             debug = bool(config.get("debug", False))
             resolved = sherpa.OfflineSpeakerDiarizationConfig(
@@ -256,7 +295,7 @@ class SherpaOnnxDiarizationEngine:
                 ),
                 clustering=sherpa.FastClusteringConfig(
                     num_clusters=int(config.get("num_speakers", -1)),
-                    threshold=float(config.get("cluster_threshold", 0.5)),
+                    threshold=float(config.get("cluster_threshold", 0.7)),
                 ),
                 min_duration_on=float(config.get("min_duration_on", 0.3)),
                 min_duration_off=float(config.get("min_duration_off", 0.5)),
@@ -273,10 +312,13 @@ class SherpaOnnxDiarizationEngine:
         segmentation, embedding = self._model_paths(config)
         if not segmentation.is_file():
             archive = self.models_dir / "segmentation.tar.bz2"
+            logger.info("Downloading diarization archive %s", archive.name)
             _download(SEGMENTATION_URL, archive)
+            logger.info("Extracting segmentation model files from %s", archive.name)
             _safe_extract(archive, self.models_dir)
             archive.unlink(missing_ok=True)
         if not embedding.is_file():
+            logger.info("Downloading speaker embedding file %s", embedding.name)
             _download(
                 EMBEDDING_URLS[str(config.get("embedding_model", "3d-speaker"))],
                 embedding,
@@ -300,6 +342,28 @@ class SherpaOnnxDiarizationEngine:
         segmentation, embedding = self._model_paths(default)
         return segmentation.is_file() and embedding.is_file()
 
+    def _uninstall_models_sync(self) -> None:
+        with self._state_lock:
+            if self._active_requests:
+                raise CapabilityUnavailableError(
+                    "Wait for the active Sherpa-ONNX task to finish before uninstalling it"
+                )
+        if not self._models_installed():
+            raise CapabilityUnavailableError(
+                "Sherpa-ONNX diarization models are not installed locally"
+            )
+        self.unload()
+        removed = remove_managed_model_tree(
+            root=self.models_dir.parent,
+            target=self.models_dir,
+            label="Sherpa-ONNX diarization",
+        )
+        if not removed:
+            raise CapabilityUnavailableError(
+                "Sherpa-ONNX diarization models are not installed locally"
+            )
+        logger.info("Removed Sherpa-ONNX diarization models from %s", self.models_dir)
+
     def _request_started(self, state: str) -> None:
         with self._state_lock:
             self._active_requests += 1
@@ -319,6 +383,26 @@ class SherpaOnnxDiarizationEngine:
                 )
 
 
+def _configure_cuda_dlls() -> None:
+    """Expose pip-installed NVIDIA runtime DLLs to ONNX Runtime on Windows."""
+    if sys.platform != "win32" or _CUDA_DLL_HANDLES:
+        return
+    nvidia_root = Path(sys.prefix) / "Lib" / "site-packages" / "nvidia"
+    directories = [
+        nvidia_root / package / "bin"
+        for package in ("cudnn", "cublas", "cuda_nvrtc")
+        if (nvidia_root / package / "bin").is_dir()
+    ]
+    if not directories:
+        return
+    os.environ["PATH"] = os.pathsep.join(
+        [*(str(directory) for directory in directories), os.environ.get("PATH", "")]
+    )
+    _CUDA_DLL_HANDLES.extend(
+        os.add_dll_directory(str(directory)) for directory in directories
+    )
+
+
 def _read_pcm_wave(path: Path) -> tuple[array[int], int]:
     with wave.open(str(path), "rb") as source:
         if source.getsampwidth() != 2 or source.getnchannels() != 1:
@@ -334,9 +418,11 @@ def _download(url: str, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     partial = destination.with_suffix(destination.suffix + ".part")
     try:
+        logger.info("Fetching %s", url)
         with urllib.request.urlopen(url, timeout=60) as response, partial.open("wb") as target:
             shutil.copyfileobj(response, target)
         partial.replace(destination)
+        logger.info("Saved %s", destination)
     except Exception as error:
         partial.unlink(missing_ok=True)
         raise CapabilityUnavailableError(

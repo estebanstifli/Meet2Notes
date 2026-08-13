@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import json
 import re
 from collections.abc import Sequence
@@ -13,7 +14,11 @@ from local_meeting_ai.domain.entities import (
     Meeting,
     Recording,
     SegmentDraft,
+    Speaker,
+    SpeakerProfile,
+    SpeakerTurn,
     Summary,
+    SummaryTemplate,
     Transcription,
     TranscriptSegment,
 )
@@ -23,6 +28,21 @@ from local_meeting_ai.infrastructure.database.connection import Database
 
 def utc_now() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds")
+
+
+def _summary_template_from_row(row: Any) -> SummaryTemplate:
+    sections = json.loads(row["output_schema_json"] or "[]")
+    return SummaryTemplate(
+        id=row["id"],
+        name=row["name"],
+        description=row["description"],
+        system_prompt=row["system_prompt"],
+        user_prompt_template=row["user_prompt_template"],
+        sections=sections if isinstance(sections, list) else [],
+        is_builtin=bool(row["is_builtin"]),
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
 
 
 def _meeting_from_row(row: Any) -> Meeting:
@@ -114,11 +134,56 @@ def _segment_from_row(row: Any) -> TranscriptSegment:
     )
 
 
+def _speaker_from_row(row: Any) -> Speaker:
+    keys = set(row.keys())
+    return Speaker(
+        id=row["id"],
+        meeting_id=row["meeting_id"],
+        stable_key=row["stable_key"],
+        display_name=row["display_name"],
+        confidence=row["confidence"],
+        created_at=row["created_at"],
+        segment_count=int(row["segment_count"]) if "segment_count" in keys else 0,
+        talk_time_ms=int(row["talk_time_ms"] or 0) if "talk_time_ms" in keys else 0,
+        summary_status=row["summary_status"] if "summary_status" in keys else None,
+        summary_markdown=row["summary_markdown"] if "summary_markdown" in keys else None,
+        summary_provider=row["summary_provider"] if "summary_provider" in keys else None,
+        summary_model=row["summary_model"] if "summary_model" in keys else None,
+        summary_updated_at=(
+            row["summary_updated_at"] if "summary_updated_at" in keys else None
+        ),
+    )
+
+
+def _speaker_profile_from_row(row: Any) -> SpeakerProfile:
+    keys = set(row.keys())
+    return SpeakerProfile(
+        id=row["id"],
+        name=row["name"],
+        sample_path=row["sample_path"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+        meeting_count=int(row["meeting_count"]) if "meeting_count" in keys else 0,
+    )
+
+
+def _speaker_turn_from_row(row: Any) -> SpeakerTurn:
+    return SpeakerTurn(
+        id=row["id"],
+        meeting_id=row["meeting_id"],
+        transcription_id=row["transcription_id"],
+        speaker_id=row["speaker_id"],
+        start_ms=row["start_ms"],
+        end_ms=row["end_ms"],
+    )
+
+
 def _summary_from_row(row: Any) -> Summary:
     return Summary(
         id=row["id"],
         meeting_id=row["meeting_id"],
         transcription_id=row["transcription_id"],
+        template_id=row["template_id"],
         provider=row["provider"],
         model=row["model"],
         status=row["status"],
@@ -204,7 +269,15 @@ class MeetingRepository:
         return _meeting_from_row(row) if row else None
 
     def update(self, meeting_id: int, values: dict[str, Any]) -> Meeting | None:
-        allowed = {"title", "description", "language", "status", "duration_ms"}
+        allowed = {
+            "title",
+            "description",
+            "language",
+            "status",
+            "duration_ms",
+            "started_at",
+            "ended_at",
+        }
         changes = {key: value for key, value in values.items() if key in allowed}
         if not changes:
             return self.get(meeting_id)
@@ -693,6 +766,113 @@ class TranscriptionRepository:
             ).fetchone()
         return _segment_from_row(row) if row else None
 
+    def speakers_for_transcription(self, transcription_id: int) -> list[Speaker]:
+        with self.database.read() as connection:
+            rows = connection.execute(
+                """
+                SELECT s.*,
+                    (SELECT COUNT(*) FROM transcript_segments ts
+                     WHERE ts.transcription_id = ? AND ts.speaker_id = s.id)
+                        AS segment_count,
+                    (SELECT COALESCE(SUM(st.end_ms - st.start_ms), 0)
+                     FROM speaker_turns st
+                     WHERE st.transcription_id = ? AND st.speaker_id = s.id)
+                        AS talk_time_ms
+                FROM speakers s
+                WHERE EXISTS (
+                    SELECT 1 FROM transcript_segments ts
+                    WHERE ts.transcription_id = ? AND ts.speaker_id = s.id
+                ) OR EXISTS (
+                    SELECT 1 FROM speaker_turns st
+                    WHERE st.transcription_id = ? AND st.speaker_id = s.id
+                )
+                ORDER BY s.id
+                """,
+                (transcription_id, transcription_id, transcription_id, transcription_id),
+            ).fetchall()
+        return [_speaker_from_row(row) for row in rows]
+
+    def get_speaker(self, speaker_id: int) -> Speaker | None:
+        with self.database.read() as connection:
+            row = connection.execute(
+                """
+                SELECT s.*,
+                    (SELECT COUNT(*) FROM transcript_segments ts
+                     WHERE ts.speaker_id = s.id) AS segment_count,
+                    (SELECT COALESCE(SUM(st.end_ms - st.start_ms), 0)
+                     FROM speaker_turns st
+                     WHERE st.speaker_id = s.id) AS talk_time_ms
+                FROM speakers s WHERE s.id = ?
+                """,
+                (speaker_id,),
+            ).fetchone()
+        return _speaker_from_row(row) if row else None
+
+    def rename_speaker(self, speaker_id: int, display_name: str) -> Speaker | None:
+        with self.database.transaction() as connection:
+            cursor = connection.execute(
+                "UPDATE speakers SET display_name = ? WHERE id = ?",
+                (display_name, speaker_id),
+            )
+        return self.get_speaker(speaker_id) if cursor.rowcount else None
+
+    def set_speaker_summary_status(
+        self,
+        speaker_id: int,
+        status: str,
+        *,
+        provider: str | None = None,
+        model: str | None = None,
+    ) -> Speaker | None:
+        with self.database.transaction() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE speakers
+                SET summary_status = ?,
+                    summary_provider = COALESCE(?, summary_provider),
+                    summary_model = COALESCE(?, summary_model),
+                    summary_updated_at = ?
+                WHERE id = ?
+                """,
+                (status, provider, model, utc_now(), speaker_id),
+            )
+        return self.get_speaker(speaker_id) if cursor.rowcount else None
+
+    def complete_speaker_summary(
+        self,
+        speaker_id: int,
+        content_markdown: str,
+    ) -> Speaker | None:
+        with self.database.transaction() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE speakers
+                SET summary_status = 'completed', summary_markdown = ?,
+                    summary_updated_at = ?
+                WHERE id = ?
+                """,
+                (content_markdown, utc_now(), speaker_id),
+            )
+        return self.get_speaker(speaker_id) if cursor.rowcount else None
+
+    def speaker_turns(
+        self,
+        transcription_id: int,
+        speaker_id: int | None = None,
+    ) -> list[SpeakerTurn]:
+        query = """
+            SELECT * FROM speaker_turns
+            WHERE transcription_id = ?
+        """
+        parameters: list[Any] = [transcription_id]
+        if speaker_id is not None:
+            query += " AND speaker_id = ?"
+            parameters.append(speaker_id)
+        query += " ORDER BY start_ms"
+        with self.database.read() as connection:
+            rows = connection.execute(query, parameters).fetchall()
+        return [_speaker_turn_from_row(row) for row in rows]
+
     def mark_running(self, transcription_id: int) -> None:
         with self.database.transaction() as connection:
             connection.execute(
@@ -795,6 +975,34 @@ class TranscriptionRepository:
             )
         return self.get(transcription_id)
 
+    def complete_realtime(self, transcription_id: int) -> Transcription | None:
+        """Promote the captured live segments when a final ASR pass is skipped."""
+
+        with self.database.transaction() as connection:
+            row = connection.execute(
+                "SELECT meeting_id FROM transcriptions WHERE id = ?",
+                (transcription_id,),
+            ).fetchone()
+            if not row:
+                return None
+            connection.execute(
+                "UPDATE transcriptions SET is_active = 0 WHERE meeting_id = ?",
+                (row["meeting_id"],),
+            )
+            connection.execute(
+                "UPDATE transcript_segments SET is_final = 1 WHERE transcription_id = ?",
+                (transcription_id,),
+            )
+            connection.execute(
+                """
+                UPDATE transcriptions
+                SET status = 'completed', is_active = 1, completed_at = ?
+                WHERE id = ?
+                """,
+                (utc_now(), transcription_id),
+            )
+        return self.get(transcription_id)
+
     def set_status(self, transcription_id: int, status: str) -> None:
         completed_at = utc_now() if status in {"failed", "cancelled"} else None
         with self.database.transaction() as connection:
@@ -867,30 +1075,85 @@ class TranscriptionRepository:
         transcription_id: int,
         diarization: Sequence[DiarizationSegment],
         minimum_overlap_ratio: float,
+        recognized_profiles: dict[int, SpeakerProfile] | None = None,
     ) -> int:
         speaker_numbers = sorted({item.speaker for item in diarization})
         with self.database.transaction() as connection:
+            existing_speakers = {
+                str(row["stable_key"]): row
+                for row in connection.execute(
+                    """
+                    SELECT stable_key, display_name, summary_status, summary_markdown,
+                           summary_provider, summary_model, summary_updated_at
+                    FROM speakers
+                    WHERE meeting_id = ? AND stable_key LIKE 'diarization:%'
+                    """,
+                    (meeting_id,),
+                ).fetchall()
+            }
+            connection.execute(
+                "DELETE FROM speaker_turns WHERE transcription_id = ?",
+                (transcription_id,),
+            )
             connection.execute(
                 "DELETE FROM speakers WHERE meeting_id = ? AND stable_key LIKE 'diarization:%'",
                 (meeting_id,),
             )
             speaker_ids: dict[int, int] = {}
             for number in speaker_numbers:
+                stable_key = f"diarization:{number}"
+                existing = existing_speakers.get(stable_key)
+                profile = (recognized_profiles or {}).get(number)
                 cursor = connection.execute(
                     """
                     INSERT INTO speakers(
-                        meeting_id, stable_key, display_name, created_at
-                    ) VALUES (?, ?, ?, ?)
+                        meeting_id, stable_key, display_name, profile_id, created_at,
+                        summary_status, summary_markdown, summary_provider,
+                        summary_model, summary_updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         meeting_id,
-                        f"diarization:{number}",
-                        f"Speaker {number + 1}",
+                        stable_key,
+                        profile.name
+                        if profile
+                        else (
+                            str(existing["display_name"])
+                            if existing
+                            else f"Speaker {number + 1}"
+                        ),
+                        profile.id if profile else None,
                         utc_now(),
+                        existing["summary_status"] if existing else None,
+                        existing["summary_markdown"] if existing else None,
+                        existing["summary_provider"] if existing else None,
+                        existing["summary_model"] if existing else None,
+                        existing["summary_updated_at"] if existing else None,
                     ),
                 )
                 assert cursor.lastrowid is not None
                 speaker_ids[number] = cursor.lastrowid
+
+            connection.executemany(
+                """
+                INSERT INTO speaker_turns(
+                    meeting_id, transcription_id, speaker_id,
+                    start_ms, end_ms, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        meeting_id,
+                        transcription_id,
+                        speaker_ids[turn.speaker],
+                        turn.start_ms,
+                        turn.end_ms,
+                        utc_now(),
+                    )
+                    for turn in diarization
+                    if turn.end_ms > turn.start_ms
+                ],
+            )
 
             rows = connection.execute(
                 """
@@ -922,6 +1185,277 @@ class TranscriptionRepository:
         return len(assignments)
 
 
+class SpeakerProfileRepository:
+    """Persistent, meeting-independent voice identities."""
+
+    def __init__(self, database: Database) -> None:
+        self.database = database
+
+    def list(self, *, search: str | None = None) -> list[SpeakerProfile]:
+        query = """
+            SELECT sp.*, COUNT(DISTINCT s.meeting_id) AS meeting_count
+            FROM speaker_profiles sp
+            LEFT JOIN speakers s ON s.profile_id = sp.id
+        """
+        parameters: list[Any] = []
+        if search:
+            query += " WHERE sp.name LIKE ?"
+            parameters.append(f"%{search.strip()}%")
+        query += " GROUP BY sp.id ORDER BY sp.name COLLATE NOCASE"
+        with self.database.read() as connection:
+            rows = connection.execute(query, parameters).fetchall()
+        return [_speaker_profile_from_row(row) for row in rows]
+
+    def get(self, profile_id: int) -> SpeakerProfile | None:
+        with self.database.read() as connection:
+            row = connection.execute(
+                "SELECT * FROM speaker_profiles WHERE id = ?", (profile_id,)
+            ).fetchone()
+        return _speaker_profile_from_row(row) if row else None
+
+    def get_by_name(self, name: str) -> SpeakerProfile | None:
+        with self.database.read() as connection:
+            row = connection.execute(
+                "SELECT * FROM speaker_profiles WHERE lower(name) = lower(?)", (name,)
+            ).fetchone()
+        return _speaker_profile_from_row(row) if row else None
+
+    def create(self, *, name: str, sample_path: str | None) -> SpeakerProfile:
+        now = utc_now()
+        try:
+            with self.database.transaction() as connection:
+                cursor = connection.execute(
+                    "INSERT INTO speaker_profiles"
+                    "(name, sample_path, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                    (name, sample_path, now, now),
+                )
+        except Exception as error:
+            if "UNIQUE" in str(error).upper():
+                raise ValueError("A saved voice already uses this name") from error
+            raise
+        assert cursor.lastrowid is not None
+        profile = self.get(cursor.lastrowid)
+        assert profile is not None
+        return profile
+
+    def update(
+        self,
+        profile_id: int,
+        *,
+        name: str | None = None,
+        sample_path: str | None = None,
+    ) -> SpeakerProfile | None:
+        changes: dict[str, Any] = {}
+        if name is not None:
+            changes["name"] = name
+        if sample_path is not None:
+            changes["sample_path"] = sample_path
+        if not changes:
+            return self.get(profile_id)
+        changes["updated_at"] = utc_now()
+        assignments = ", ".join(f"{key} = ?" for key in changes)
+        try:
+            with self.database.transaction() as connection:
+                cursor = connection.execute(
+                    f"UPDATE speaker_profiles SET {assignments} WHERE id = ?",
+                    [*changes.values(), profile_id],
+                )
+        except Exception as error:
+            if "UNIQUE" in str(error).upper():
+                raise ValueError("A saved voice already uses this name") from error
+            raise
+        return self.get(profile_id) if cursor.rowcount else None
+
+    def delete(self, profile_id: int) -> bool:
+        with self.database.transaction() as connection:
+            connection.execute(
+                "UPDATE speakers SET profile_id = NULL WHERE profile_id = ?", (profile_id,)
+            )
+            cursor = connection.execute("DELETE FROM speaker_profiles WHERE id = ?", (profile_id,))
+        return cursor.rowcount > 0
+
+    def link_speaker(self, speaker_id: int, profile_id: int) -> Speaker | None:
+        with self.database.transaction() as connection:
+            cursor = connection.execute(
+                "UPDATE speakers SET profile_id = ?, "
+                "display_name = (SELECT name FROM speaker_profiles WHERE id = ?) "
+                "WHERE id = ?",
+                (profile_id, profile_id, speaker_id),
+            )
+        if cursor.rowcount:
+            return TranscriptionRepository(self.database).get_speaker(speaker_id)
+        return None
+
+    def meetings_for_profiles(self, profile_ids: Sequence[int]) -> builtins.list[Meeting]:
+        if not profile_ids:
+            return []
+        marks = ", ".join("?" for _ in profile_ids)
+        query = f"""
+            SELECT m.*, COUNT(r.id) AS recording_count
+            FROM meetings m
+            JOIN speakers s ON s.meeting_id = m.id
+            LEFT JOIN recordings r ON r.meeting_id = m.id
+            WHERE s.profile_id IN ({marks})
+            GROUP BY m.id
+            HAVING COUNT(DISTINCT s.profile_id) = ?
+            ORDER BY m.created_at DESC
+        """
+        with self.database.read() as connection:
+            rows = connection.execute(query, [*profile_ids, len(profile_ids)]).fetchall()
+        return [_meeting_from_row(row) for row in rows]
+
+
+class SummaryTemplateRepository:
+    def __init__(self, database: Database) -> None:
+        self.database = database
+
+    def seed_builtins(self, templates: Sequence[dict[str, Any]]) -> None:
+        now = utc_now()
+        with self.database.transaction() as connection:
+            for template in templates:
+                existing = connection.execute(
+                    "SELECT id FROM summary_templates WHERE name = ? AND is_builtin = 1",
+                    (template["name"],),
+                ).fetchone()
+                values = (
+                    template.get("description"),
+                    template["system_prompt"],
+                    template["user_prompt_template"],
+                    json.dumps(template["sections"]),
+                    now,
+                )
+                if existing:
+                    connection.execute(
+                        """
+                        UPDATE summary_templates
+                        SET description = ?, system_prompt = ?, user_prompt_template = ?,
+                            output_schema_json = ?, updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (*values, existing["id"]),
+                    )
+                else:
+                    connection.execute(
+                        """
+                        INSERT INTO summary_templates(
+                            name, description, system_prompt, user_prompt_template,
+                            output_schema_json, is_builtin, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+                        """,
+                        (
+                            template["name"],
+                            template.get("description"),
+                            template["system_prompt"],
+                            template["user_prompt_template"],
+                            json.dumps(template["sections"]),
+                            now,
+                            now,
+                        ),
+                    )
+
+    def list(self) -> list[SummaryTemplate]:
+        with self.database.read() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM summary_templates
+                ORDER BY is_builtin DESC, name COLLATE NOCASE
+                """
+            ).fetchall()
+        return [_summary_template_from_row(row) for row in rows]
+
+    def get(self, template_id: int) -> SummaryTemplate | None:
+        with self.database.read() as connection:
+            row = connection.execute(
+                "SELECT * FROM summary_templates WHERE id = ?",
+                (template_id,),
+            ).fetchone()
+        return _summary_template_from_row(row) if row else None
+
+    def default(self, configured_id: Any = None) -> SummaryTemplate:
+        try:
+            selected = self.get(int(configured_id)) if configured_id is not None else None
+        except (TypeError, ValueError):
+            selected = None
+        if selected:
+            return selected
+        with self.database.read() as connection:
+            row = connection.execute(
+                """
+                SELECT * FROM summary_templates
+                WHERE name = 'General Meeting' AND is_builtin = 1
+                ORDER BY id LIMIT 1
+                """
+            ).fetchone()
+        if not row:
+            raise RuntimeError("The built-in General Meeting note format is missing")
+        return _summary_template_from_row(row)
+
+    def create(self, values: dict[str, Any]) -> SummaryTemplate:
+        now = utc_now()
+        with self.database.transaction() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO summary_templates(
+                    name, description, system_prompt, user_prompt_template,
+                    output_schema_json, is_builtin, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+                """,
+                (
+                    values["name"],
+                    values.get("description"),
+                    values["system_prompt"],
+                    values["user_prompt_template"],
+                    json.dumps(values["sections"]),
+                    now,
+                    now,
+                ),
+            )
+            assert cursor.lastrowid is not None
+            template_id = cursor.lastrowid
+        template = self.get(template_id)
+        assert template is not None
+        return template
+
+    def update(self, template_id: int, values: dict[str, Any]) -> SummaryTemplate | None:
+        current = self.get(template_id)
+        if not current:
+            return None
+        if current.is_builtin:
+            raise ValueError("Built-in note formats cannot be edited")
+        with self.database.transaction() as connection:
+            connection.execute(
+                """
+                UPDATE summary_templates
+                SET name = ?, description = ?, system_prompt = ?,
+                    user_prompt_template = ?, output_schema_json = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    values["name"],
+                    values.get("description"),
+                    values["system_prompt"],
+                    values["user_prompt_template"],
+                    json.dumps(values["sections"]),
+                    utc_now(),
+                    template_id,
+                ),
+            )
+        return self.get(template_id)
+
+    def delete(self, template_id: int) -> bool:
+        current = self.get(template_id)
+        if not current:
+            return False
+        if current.is_builtin:
+            raise ValueError("Built-in note formats cannot be deleted")
+        with self.database.transaction() as connection:
+            cursor = connection.execute(
+                "DELETE FROM summary_templates WHERE id = ?",
+                (template_id,),
+            )
+        return bool(cursor.rowcount)
+
+
 class SummaryRepository:
     def __init__(self, database: Database) -> None:
         self.database = database
@@ -933,15 +1467,16 @@ class SummaryRepository:
         transcription_id: int,
         provider: str,
         model: str,
+        template_id: int | None = None,
     ) -> Summary:
         with self.database.transaction() as connection:
             cursor = connection.execute(
                 """
                 INSERT INTO summaries(
-                    meeting_id, transcription_id, provider, model, status, created_at
-                ) VALUES (?, ?, ?, ?, 'queued', ?)
+                    meeting_id, transcription_id, template_id, provider, model, status, created_at
+                ) VALUES (?, ?, ?, ?, ?, 'queued', ?)
                 """,
-                (meeting_id, transcription_id, provider, model, utc_now()),
+                (meeting_id, transcription_id, template_id, provider, model, utc_now()),
             )
             assert cursor.lastrowid is not None
             summary_id = cursor.lastrowid

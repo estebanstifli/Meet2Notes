@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import shutil
 import time
 import wave
@@ -16,8 +17,10 @@ from local_meeting_ai.domain.entities import (
     AudioFrameBatch,
     CapturedAudio,
     CaptureStatus,
+    DiarizationSegment,
     MediaProbe,
     SegmentDraft,
+    SummaryResult,
     TranscriptionEngineRequest,
     TranscriptionResult,
 )
@@ -219,6 +222,105 @@ class FakeTranscriptionEngine:
         return None
 
 
+class FakeDiarizationEngine:
+    name = "fake-diarization"
+
+    def capability(self) -> dict[str, Any]:
+        return {"engine": self.name, "available": True, "installed": True}
+
+    async def prepare(
+        self,
+        config: dict[str, Any],
+        *,
+        allow_model_download: bool,
+    ) -> None:
+        del config, allow_model_download
+
+    async def diarize(
+        self,
+        audio_path: Path,
+        config: dict[str, Any],
+        progress: ProgressReporter,
+        is_cancelled: CancellationCheck,
+    ) -> list[DiarizationSegment]:
+        del config
+        assert audio_path.is_file()
+        assert not is_cancelled()
+        progress(1, "Speakers identified")
+        return [DiarizationSegment(start_ms=0, end_ms=500, speaker=0)]
+
+    def shutdown(self) -> None:
+        return None
+
+    def unload(self) -> None:
+        return None
+
+
+class FakeSummaryEngine:
+    name = "fake-summary"
+
+    def capability(self) -> dict[str, Any]:
+        return {"engine": self.name, "available": True, "installed": True}
+
+    async def prepare(
+        self,
+        config: dict[str, Any],
+        *,
+        allow_model_download: bool,
+    ) -> None:
+        del config, allow_model_download
+
+    async def summarize(
+        self,
+        transcript: str,
+        config: dict[str, Any],
+        progress: ProgressReporter,
+        is_cancelled: CancellationCheck,
+    ) -> SummaryResult:
+        if config.get("summary_scope") == "speaker":
+            assert "Captured locally." in transcript
+            assert config["speaker_name"] == "Esteban"
+        else:
+            assert "Speaker 1: Captured locally." in transcript
+            assert config["summary_template"]["name"] == "General Meeting"
+            assert config["summary_template"]["sections"][0]["title"] == "Summary"
+        assert not is_cancelled()
+        progress(1, "Notes generated")
+        return SummaryResult(content_markdown="# Summary\n\nCaptured locally.")
+
+    def shutdown(self) -> None:
+        return None
+
+    def unload(self) -> None:
+        return None
+
+
+class FakeAudioRangeExporter:
+    async def export_audio_ranges(
+        self,
+        source: Path,
+        destination: Path,
+        ranges: list[tuple[int, int]],
+        *,
+        output_format: str,
+    ) -> None:
+        assert source.is_file()
+        assert ranges == [(0, 500)]
+        assert output_format in {"wav", "mp3"}
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"speaker-audio")
+
+
+def _wav_bytes() -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(16000)
+        audio.writeframes(b"\x00\x00" * 1600)
+    return buffer.getvalue()
+
+
 def _wait_for_job(client: TestClient, job_uuid: str) -> dict[str, Any]:
     for _ in range(100):
         job = client.get(f"/api/jobs/{job_uuid}").json()
@@ -241,6 +343,9 @@ def test_live_capture_pause_stop_and_transcribe(tmp_path: Path) -> None:
             transcription_engine=FakeTranscriptionEngine(),
             audio_normalizer=FakeNormalizer(),
             audio_capture_backend=FakeCaptureBackend(),
+            diarization_engine=FakeDiarizationEngine(),
+            summary_engine=FakeSummaryEngine(),
+            audio_range_exporter=FakeAudioRangeExporter(),
         )
     ) as client:
         sources = client.get("/api/audio/sources")
@@ -265,6 +370,8 @@ def test_live_capture_pause_stop_and_transcribe(tmp_path: Path) -> None:
         assert session["state"] == "recording"
         assert session["title"] == "Customer interview"
         assert session["transcription_id"] > 0
+        live_meeting = client.get(f"/api/meetings/{session['meeting_id']}").json()
+        assert live_meeting["started_at"] is not None
 
         for _ in range(100):
             current = client.get("/api/capture/session")
@@ -307,6 +414,9 @@ def test_live_capture_pause_stop_and_transcribe(tmp_path: Path) -> None:
         )
         assert payload["transcription"]["title"] == "Customer interview"
         assert payload["transcription"]["id"] == session["transcription_id"]
+        stopped_meeting = client.get(f"/api/meetings/{session['meeting_id']}").json()
+        assert stopped_meeting["ended_at"] is not None
+        assert stopped_meeting["duration_ms"] == 500
         assert len(
             client.get(
                 f"/api/meetings/{session['meeting_id']}/transcriptions"
@@ -315,7 +425,213 @@ def test_live_capture_pause_stop_and_transcribe(tmp_path: Path) -> None:
 
         terminal = _wait_for_job(client, payload["transcription_job"]["uuid"])
         assert terminal["status"] == "completed"
+        assert terminal["payload"]["postprocess"] is True
+        for _ in range(100):
+            workflow_jobs = client.get(
+                f"/api/jobs?meeting_id={session['meeting_id']}"
+            ).json()
+            summary_job = next(
+                (job for job in workflow_jobs if job["job_type"] == "summarize"),
+                None,
+            )
+            if summary_job and summary_job["status"] in {"completed", "failed"}:
+                break
+            time.sleep(0.02)
+        else:
+            raise AssertionError("Post-processing did not reach the summary stage")
+        assert summary_job["status"] == "completed"
+        assert any(job["job_type"] == "diarize" for job in workflow_jobs)
         detail = client.get(
             f"/api/transcriptions/{payload['transcription']['id']}"
         ).json()
         assert detail["segments"][0]["text"] == "Captured locally."
+        assert detail["segments"][0]["speaker_id"] is not None
+        summaries = client.get(
+            f"/api/meetings/{session['meeting_id']}/summaries"
+        ).json()
+        assert summaries[0]["content_markdown"].startswith("# Summary")
+
+        # A stopped capture must release the backend so the source picker can
+        # be opened immediately for the next transcription.
+        refreshed_sources = client.get("/api/audio/sources")
+        assert refreshed_sources.status_code == 200
+        assert refreshed_sources.json()["sources"][0]["id"] == "fake:microphone:0"
+
+
+def test_live_capture_can_keep_the_live_text_without_postprocessing(tmp_path: Path) -> None:
+    settings = AppSettings(
+        data_dir=tmp_path / "capture-without-final-pass-data",
+        testing=True,
+        open_browser=False,
+        log_level="WARNING",
+    )
+    with TestClient(
+        create_app(
+            settings,
+            transcription_engine=FakeTranscriptionEngine(),
+            audio_normalizer=FakeNormalizer(),
+            audio_capture_backend=FakeCaptureBackend(),
+            diarization_engine=FakeDiarizationEngine(),
+            summary_engine=FakeSummaryEngine(),
+            audio_range_exporter=FakeAudioRangeExporter(),
+        )
+    ) as client:
+        started = client.post(
+            "/api/capture/sessions",
+            json={"source_id": "fake:microphone:0", "title": "Quick note"},
+        )
+        assert started.status_code == 201
+        session = started.json()
+        for _ in range(100):
+            live = client.get("/api/capture/session").json()
+            if live["segment_count"]:
+                break
+            time.sleep(0.02)
+        else:
+            raise AssertionError("Live segment did not appear during capture")
+
+        stopped = client.post(
+            f"/api/capture/sessions/{session['session_id']}/stop",
+            json={
+                "final_transcription": False,
+                "postprocess_options": {
+                    "diarization": False,
+                    "speaker_count": None,
+                    "summary": False,
+                },
+            },
+        )
+        assert stopped.status_code == 200
+        job = _wait_for_job(client, stopped.json()["transcription_job"]["uuid"])
+        assert job["status"] == "completed"
+        assert job["payload"]["skip_final_pass"] is True
+        assert job["payload"]["postprocess_options"] == {
+            "diarization": False,
+            "speaker_count": None,
+            "summary": False,
+        }
+        jobs = client.get(f"/api/jobs?meeting_id={session['meeting_id']}").json()
+        assert {item["job_type"] for item in jobs} == {"import_media", "transcribe"}
+        detail = client.get(f"/api/transcriptions/{session['transcription_id']}").json()
+        assert detail["transcription"]["status"] == "completed"
+        assert detail["segments"][0]["is_final"] is True
+
+
+def test_imported_media_runs_complete_meeting_pipeline(tmp_path: Path) -> None:
+    settings = AppSettings(
+        data_dir=tmp_path / "import-pipeline-data",
+        testing=True,
+        open_browser=False,
+        log_level="WARNING",
+    )
+    with TestClient(
+        create_app(
+            settings,
+            transcription_engine=FakeTranscriptionEngine(),
+            audio_normalizer=FakeNormalizer(),
+            diarization_engine=FakeDiarizationEngine(),
+            summary_engine=FakeSummaryEngine(),
+            audio_range_exporter=FakeAudioRangeExporter(),
+        )
+    ) as client:
+        meeting = client.post(
+            "/api/meetings",
+            json={"title": "Imported interview", "source_type": "imported"},
+        ).json()
+        imported = client.post(
+            f"/api/meetings/{meeting['id']}/import",
+            files={"file": ("interview.wav", _wav_bytes(), "audio/wav")},
+        )
+        assert imported.status_code == 202
+
+        started = client.post(
+            f"/api/meetings/{meeting['id']}/transcriptions",
+            json={
+                "profile_id": "balanced",
+                "language": "en",
+                "postprocess": True,
+            },
+        )
+        assert started.status_code == 202
+        transcription_job = started.json()["job"]
+        assert transcription_job["payload"]["postprocess"] is True
+
+        for _ in range(150):
+            workflow_jobs = client.get(
+                f"/api/jobs?meeting_id={meeting['id']}"
+            ).json()
+            summary_job = next(
+                (job for job in workflow_jobs if job["job_type"] == "summarize"),
+                None,
+            )
+            if summary_job and summary_job["status"] in {"completed", "failed"}:
+                break
+            time.sleep(0.02)
+        else:
+            raise AssertionError("Imported media pipeline did not finish")
+
+        assert summary_job["status"] == "completed"
+        assert {job["job_type"] for job in workflow_jobs} >= {
+            "import_media",
+            "transcribe",
+            "diarize",
+            "summarize",
+        }
+        assert all(
+            job["payload"].get("postprocess")
+            for job in workflow_jobs
+            if job["job_type"] in {"transcribe", "diarize", "summarize"}
+        )
+        detail = client.get(
+            f"/api/transcriptions/{started.json()['transcription']['id']}"
+        ).json()
+        assert detail["segments"][0]["speaker_id"] is not None
+        assert detail["speakers"][0]["display_name"] == "Speaker 1"
+        assert detail["speakers"][0]["talk_time_ms"] == 500
+        assert detail["speaker_turns"][0]["start_ms"] == 0
+        speaker_id = detail["speakers"][0]["id"]
+        renamed = client.patch(
+            f"/api/speakers/{speaker_id}",
+            json={"display_name": "Esteban"},
+        )
+        assert renamed.status_code == 200
+        assert renamed.json()["display_name"] == "Esteban"
+        refreshed = client.get(
+            f"/api/transcriptions/{started.json()['transcription']['id']}"
+        ).json()
+        assert refreshed["speakers"][0]["display_name"] == "Esteban"
+        speaker_audio = client.get(
+            f"/api/transcriptions/{started.json()['transcription']['id']}"
+            f"/speakers/{speaker_id}/audio?format=mp3"
+        )
+        assert speaker_audio.status_code == 200
+        assert speaker_audio.content == b"speaker-audio"
+        assert speaker_audio.headers["content-type"].startswith("audio/mpeg")
+        speaker_text = client.get(
+            f"/api/transcriptions/{started.json()['transcription']['id']}"
+            f"/speakers/{speaker_id}/text"
+        )
+        assert speaker_text.status_code == 200
+        assert speaker_text.text == "Esteban\n\nCaptured locally.\n"
+        speaker_summary = client.post(
+            f"/api/transcriptions/{started.json()['transcription']['id']}"
+            f"/speakers/{speaker_id}/summary"
+        )
+        assert speaker_summary.status_code == 202
+        speaker_summary_job = _wait_for_job(
+            client,
+            speaker_summary.json()["job"]["uuid"],
+        )
+        assert speaker_summary_job["status"] == "completed"
+        summarized = client.get(
+            f"/api/transcriptions/{started.json()['transcription']['id']}"
+        ).json()["speakers"][0]
+        assert summarized["summary_status"] == "completed"
+        assert summarized["summary_markdown"].startswith("# Summary")
+        summaries = client.get(f"/api/meetings/{meeting['id']}/summaries").json()
+        assert summaries[0]["status"] == "completed"
+
+        saved_meeting = client.get(f"/api/meetings/{meeting['id']}").json()
+        assert saved_meeting["started_at"] is not None
+        library = client.get("/meetings")
+        assert f'data-local-time="{saved_meeting["started_at"]}"' in library.text

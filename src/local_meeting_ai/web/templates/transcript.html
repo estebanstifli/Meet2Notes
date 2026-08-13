@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Transcription · Meet2Notes{% endblock %}
-{% block head %}<link rel="stylesheet" href="/static/css/transcription.css">{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/css/transcription.css?v={{ asset_version }}">{% endblock %}
 {% block content %}
 <div
   class="page minimal-transcript-page"
@@ -17,11 +17,15 @@
         <p>Capture or import audio and turn it into editable text.</p>
       </div>
     </div>
-    <a class="minimal-settings-link" href="/settings" aria-label="Settings" title="Settings">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19.4 15 .1.1-1.8 3.1-.2-.1a2 2 0 0 0-2.4.3l-.6.4a2 2 0 0 0-.9 2.2v.2H10V21a2 2 0 0 0-.9-2.2l-.6-.4a2 2 0 0 0-2.4-.3l-.2.1-1.8-3.1.1-.1a2 2 0 0 0 1-2v-.8a2 2 0 0 0-1-2l-.1-.1L5.9 7l.2.1a2 2 0 0 0 2.4-.3l.6-.4A2 2 0 0 0 10 4.2V4h3.6v.2a2 2 0 0 0 .9 2.2l.6.4a2 2 0 0 0 2.4.3l.2-.1 1.8 3.1-.1.1a2 2 0 0 0-1 2v.8a2 2 0 0 0 1 2Z"/></svg>
-    </a>
+    <div class="page-header-actions">
+      {% include "_theme_toggle.html" %}
+      <a class="icon-button" href="/settings" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19.4 15 .1.1-1.8 3.1-.2-.1a2 2 0 0 0-2.4.3l-.6.4a2 2 0 0 0-.9 2.2v.2H10V21a2 2 0 0 0-.9-2.2l-.6-.4a2 2 0 0 0-2.4-.3l-.2.1-1.8-3.1.1-.1a2 2 0 0 0 1-2v-.8a2 2 0 0 0-1-2l-.1-.1L5.9 7l.2.1a2 2 0 0 0 2.4-.3l.6-.4A2 2 0 0 0 10 4.2V4h3.6v.2a2 2 0 0 0 .9 2.2l.6.4a2 2 0 0 0 2.4.3l.2-.1 1.8 3.1-.1.1a2 2 0 0 0-1 2v.8a2 2 0 0 0 1 2Z"/></svg>
+      </a>
+    </div>
   </header>
 
+  <div class="transcription-workspace" id="transcription-workspace">
   <section class="transcription-canvas panel">
     <header class="transcription-canvas-header">
       <div class="transcription-name-control">
@@ -44,7 +48,7 @@
       </div>
 
       <div class="transcription-primary-actions">
-        <button type="button" class="button primary start-transcription-button" id="start-transcription">
+        <button type="button" class="button primary start-transcription-button {{ '' if request.query_params.get('new') == '1' else 'hidden' }}" id="start-transcription">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg>
           Start transcription
         </button>
@@ -62,6 +66,26 @@
       </div>
     </header>
 
+    <nav class="meeting-tabs hidden" id="meeting-tabs" role="tablist" aria-label="Meeting workspace">
+      <button type="button" class="active" role="tab" aria-selected="true" aria-controls="meeting-tab-transcript" data-meeting-tab="transcript">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM15 3v5h5M9 12h7M9 16h7"/></svg>
+        Transcription
+      </button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="meeting-tab-speakers" data-meeting-tab="speakers">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM17 11l2 2 3-4"/></svg>
+        Speakers
+      </button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="meeting-tab-intelligence" data-meeting-tab="intelligence">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 9.8 8.8 4 11l5.8 2.2L12 19l2.2-5.8L20 11l-5.8-2.2L12 3ZM5 3v4M3 5h4"/></svg>
+        AI notes
+      </button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="meeting-tab-utilities" data-meeting-tab="utilities">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 20h14M5 4h3M16 4h3"/></svg>
+        Utilities
+      </button>
+    </nav>
+
+    <div class="meeting-tab-panel active" id="meeting-tab-transcript" role="tabpanel" data-meeting-panel="transcript">
     <div class="live-capture-strip hidden" id="live-capture-strip">
       <span class="live-indicator"><i></i> Live</span>
       <div class="live-source-copy">
@@ -104,6 +128,21 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
         <input id="transcript-search" type="search" placeholder="Search transcript" aria-label="Search transcript">
       </label>
+      <div class="transcript-view-controls hidden" id="transcript-view-controls">
+        <label>
+          <span>Speaker</span>
+          <select id="transcript-speaker-filter" aria-label="Filter transcript by speaker">
+            <option value="all">All speakers</option>
+          </select>
+        </label>
+        <label>
+          <span>Order</span>
+          <select id="transcript-order" aria-label="Order transcript segments">
+            <option value="time">Timeline</option>
+            <option value="speaker">By speaker</option>
+          </select>
+        </label>
+      </div>
       <span id="editor-meta">No transcript yet</span>
     </div>
 
@@ -114,10 +153,93 @@
         </span>
         <h2>Your transcript will appear here</h2>
         <p>Start with a microphone, system audio, an audio interface, or a media file.</p>
+        {% if request.query_params.get('new') == '1' %}
         <button type="button" class="button primary" data-empty-start>Start transcription</button>
+        {% endif %}
       </div>
     </div>
+    </div>
+
+    <section class="meeting-tab-panel" id="meeting-tab-speakers" role="tabpanel" data-meeting-panel="speakers" hidden>
+      <header class="result-panel-header">
+        <div>
+          <span class="eyebrow">Speaker identification</span>
+          <h2>Who spoke during the meeting</h2>
+          <p>Sherpa ONNX separates voices after the recording is complete.</p>
+        </div>
+        <span class="result-status" id="speaker-result-status">Waiting</span>
+      </header>
+      <div class="speaker-results" id="speaker-results"></div>
+    </section>
+
+    <section class="meeting-tab-panel" id="meeting-tab-intelligence" role="tabpanel" data-meeting-panel="intelligence" hidden>
+      <header class="result-panel-header">
+        <div>
+          <span class="eyebrow">Meeting intelligence</span>
+          <h2>Summary, decisions and notes</h2>
+          <p id="ai-result-engine">Generated by the AI engine selected in Settings.</p>
+        </div>
+        <span class="result-status" id="ai-result-status">Waiting</span>
+      </header>
+      <article class="ai-report-content" id="ai-report-content"></article>
+    </section>
+
+    <section class="meeting-tab-panel" id="meeting-tab-utilities" role="tabpanel" data-meeting-panel="utilities" hidden>
+      <header class="result-panel-header">
+        <div>
+          <span class="eyebrow">Utilities</span>
+          <h2>Use your meeting outside Meet2Notes</h2>
+          <p>Copy or download the local meeting data whenever you need it.</p>
+        </div>
+      </header>
+      <div class="utility-grid">
+        <button type="button" class="utility-card" id="copy-transcript">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2"/></svg>
+          <span><strong>Copy transcript</strong><small>Plain text with timestamps and speakers</small></span>
+        </button>
+        <button type="button" class="utility-card" id="download-transcript">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
+          <span><strong>Download TXT</strong><small>Portable, readable transcript</small></span>
+        </button>
+        <button type="button" class="utility-card" id="download-meeting-json">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3M10 8l-3 4 3 4M14 8l3 4-3 4"/></svg>
+          <span><strong>Download JSON</strong><small>Transcript, metadata and AI report</small></span>
+        </button>
+      </div>
+    </section>
   </section>
+  <div
+    class="workspace-resizer"
+    id="activity-log-resizer"
+    role="separator"
+    tabindex="0"
+    aria-label="Resize activity log"
+    aria-orientation="horizontal"
+    aria-controls="activity-log-card"
+    aria-valuemin="110"
+    aria-valuemax="420"
+    aria-valuenow="180"
+    title="Drag to resize the activity log"
+  ><span></span></div>
+  <section class="activity-log-card panel" id="activity-log-card" aria-labelledby="activity-log-title">
+    <header class="activity-log-header">
+      <div>
+        <span class="activity-live-indicator"><i></i> Live</span>
+        <h2 id="activity-log-title">Activity log</h2>
+        <p>Engine loading, configuration changes, transcription progress and errors.</p>
+      </div>
+      <button type="button" class="text-button" id="clear-activity-log">Clear view</button>
+    </header>
+    <textarea
+      id="activity-log-output"
+      class="activity-log-output"
+      readonly
+      spellcheck="false"
+      aria-label="Meet2Notes activity events"
+      placeholder="Waiting for application events…"
+    ></textarea>
+  </section>
+  </div>
 </div>
 
 <dialog class="modal capture-modal" id="transcription-dialog">
@@ -205,5 +327,104 @@
     </div>
   </form>
 </dialog>
+
+<dialog class="modal postprocess-modal" id="postprocess-dialog">
+  <div class="modal-panel postprocess-modal-panel">
+    <div class="postprocess-hero">
+      <span class="postprocess-orbit"><i></i></span>
+      <div>
+        <span class="eyebrow">Finishing your meeting</span>
+        <h2 id="postprocess-title">Turning the conversation into useful notes</h2>
+        <p id="postprocess-description">Meet2Notes is processing everything locally. You can continue in the background.</p>
+      </div>
+    </div>
+    <section class="postprocess-options hidden" id="postprocess-options" aria-labelledby="postprocess-options-title">
+      <div class="postprocess-options-heading">
+        <strong id="postprocess-options-title">Choose the final processing</strong>
+        <small>These choices apply only to this meeting.</small>
+      </div>
+      <label class="postprocess-option-card" for="postprocess-diarization">
+        <input id="postprocess-diarization" type="checkbox" checked>
+        <span><strong>Identify speakers</strong><small>Group the conversation by voice after transcription.</small></span>
+      </label>
+      <div class="postprocess-speakers" id="postprocess-speakers">
+        <span>Number of speakers</span>
+        <div class="postprocess-speaker-choices">
+          <label><input type="radio" name="postprocess-speaker-mode" value="auto" checked> Automatic</label>
+          <label><input type="radio" name="postprocess-speaker-mode" value="known"> I know it:</label>
+          <input id="postprocess-speaker-count" type="number" min="1" max="20" value="2" inputmode="numeric" disabled aria-label="Known number of speakers">
+        </div>
+      </div>
+      <label class="postprocess-option-card" id="postprocess-final-pass-option" for="postprocess-final-pass">
+        <input id="postprocess-final-pass" type="checkbox" checked>
+        <span><strong>Final transcription pass</strong><small id="postprocess-final-pass-help">Reprocess the complete recording for the most accurate transcript.</small></span>
+      </label>
+      <label class="postprocess-option-card" for="postprocess-summary">
+        <input id="postprocess-summary" type="checkbox" checked>
+        <span><strong>Create AI notes</strong><small>Generate a local summary, decisions and action items.</small></span>
+      </label>
+      <div class="postprocess-actions postprocess-options-actions">
+        <button type="button" class="button secondary" id="postprocess-options-cancel">Cancel</button>
+        <button type="button" class="button primary" id="postprocess-options-start">Start processing</button>
+      </div>
+    </section>
+    <div id="postprocess-progress-view">
+      <div class="postprocess-overall">
+        <div><span>Overall progress</span><strong id="postprocess-percent">0%</strong></div>
+        <progress id="postprocess-progress" max="100" value="0"></progress>
+      </div>
+      <ol class="postprocess-steps">
+      <li data-workflow-step="transcription">
+        <span class="workflow-step-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM15 3v5h5M9 12h7M9 16h7"/></svg></span>
+        <span><strong>Refining the transcript</strong><small>Faster Whisper · final pass over the saved audio</small></span>
+        <b class="workflow-step-state">Waiting</b>
+      </li>
+      <li data-workflow-step="diarization">
+        <span class="workflow-step-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM17 11l2 2 3-4"/></svg></span>
+        <span><strong>Identifying speakers</strong><small id="workflow-diarization-engine">Sherpa ONNX · voice clustering</small></span>
+        <b class="workflow-step-state">Waiting</b>
+      </li>
+      <li data-workflow-step="summary">
+        <span class="workflow-step-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 9.8 8.8 4 11l5.8 2.2L12 19l2.2-5.8L20 11l-5.8-2.2L12 3Z"/></svg></span>
+        <span><strong>Creating AI notes</strong><small id="workflow-summary-engine">Selected AI engine</small></span>
+        <b class="workflow-step-state">Waiting</b>
+      </li>
+      </ol>
+      <section class="postprocess-log-section" aria-labelledby="postprocess-log-title">
+        <div>
+          <strong id="postprocess-log-title">Processing log</strong>
+          <small>Live details from the local engines</small>
+        </div>
+        <textarea id="postprocess-log" readonly spellcheck="false" aria-live="polite" aria-label="Transcription processing log"></textarea>
+      </section>
+      <div class="postprocess-actions">
+        <button type="button" class="button secondary" id="postprocess-background">Continue in background</button>
+        <button type="button" class="button primary hidden" id="postprocess-results">View meeting results</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="modal postprocess-modal speaker-summary-modal" id="speaker-summary-dialog">
+  <div class="modal-panel postprocess-modal-panel speaker-summary-modal-panel">
+    <div class="postprocess-hero">
+      <span class="postprocess-orbit"><i></i></span>
+      <div>
+        <span class="eyebrow">Speaker intelligence</span>
+        <h2 id="speaker-summary-title">Summarizing this speaker</h2>
+        <p id="speaker-summary-description">The selected AI engine is analyzing only this speaker's contributions.</p>
+      </div>
+    </div>
+    <div class="postprocess-overall" id="speaker-summary-progress-wrap">
+      <div><span id="speaker-summary-status">Preparing the transcript</span><strong id="speaker-summary-percent">0%</strong></div>
+      <progress id="speaker-summary-progress" max="100" value="0"></progress>
+    </div>
+    <article class="speaker-summary-content hidden" id="speaker-summary-content"></article>
+    <div class="postprocess-actions">
+      <button type="button" class="button secondary" id="speaker-summary-close">Continue in background</button>
+      <button type="button" class="button primary hidden" id="speaker-summary-done">Close</button>
+    </div>
+  </div>
+</dialog>
 {% endblock %}
-{% block scripts %}<script src="/static/js/transcript.js" defer></script>{% endblock %}
+{% block scripts %}<script src="/static/js/transcript.js?v={{ asset_version }}" defer></script>{% endblock %}
