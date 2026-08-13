@@ -10,6 +10,7 @@ from local_meeting_ai.plugins.contracts import HookContext
 from local_meeting_ai.plugins.manager import PluginManager
 
 from .ai_services import DiarizationService, SummaryService
+from .webhooks import WebhookService
 
 logger = logging.getLogger(__name__)
 
@@ -76,11 +77,13 @@ class FinalProcessingPipeline:
         diarization: DiarizationService,
         summaries: SummaryService,
         plugins: PluginManager,
+        webhooks: WebhookService | None = None,
     ) -> None:
         self.jobs = jobs
         self.diarization = diarization
         self.summaries = summaries
         self.plugins = plugins
+        self.webhooks = webhooks
 
     def description(self) -> dict[str, Any]:
         return {
@@ -92,6 +95,8 @@ class FinalProcessingPipeline:
         }
 
     async def job_finished(self, job: Job, status: JobStatus) -> None:
+        if self.webhooks is not None:
+            self.webhooks.publish_job_terminal(job, status)
         transcription_id = job.payload.get("transcription_id")
         if not isinstance(transcription_id, int):
             return
@@ -267,6 +272,14 @@ class FinalProcessingPipeline:
             },
             context,
         )
+        if self.webhooks is not None:
+            self.webhooks.publish_pipeline_finished(
+                meeting_id=job.meeting_id,
+                transcription_id=transcription_id,
+                pipeline_id=context.pipeline_id,
+                status=status.value,
+                options=options,
+            )
         logger.info(
             "Final processing pipeline %s finished with status %s",
             context.pipeline_id or "untracked",

@@ -14,8 +14,12 @@
   meeting directory. Each window is removed immediately after local inference.
 - Only one capture session can be active, and the UI always exposes visible pause
   and stop controls while it is running.
-- Remote AI providers will require a visible per-request confirmation before any
-  transcript content can leave the computer.
+- Remote AI providers require explicit configuration before transcript content
+  can leave the computer.
+- Outbound webhooks are disabled by default. Each enabled endpoint has an
+  explicit event subscription and content level; Internet destinations require
+  HTTPS and signing secrets live in the operating-system credential vault. See
+  [the webhook security and delivery contract](webhooks.md).
 - Model installers connect only to the official model hosts when the user runs
   the installer, invokes `meet2notes-models`, or confirms installation in
   Settings. Meeting content is never part of those requests.

@@ -28,6 +28,7 @@ from local_meeting_ai.application.transcription_profiles import (
     TranscriptionProfileCatalog,
 )
 from local_meeting_ai.application.transcription_service import TranscriptionService
+from local_meeting_ai.application.webhooks import WebhookService
 from local_meeting_ai.config import AppSettings
 from local_meeting_ai.domain.enums import JobType
 from local_meeting_ai.domain.protocols import (
@@ -53,10 +54,15 @@ from local_meeting_ai.infrastructure.database.repositories import (
     SummaryTemplateRepository,
     TranscriptionRepository,
 )
+from local_meeting_ai.infrastructure.database.webhooks import WebhookRepository
 from local_meeting_ai.infrastructure.ffmpeg import FFmpegClient
 from local_meeting_ai.infrastructure.jobs import LocalJobQueue
 from local_meeting_ai.infrastructure.pytorch_cuda import PytorchCudaRuntime
 from local_meeting_ai.infrastructure.storage import MeetingStorage
+from local_meeting_ai.infrastructure.webhook_secrets import (
+    KeyringWebhookSecretStore,
+    MemoryWebhookSecretStore,
+)
 from local_meeting_ai.logging_config import ActivityLog, configure_logging
 from local_meeting_ai.paths import AppPaths
 from local_meeting_ai.plugins.contracts import ProviderRuntimeContext
@@ -168,6 +174,8 @@ class Container:
     embedding_provider: EmbeddingProvider
     rag_service: RagService
     prompt_service: PromptService
+    webhook_repository: WebhookRepository
+    webhook_service: WebhookService
 
 
 def build_container(
@@ -206,6 +214,20 @@ def build_container(
     summary_templates.seed_builtins(BUILTIN_SUMMARY_TEMPLATES)
     speaker_profiles = SpeakerProfileRepository(database)
     plugin_executions = PluginExecutionRepository(database)
+    webhook_repository = WebhookRepository(database)
+    webhook_secrets = (
+        MemoryWebhookSecretStore() if settings.testing else KeyringWebhookSecretStore()
+    )
+    webhook_service = WebhookService(
+        repository=webhook_repository,
+        preferences=preferences,
+        secrets_store=webhook_secrets,
+        meetings=meetings,
+        transcriptions=transcriptions,
+        summaries=summaries,
+        jobs=jobs,
+        poll_interval=0.02 if settings.testing else 1.0,
+    )
     provider_registry = ProviderRegistry(
         ProviderRuntimeContext(
             plugin_id="meet2notes.core",
@@ -267,6 +289,7 @@ def build_container(
         transcriptions=transcriptions,
         preferences=preferences,
         storage=storage,
+        webhooks=webhook_service,
         poll_interval=0.02 if settings.testing else 0.75,
         chunk_seconds=0.1 if settings.testing else 3.0,
         overlap_seconds=0.0 if settings.testing else 1.0,
@@ -310,6 +333,7 @@ def build_container(
         diarization=diarization_service,
         summaries=summary_service,
         plugins=plugin_manager,
+        webhooks=webhook_service,
     )
     queue.register_terminal_handler(final_pipeline.job_finished)
     rag_repository = RagRepository(database)
@@ -368,4 +392,6 @@ def build_container(
         embedding_provider=resolved_embedding_provider,
         rag_service=rag_service,
         prompt_service=prompt_service,
+        webhook_repository=webhook_repository,
+        webhook_service=webhook_service,
     )

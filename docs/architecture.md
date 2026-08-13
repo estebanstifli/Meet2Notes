@@ -135,3 +135,16 @@ The Prompt service either supplies one full transcript or embeds the question an
 retrieves from one/all meetings. Answers receive timestamped source labels and are
 instructed to make meeting claims only from that context. See `rag-and-mcp.md` for
 the modular extension points and the read-only MCP recommendation.
+
+## Outbound integrations
+
+Webhook producers append typed events and per-endpoint deliveries to a SQLite
+outbox. The capture and final-processing services never perform network I/O.
+An independent async dispatcher claims due deliveries, applies content-level
+filtering, signs the exact CloudEvent body, and performs bounded HTTP requests.
+Final events survive restarts; stale Live events expire. Remote-agent responses
+are persisted as separate insights and cannot mutate a transcript or summary.
+
+This boundary complements rather than replaces plugin hooks: hooks extend the
+in-process pipeline with declared permissions, while webhooks notify isolated
+external systems. The stable protocol and change rules are in `webhooks.md`.

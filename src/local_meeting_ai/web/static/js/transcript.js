@@ -39,6 +39,7 @@
   let captureSession = null;
   let capturePollTimer = null;
   let capturePollBusy = false;
+  let lastInsightPollAt = 0;
   let lastLiveSegmentCount = -1;
   let lastDetail = null;
   let terminalJobIds = new Set();
@@ -239,6 +240,7 @@
         activeTranscriptionId = Number(currentCapture.transcription_id);
         setLiveState(currentCapture);
         await refreshLiveTranscript(currentCapture, true);
+        await refreshWebhookInsights(true);
       } else if (meetingId && !preferred) {
         // Imported or otherwise saved meetings still expose the complete
         // workspace, even when they do not have a transcript version yet.
@@ -247,6 +249,7 @@
       if (capabilities.features.transcription !== "available") {
         document.querySelector("#start-transcription").dataset.engineUnavailable = "true";
       }
+      if (meetingId && !currentCapture) await refreshWebhookInsights(true);
     } catch (error) {
       toast(error.message, "error");
       renderLoadError(error.message);
@@ -1235,6 +1238,7 @@
       captureSession = session;
       updateLiveState(session);
       await refreshLiveTranscript(session);
+      await refreshWebhookInsights();
     } catch {
       // The next poll can recover a transient local request.
     } finally {
@@ -1252,6 +1256,33 @@
     lastLiveSegmentCount = count;
     const detail = await api(`/api/transcriptions/${activeTranscriptionId}`);
     renderTranscript(detail);
+  }
+
+  async function refreshWebhookInsights(force = false) {
+    if (!meetingId) return;
+    const now = Date.now();
+    if (!force && now - lastInsightPollAt < 2000) return;
+    lastInsightPollAt = now;
+    try {
+      renderWebhookInsights(await api(`/api/webhooks/meetings/${meetingId}/insights?limit=20`));
+    } catch {
+      // Insights are optional and must never disturb local transcription.
+    }
+  }
+
+  function renderWebhookInsights(insights) {
+    const panel = document.querySelector("#live-agent-insights");
+    const target = document.querySelector("#live-agent-insight-list");
+    const visible = (insights || []).filter((item) => item.status !== "dismissed");
+    panel.classList.toggle("hidden", !visible.length);
+    document.querySelector("#live-agent-insight-count").textContent = visible.length
+      ? `${visible.filter((item) => item.status === "new").length} new`
+      : "";
+    target.innerHTML = visible.map((item) => `
+      <article class="live-agent-insight" data-status="${escapeHTML(item.status)}">
+        <div><p>${escapeHTML(item.text)}</p><small>${escapeHTML(item.endpoint_name)} · ${escapeHTML(item.kind)}${item.confidence == null ? "" : ` · ${Math.round(Number(item.confidence) * 100)}% confidence`}</small></div>
+        <div class="live-agent-insight-actions">${item.status === "new" ? `<button class="text-button" type="button" data-insight-status="accepted" data-insight-id="${escapeHTML(item.id)}">Accept</button>` : ""}<button class="text-button" type="button" data-insight-status="dismissed" data-insight-id="${escapeHTML(item.id)}">Dismiss</button></div>
+      </article>`).join("");
   }
 
   async function togglePause() {
@@ -1671,6 +1702,22 @@
 
   document.addEventListener("localmeet:languagechange", () => {
     if (lastDetail) renderTranscript(lastDetail);
+  });
+
+  document.querySelector("#live-agent-insight-list")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-insight-id]");
+    if (!button) return;
+    button.disabled = true;
+    try {
+      await api(`/api/webhooks/insights/${encodeURIComponent(button.dataset.insightId)}`, {
+        method: "PUT",
+        body: JSON.stringify({ status: button.dataset.insightStatus }),
+      });
+      await refreshWebhookInsights(true);
+    } catch (error) {
+      button.disabled = false;
+      toast(error.message, "error");
+    }
   });
 
   subscribeJobs(async (jobs) => {

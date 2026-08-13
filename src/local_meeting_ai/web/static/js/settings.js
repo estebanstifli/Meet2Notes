@@ -43,6 +43,7 @@
   let embeddingModels = [];
   let noteFormats = [];
   let pluginCatalog = [];
+  let webhookCatalog = { settings: {}, endpoints: [], event_catalog: [], deliveries: [] };
   let activeTranscriptionPurpose = "live";
   let installActivityCursor = 0;
   let installActivityTimer = null;
@@ -1281,9 +1282,90 @@
       </article>`).join("");
   }
 
+  function webhookEndpointPayload() {
+    return {
+      name: $("#webhook-name").value.trim(),
+      url: $("#webhook-url").value.trim(),
+      enabled: $("#webhook-endpoint-enabled").checked,
+      mode: $("#webhook-mode").value,
+      events: [...document.querySelectorAll("[data-webhook-event]:checked")]
+        .map((control) => control.value),
+      content_level: $("#webhook-content-level").value,
+      timeout_seconds: Number($("#webhook-timeout").value),
+      max_attempts: Number($("#webhook-attempts").value),
+      allow_private_network: $("#webhook-allow-private").checked,
+    };
+  }
+
+  function renderWebhookEvents(selected = []) {
+    const target = $("#webhook-event-list");
+    if (!target) return;
+    const groups = Object.groupBy
+      ? Object.groupBy(webhookCatalog.event_catalog || [], (item) => item.group)
+      : (webhookCatalog.event_catalog || []).reduce((result, item) => {
+          (result[item.group] ||= []).push(item);
+          return result;
+        }, {});
+    target.innerHTML = Object.entries(groups).map(([group, events]) => `
+      <div class="webhook-event-group"><strong>${escapeHTML(group)}</strong>${events.map((item) => `
+        <label><input type="checkbox" value="${escapeHTML(item.id)}" data-webhook-event ${selected.includes(item.id) ? "checked" : ""}><span><b>${escapeHTML(item.id)}</b><small>${escapeHTML(item.description)}</small></span></label>`).join("")}</div>`).join("");
+  }
+
+  function renderWebhookDeliveries(deliveries = []) {
+    const target = $("#webhook-delivery-list");
+    if (!target) return;
+    target.innerHTML = deliveries.length ? deliveries.map((item) => `
+      <tr><td><strong>${escapeHTML(item.event_type)}</strong><small>${item.meeting_id ? `Meeting ${item.meeting_id}` : "System"}</small></td>
+      <td>${escapeHTML(item.endpoint_name)}</td><td><span class="status-pill ${escapeHTML(item.status)}">${escapeHTML(item.status)}</span></td>
+      <td>${Number(item.attempt_count || 0)}</td><td><small>${item.last_status_code || escapeHTML(item.last_error || "Pending")}</small>${["failed", "expired", "delivered"].includes(item.status) ? `<button class="text-button" type="button" data-webhook-retry="${escapeHTML(item.id)}">Retry</button>` : ""}</td></tr>`).join("")
+      : '<tr><td colspan="5"><span class="settings-empty-copy">No deliveries yet.</span></td></tr>';
+  }
+
+  function renderWebhooks(data) {
+    webhookCatalog = data;
+    $("#webhook-enabled").checked = Boolean(data.settings.enabled);
+    $("#webhook-retention-days").value = data.settings.retention_days || 30;
+    $("#webhook-max-concurrency").value = data.settings.max_concurrency || 4;
+    $("#webhook-storage-note").textContent = data.secure_storage_available
+      ? "Signing secrets are stored in the operating-system credential vault."
+      : "Secure credential storage is unavailable; endpoints cannot be created safely.";
+    $("#webhook-new").disabled = !data.secure_storage_available;
+    const target = $("#webhook-endpoint-list");
+    target.innerHTML = data.endpoints.length ? data.endpoints.map((item) => `
+      <tr><td><strong>${escapeHTML(item.name)}</strong><small>${escapeHTML(item.url)}</small></td><td>${item.events.length}</td><td>${escapeHTML(item.content_level)}</td>
+      <td><span class="status-pill ${item.enabled ? "completed" : "neutral"}">${item.enabled ? "Enabled" : "Disabled"}</span></td>
+      <td class="webhook-row-actions"><button class="text-button" type="button" data-webhook-test="${escapeHTML(item.id)}">Test</button><button class="text-button" type="button" data-webhook-edit="${escapeHTML(item.id)}">Edit</button><button class="text-button" type="button" data-webhook-rotate="${escapeHTML(item.id)}">Rotate key</button><button class="text-button danger" type="button" data-webhook-delete="${escapeHTML(item.id)}">Delete</button></td></tr>`).join("")
+      : '<tr><td colspan="5"><span class="settings-empty-copy">No webhook endpoints configured.</span></td></tr>';
+    renderWebhookDeliveries(data.deliveries);
+  }
+
+  function openWebhookEditor(endpoint = null) {
+    $("#webhook-endpoint-id").value = endpoint?.id || "";
+    $("#webhook-editor-title").textContent = endpoint ? `Edit ${endpoint.name}` : "Add webhook endpoint";
+    $("#webhook-name").value = endpoint?.name || "";
+    $("#webhook-url").value = endpoint?.url || "";
+    $("#webhook-mode").value = endpoint?.mode || "notification";
+    $("#webhook-content-level").value = endpoint?.content_level || "metadata";
+    $("#webhook-timeout").value = endpoint?.timeout_seconds || 10;
+    $("#webhook-attempts").value = endpoint?.max_attempts || 4;
+    $("#webhook-endpoint-enabled").checked = endpoint?.enabled ?? true;
+    $("#webhook-allow-private").checked = endpoint?.allow_private_network || false;
+    renderWebhookEvents(endpoint?.events || []);
+    $("#webhook-endpoint-form").hidden = false;
+    $("#webhook-endpoint-form").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function refreshWebhooks() {
+    renderWebhooks(await api("/api/webhooks"));
+  }
+
+  function revealWebhookSecret(secret) {
+    window.prompt("Copy this signing secret now. It will not be shown again.", secret);
+  }
+
   async function loadSettings() {
     try {
-      const [preferences, info, capabilities, models, credential, formats, plugins, embeddings] = await Promise.all([
+      const [preferences, info, capabilities, models, credential, formats, plugins, embeddings, webhooks] = await Promise.all([
         api("/api/settings"),
         api("/api/info"),
         api("/api/capabilities"),
@@ -1292,6 +1374,7 @@
         api("/api/summary-templates"),
         api("/api/plugins"),
         api("/api/models/embeddings"),
+        api("/api/webhooks"),
       ]);
       $("#ui-language").value = preferences.ui_language;
       $("#ui-theme").value = preferences.ui_theme || "system";
@@ -1305,6 +1388,7 @@
       renderCredentialStatus(credential);
       renderNoteFormats(formats);
       renderPlugins(plugins);
+      renderWebhooks(webhooks);
       populateDiarizationSettings(preferences);
       populateRagSettings(preferences);
       embeddingModels = embeddings;
@@ -2346,6 +2430,93 @@
       toast(error.message, "error");
     } finally {
       button.disabled = false;
+    }
+  });
+
+  $("#webhook-settings-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      webhookCatalog.settings = await api("/api/webhooks/settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          enabled: $("#webhook-enabled").checked,
+          retention_days: Number($("#webhook-retention-days").value),
+          max_concurrency: Number($("#webhook-max-concurrency").value),
+        }),
+      });
+      toast("Webhook settings saved locally.", "success");
+      setSavedState("Webhooks saved just now");
+    } catch (error) {
+      toast(error.message, "error");
+    }
+  });
+
+  $("#webhook-new")?.addEventListener("click", () => openWebhookEditor());
+  ["#webhook-editor-close", "#webhook-editor-cancel"].forEach((selector) => {
+    $(selector)?.addEventListener("click", () => { $("#webhook-endpoint-form").hidden = true; });
+  });
+  $("#webhook-endpoint-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const endpointId = $("#webhook-endpoint-id").value;
+    const payload = webhookEndpointPayload();
+    if (!payload.events.length) {
+      toast("Select at least one webhook event.", "error");
+      return;
+    }
+    try {
+      const result = await api(endpointId
+        ? `/api/webhooks/endpoints/${encodeURIComponent(endpointId)}`
+        : "/api/webhooks/endpoints", {
+        method: endpointId ? "PUT" : "POST",
+        body: JSON.stringify(payload),
+      });
+      $("#webhook-endpoint-form").hidden = true;
+      await refreshWebhooks();
+      if (!endpointId) revealWebhookSecret(result.signing_secret);
+      toast(`Webhook endpoint ${endpointId ? "updated" : "created"}.`, "success");
+    } catch (error) {
+      toast(error.message, "error");
+    }
+  });
+  $("#webhook-refresh")?.addEventListener("click", async (event) => {
+    event.currentTarget.disabled = true;
+    try { await refreshWebhooks(); } catch (error) { toast(error.message, "error"); }
+    finally { event.currentTarget.disabled = false; }
+  });
+  $("#webhook-endpoint-list")?.addEventListener("click", async (event) => {
+    const action = event.target.closest("[data-webhook-edit],[data-webhook-test],[data-webhook-rotate],[data-webhook-delete]");
+    if (!action) return;
+    const endpointId = action.dataset.webhookEdit || action.dataset.webhookTest
+      || action.dataset.webhookRotate || action.dataset.webhookDelete;
+    const endpoint = webhookCatalog.endpoints.find((item) => item.id === endpointId);
+    if (action.dataset.webhookEdit) return openWebhookEditor(endpoint);
+    try {
+      if (action.dataset.webhookTest) {
+        await api(`/api/webhooks/endpoints/${encodeURIComponent(endpointId)}/test`, { method: "POST" });
+        toast("Test delivery queued.", "success");
+      } else if (action.dataset.webhookRotate) {
+        if (!window.confirm(`Rotate the signing secret for ${endpoint.name}? The previous secret will stop working immediately.`)) return;
+        const result = await api(`/api/webhooks/endpoints/${encodeURIComponent(endpointId)}/rotate-secret`, { method: "POST" });
+        revealWebhookSecret(result.signing_secret);
+      } else if (action.dataset.webhookDelete) {
+        if (!window.confirm(`Delete the webhook endpoint ${endpoint.name}?`)) return;
+        await api(`/api/webhooks/endpoints/${encodeURIComponent(endpointId)}`, { method: "DELETE" });
+        await refreshWebhooks();
+        toast("Webhook endpoint deleted.", "success");
+      }
+    } catch (error) {
+      toast(error.message, "error");
+    }
+  });
+  $("#webhook-delivery-list")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-webhook-retry]");
+    if (!button) return;
+    try {
+      await api(`/api/webhooks/deliveries/${encodeURIComponent(button.dataset.webhookRetry)}/retry`, { method: "POST" });
+      await refreshWebhooks();
+      toast("Webhook delivery queued again.", "success");
+    } catch (error) {
+      toast(error.message, "error");
     }
   });
 

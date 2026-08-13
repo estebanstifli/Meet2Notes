@@ -15,6 +15,8 @@ and future plans do not become mixed together.
   submissions.
 - [Privacy](privacy.md): local data, network access, credentials, and threat
   model.
+- [Webhooks](webhooks.md): outbound event contract, delivery guarantees,
+  signatures, Live agents, security, and rules for future changes.
 
 ## Product direction and research
 

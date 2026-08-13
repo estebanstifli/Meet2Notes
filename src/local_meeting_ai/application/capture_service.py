@@ -12,6 +12,7 @@ from uuid import uuid4
 from local_meeting_ai.application.services import ImportService, MeetingService
 from local_meeting_ai.application.transcription_config import faster_whisper_config
 from local_meeting_ai.application.transcription_service import TranscriptionService
+from local_meeting_ai.application.webhooks import WebhookService
 from local_meeting_ai.domain.entities import (
     AudioCaptureSource,
     AudioFrameBatch,
@@ -48,6 +49,7 @@ class LiveCaptureService:
         transcriptions: TranscriptionRepository,
         preferences: SettingsRepository,
         storage: MeetingStorage,
+        webhooks: WebhookService | None = None,
         poll_interval: float = 0.75,
         chunk_seconds: float = 3.0,
         overlap_seconds: float = 1.0,
@@ -59,6 +61,7 @@ class LiveCaptureService:
         self.transcriptions = transcriptions
         self.preferences = preferences
         self.storage = storage
+        self.webhooks = webhooks
         self.poll_interval = poll_interval
         self.chunk_seconds = chunk_seconds
         self.overlap_seconds = overlap_seconds
@@ -185,6 +188,8 @@ class LiveCaptureService:
                 "task": resolved_task,
                 "allow_model_download": allow_model_download,
                 "transcription_id": transcription.id,
+                "meeting_id": meeting.id,
+                "meeting_title": resolved_title,
                 "meeting_uuid": meeting.uuid,
             }
             self._realtime_task = asyncio.create_task(
@@ -196,6 +201,8 @@ class LiveCaptureService:
                 session.source.name,
                 self._active_chunk_seconds,
             )
+            if self.webhooks is not None:
+                self.webhooks.publish_live_session("live.session.started", session)
             return session
 
     def status(self) -> LiveCaptureSession | None:
@@ -212,6 +219,8 @@ class LiveCaptureService:
             session = self._require_session(session_id)
             self._session = self._with_status(session, self.backend.pause())
             logger.info("Live transcription paused")
+            if self.webhooks is not None:
+                self.webhooks.publish_live_session("live.session.paused", self._session)
             return self._session
 
     def resume(self, session_id: str) -> LiveCaptureSession:
@@ -219,6 +228,8 @@ class LiveCaptureService:
             session = self._require_session(session_id)
             self._session = self._with_status(session, self.backend.resume())
             logger.info("Live transcription resumed")
+            if self.webhooks is not None:
+                self.webhooks.publish_live_session("live.session.resumed", self._session)
             return self._session
 
     async def stop(
@@ -267,6 +278,8 @@ class LiveCaptureService:
             realtime_message="Refining the complete transcript",
             segment_count=len(self._live_segments),
         )
+        if self.webhooks is not None:
+            self.webhooks.publish_live_session("live.session.stopped", stopped_session)
         recording, import_job = await self.import_service.register_capture(
             session.meeting_id,
             captured,
@@ -448,6 +461,7 @@ class LiveCaptureService:
         window_start_ms = round(start_frame / self._live_sample_rate * 1000)
         committed_text = " ".join(segment.text for segment in self._live_segments[-4:])
         added = 0
+        added_segments: list[SegmentDraft] = []
         for segment in segments:
             absolute_start = window_start_ms + segment.start_ms
             absolute_end = window_start_ms + segment.end_ms
@@ -476,6 +490,7 @@ class LiveCaptureService:
                 is_final=False,
             )
             self._live_segments.append(draft)
+            added_segments.append(draft)
             self._committed_until_ms = max(self._committed_until_ms, absolute_end)
             committed_text = f"{committed_text} {text}".strip()
             added += 1
@@ -486,6 +501,14 @@ class LiveCaptureService:
                 "live",
                 f"{count} live segment{'s' if count != 1 else ''}",
             )
+            if self.webhooks is not None and self._settings is not None:
+                self.webhooks.publish_live_segments(
+                    meeting_id=int(self._settings["meeting_id"]),
+                    transcription_id=transcription_id,
+                    meeting_title=str(self._settings["meeting_title"]),
+                    segments=added_segments,
+                    sequence=self._chunk_sequence,
+                )
         else:
             self._set_realtime_state("listening", "Listening for speech")
 

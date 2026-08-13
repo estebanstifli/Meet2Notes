@@ -43,6 +43,9 @@ Whisper, Sherpa-ONNX, or a particular language model.
   temporal queries, and timestamped source provenance.
 - A separate Prompt window that can use a complete selected transcript or embed
   each question and retrieve grounded context from every meeting.
+- Durable outbound webhooks for Live segments and processing milestones, with
+  per-endpoint content controls, HMAC signatures, retries, delivery history, and
+  optional remote-agent suggestions that never block local transcription.
 - A Speakers workspace for renaming speakers, saving voice samples, matching
   identities across meetings, generating per-speaker summaries, and exporting
   a speaker's text or audio.
@@ -83,6 +86,10 @@ Every inference adapter owns a dedicated executor or isolated worker. Heavy
 model work does not run on FastAPI's event loop, and engines can be prepared,
 loaded, unloaded, or replaced independently. This is the extension point for
 adding more built-in or custom engines without changing the meeting workflow.
+
+Webhook network delivery is similarly isolated from capture and inference. See
+the [webhook integration guide](docs/webhooks.md) for events, payloads,
+signatures, privacy controls and the Live-agent response contract.
 
 ## Engine catalog
 

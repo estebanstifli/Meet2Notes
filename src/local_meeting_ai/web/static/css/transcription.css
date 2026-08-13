@@ -447,6 +447,35 @@
   font-weight: 750;
 }
 
+.live-agent-insights {
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  border: 1px solid #cbded7;
+  border-radius: 12px;
+  background: #f2faf6;
+}
+
+.live-agent-insights > header,
+.live-agent-insight {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.live-agent-insights > header > div { display: grid; gap: 2px; }
+.live-agent-insights > header > span { color: #52605b; font-size: 12px; }
+#live-agent-insight-list { display: grid; gap: 8px; margin-top: 10px; }
+.live-agent-insight { padding-top: 9px; border-top: 1px solid #dceae4; }
+.live-agent-insight p { margin: 0; line-height: 1.45; }
+.live-agent-insight small { display: block; margin-top: 3px; color: #66756f; }
+.live-agent-insight-actions { display: flex; flex: 0 0 auto; gap: 7px; }
+.live-agent-insight[data-status="accepted"] { opacity: .72; }
+
+@media (max-width: 600px) {
+  .live-agent-insight { display: grid; }
+}
+
 .canvas-audio-row {
   display: grid;
   grid-template-columns: auto minmax(140px, .45fr) minmax(260px, 1fr) auto;

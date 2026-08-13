@@ -18,6 +18,7 @@
       <button type="button" role="tab" aria-selected="false" aria-controls="speaker-engine" data-settings-tab="speaker-engine"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>Speakers</button>
       <button type="button" role="tab" aria-selected="false" aria-controls="ai-engine" data-settings-tab="ai-engine"><svg viewBox="0 0 24 24"><path d="m12 3 2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6Z"/></svg>AI engine</button>
       <button type="button" role="tab" aria-selected="false" aria-controls="rag" data-settings-tab="rag"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg>RAG</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="webhooks" data-settings-tab="webhooks"><svg viewBox="0 0 24 24"><path d="M8 12h8M12 8l4 4-4 4"/><circle cx="6" cy="12" r="2"/><path d="M18 6v3M18 15v3"/></svg>Webhooks</button>
       <button type="button" role="tab" aria-selected="false" aria-controls="note-formats" data-settings-tab="note-formats"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg>Note formats</button>
       <button type="button" role="tab" aria-selected="false" aria-controls="plugins" data-settings-tab="plugins"><svg viewBox="0 0 24 24"><path d="M8 3v4M16 3v4M5 7h14v5a7 7 0 0 1-14 0V7ZM9 21v-4M15 21v-4"/></svg>Plugins</button>
     </nav>
@@ -664,6 +665,56 @@
           <div class="general-card-heading"><span class="settings-icon dark"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span><div><strong>Semantic search &amp; ranking test</strong><small>Embeds this question and shows cosine, keyword and final hybrid scores.</small></div><button class="button secondary" id="rag-reindex" type="button">Rebuild index</button></div>
           <form id="rag-test-form" class="rag-test-form"><input id="rag-test-query" maxlength="4000" placeholder="In which meeting was topic X discussed?" required><button class="button primary" type="submit">Run search test</button></form>
           <div id="rag-test-results" class="rag-test-results"><span class="settings-empty-copy">No search test has been run yet.</span></div>
+        </section>
+      </section>
+
+      <section class="settings-section engine-settings-section" id="webhooks" role="tabpanel" data-settings-panel hidden>
+        <div class="settings-section-header">
+          <div><span class="eyebrow">Outbound automation</span><h2>Webhooks</h2><p>Send meeting events to trusted services without exposing a port on this computer.</p></div>
+          <button class="button primary" id="webhook-new" type="button">Add endpoint</button>
+        </div>
+        <div class="engine-compatibility-note">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+          <span>Internet endpoints must use HTTPS. HTTP is accepted only for localhost, or for a private network explicitly allowed on that endpoint. Transcript content never leaves this device unless both the event and its content level permit it.</span>
+        </div>
+        <form id="webhook-settings-form" class="engine-form">
+          <div class="engine-toggle-stack">
+            <label class="engine-toggle"><span><strong>Enable outbound webhooks</strong><small>Events are persisted locally and delivered by an independent background dispatcher.</small></span><span class="switch"><input id="webhook-enabled" type="checkbox"><i></i></span></label>
+          </div>
+          <div class="engine-field-grid">
+            <label class="engine-field"><span>Delivery history retention · days</span><input id="webhook-retention-days" type="number" min="1" max="365"></label>
+            <label class="engine-field"><span>Maximum concurrent deliveries</span><input id="webhook-max-concurrency" type="number" min="1" max="16"></label>
+          </div>
+          <div class="engine-settings-actions"><span id="webhook-storage-note">Signing secrets are stored in the operating-system credential vault.</span><button class="button primary" type="submit">Save webhook settings</button></div>
+        </form>
+
+        <section class="general-card webhook-card">
+          <div class="general-card-heading"><span class="settings-icon dark"><svg viewBox="0 0 24 24"><path d="M4 12h16M15 7l5 5-5 5"/></svg></span><div><strong>Endpoints</strong><small>Each destination chooses its own events, payload detail and retry policy.</small></div></div>
+          <div class="model-table-wrap"><table class="model-table"><thead><tr><th>Endpoint</th><th>Events</th><th>Content</th><th>Status</th><th>Actions</th></tr></thead><tbody id="webhook-endpoint-list"><tr><td colspan="5">Loading endpoints…</td></tr></tbody></table></div>
+        </section>
+
+        <form id="webhook-endpoint-form" class="general-card webhook-editor" hidden>
+          <input id="webhook-endpoint-id" type="hidden">
+          <div class="engine-config-heading"><div><strong id="webhook-editor-title">Add webhook endpoint</strong><small>A signing secret is shown once when a destination is created or rotated.</small></div><button class="icon-button" id="webhook-editor-close" type="button" aria-label="Close editor">×</button></div>
+          <div class="engine-field-grid">
+            <label class="engine-field"><span>Name</span><input id="webhook-name" maxlength="120" required placeholder="Meeting assistant"></label>
+            <label class="engine-field wide"><span>Destination URL</span><input id="webhook-url" type="url" maxlength="2000" required placeholder="https://automation.example.com/meet2notes"></label>
+            <label class="engine-field"><span>Endpoint mode</span><select id="webhook-mode"><option value="notification">Notification · ignore response</option><option value="live_agent">Live agent · capture suggestions</option></select></label>
+            <label class="engine-field"><span>Content level</span><select id="webhook-content-level"><option value="metadata">Metadata only</option><option value="segments">Transcript segments</option><option value="full">Full content, including notes</option></select></label>
+            <label class="engine-field"><span>Timeout · seconds</span><input id="webhook-timeout" type="number" min="1" max="30" step="0.5"></label>
+            <label class="engine-field"><span>Maximum attempts</span><input id="webhook-attempts" type="number" min="1" max="10"></label>
+          </div>
+          <div class="engine-toggle-grid">
+            <label class="engine-toggle"><span><strong>Endpoint enabled</strong><small>Disabled destinations do not receive new events.</small></span><span class="switch"><input id="webhook-endpoint-enabled" type="checkbox"><i></i></span></label>
+            <label class="engine-toggle"><span><strong>Allow private network</strong><small>Permit LAN addresses and plain HTTP. Use only for a service you control.</small></span><span class="switch"><input id="webhook-allow-private" type="checkbox"><i></i></span></label>
+          </div>
+          <fieldset class="webhook-event-picker"><legend>Subscribed events</legend><div id="webhook-event-list"></div></fieldset>
+          <div class="engine-settings-actions"><button class="button" id="webhook-editor-cancel" type="button">Cancel</button><button class="button primary" type="submit">Save endpoint</button></div>
+        </form>
+
+        <section class="general-card webhook-card">
+          <div class="general-card-heading"><span class="settings-icon dark"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span><div><strong>Recent deliveries</strong><small>Inspect attempts without storing complete response bodies.</small></div><button class="button" id="webhook-refresh" type="button">Refresh</button></div>
+          <div class="model-table-wrap"><table class="model-table"><thead><tr><th>Event</th><th>Endpoint</th><th>Status</th><th>Attempts</th><th>Result</th></tr></thead><tbody id="webhook-delivery-list"><tr><td colspan="5">No deliveries yet.</td></tr></tbody></table></div>
         </section>
       </section>
 

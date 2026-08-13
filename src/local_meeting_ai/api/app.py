@@ -15,6 +15,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from local_meeting_ai import __version__
 from local_meeting_ai.api.routes import router as api_router
+from local_meeting_ai.api.webhook_routes import router as webhook_router
 from local_meeting_ai.bootstrap import Container, build_container
 from local_meeting_ai.config import AppSettings
 from local_meeting_ai.domain.errors import (
@@ -66,6 +67,8 @@ def create_app(
         logger.info("Starting Meet2Notes services")
         await container.queue.start()
         logger.info("Background job queue is ready")
+        await container.webhook_service.start()
+        logger.info("Webhook dispatcher is ready")
 
         async def preload_engines() -> None:
             # Native runtimes own independent workers, but their first loads are
@@ -102,6 +105,9 @@ def create_app(
             logger.info("Stopping Meet2Notes services")
             await container.capture_service.shutdown()
             await container.queue.stop()
+            # Keep the dispatcher alive until producers have stopped so terminal
+            # job events cannot be stranded during application shutdown.
+            await container.webhook_service.stop()
             background_tasks = list(lifespan_app.state.background_tasks)
             if background_tasks:
                 await asyncio.gather(*background_tasks, return_exceptions=True)
@@ -190,6 +196,7 @@ def create_app(
 
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
     app.include_router(api_router)
+    app.include_router(webhook_router)
     _register_web_routes(app, templates, container)
     return app
 
