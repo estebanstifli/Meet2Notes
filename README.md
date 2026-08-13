@@ -18,6 +18,10 @@ desktop audio, imports common media files, produces a live and/or final
 transcript, separates speakers, recognizes saved voices, and converts the
 result into structured notes.
 
+The GitHub Pages landing page lives in [`landing/`](landing/) and is deployed
+automatically by [the Pages workflow](.github/workflows/pages.yml) after changes
+reach `main`.
+
 The processing pipeline is intentionally modular. Transcription, diarization,
 saved-voice matching, and analysis are independent stages with their own model
 selection, settings, lifecycle, and worker. A meeting is not tied to Faster
