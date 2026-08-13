@@ -155,9 +155,10 @@ location are mandatory before remote mode is enabled outside localhost.
 - [ ] Add a visual per-meeting stage timeline and retry controls.
 - [ ] Allow filter ordering within safe, typed hook slots.
 - [ ] Add optional translation and redaction plugins.
-- [ ] Register final ASR, diarization, analysis, and export providers through
-  the same extension registry used by built-ins.
-- [ ] Support composite providers that emit transcript plus speaker turns.
+- [x] Register final/live ASR, diarization, analysis, and embedding providers
+  through the same lazy extension registry used by built-ins.
+- [x] Support composite providers that emit transcript plus speaker turns.
+- [ ] Register typed export providers and destination presets.
 - [ ] Cache deterministic processor output by input digest, configuration, and
   plugin version.
 - [ ] Add Markdown, TXT, JSON, SRT, and VTT exporters.

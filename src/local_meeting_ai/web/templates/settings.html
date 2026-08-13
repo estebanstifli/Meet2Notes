@@ -282,15 +282,23 @@
       <section class="settings-section engine-settings-section" id="plugins" role="tabpanel" data-settings-panel hidden>
         <div class="settings-section-header note-format-header">
           <span class="settings-icon engine-blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v4M16 3v4M5 7h14v5a7 7 0 0 1-14 0V7ZM9 21v-4M15 21v-4"/></svg></span>
-          <div><h2>Plugins</h2><p>Extend final processing without changing recording or Live transcription.</p></div>
+          <div><h2>Plugins</h2><p>Extend AI providers, model catalogs and processing workflows without changing the core.</p></div>
           <button class="button" id="plugins-rescan" type="button">Rescan installed plugins</button>
         </div>
         <div class="engine-compatibility-note note-format-intro">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
-          <span>Plugins run after final transcription. Filters receive a temporary meeting document, so translations and cleanup can change the AI input without overwriting the saved transcript. Only enable packages you trust.</span>
+          <span>Plugins can register post-processing hooks, AI providers, model profiles and RAG vector stores. Filters receive temporary artifacts and providers receive isolated data/model directories. Only enable packages you trust.</span>
         </div>
         <section class="engine-catalog" aria-label="Installed Meet2Notes plugins">
           <div class="model-table-wrap"><table class="model-table plugin-table"><thead><tr><th>Plugin</th><th>Hooks</th><th>Permissions</th><th>Status</th><th>Actions</th></tr></thead><tbody id="plugin-list"><tr><td><strong>Loading plugins...</strong></td><td></td><td></td><td></td><td></td></tr></tbody></table></div>
+        </section>
+        <section class="general-card plugin-settings-card" id="plugin-settings-editor" hidden>
+          <form id="plugin-settings-form">
+            <input id="plugin-settings-id" type="hidden">
+            <div class="general-card-heading"><span class="settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M14 5v4M4 17h2M10 17h10M8 15v4"/></svg></span><div><strong id="plugin-settings-title">Plugin settings</strong><small>Declarative fields supplied through the public Plugin API.</small></div></div>
+            <div class="engine-field-grid" id="plugin-settings-fields"></div>
+            <div class="engine-settings-actions"><button class="button" id="plugin-settings-cancel" type="button">Cancel</button><button class="button primary" type="submit">Save plugin settings</button></div>
+          </form>
         </section>
         <section class="general-card plugin-api-card">
           <div class="general-card-heading">

@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 PLUGIN_API_VERSION = "1"
 HookKind = Literal["action", "filter"]
 FailurePolicy = Literal["continue", "fail"]
+ProviderKind = Literal["transcription", "diarization", "summary", "embedding"]
+SettingFieldKind = Literal["string", "integer", "number", "boolean", "select"]
 VectorStoreOperationName = Literal[
     "rows_for_transcription",
     "replace_transcription",
@@ -32,6 +37,116 @@ class PluginManifest(BaseModel):
     homepage: str | None = Field(default=None, max_length=500)
     default_enabled: bool = False
     isolated_runtime: bool = False
+
+
+class PluginSettingField(BaseModel):
+    """Declarative setting rendered and validated by the host application."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str = Field(pattern=r"^[a-z][a-z0-9_-]{1,79}$")
+    label: str = Field(min_length=1, max_length=120)
+    kind: SettingFieldKind = "string"
+    description: str = Field(default="", max_length=500)
+    default: str | int | float | bool | None = None
+    required: bool = False
+    choices: tuple[str, ...] = ()
+    minimum: float | None = None
+    maximum: float | None = None
+    placeholder: str = Field(default="", max_length=300)
+    advanced: bool = False
+
+    @model_validator(mode="after")
+    def validate_definition(self) -> PluginSettingField:
+        if (
+            self.minimum is not None
+            and self.maximum is not None
+            and self.minimum > self.maximum
+        ):
+            raise ValueError("Setting minimum cannot exceed maximum")
+        if self.kind == "select":
+            if not self.choices:
+                raise ValueError("Select settings require at least one choice")
+            if len(set(self.choices)) != len(self.choices):
+                raise ValueError("Select setting choices must be unique")
+        elif self.choices:
+            raise ValueError("Only select settings can declare choices")
+        if self.kind not in {"integer", "number"} and (
+            self.minimum is not None or self.maximum is not None
+        ):
+            raise ValueError("Only numeric settings can declare bounds")
+        if self.default is None:
+            return self
+        if self.kind in {"string", "select"}:
+            if not isinstance(self.default, str):
+                raise ValueError(f"Default does not match setting kind '{self.kind}'")
+            if self.kind == "select" and self.default not in self.choices:
+                raise ValueError("Select setting default must be one of its choices")
+        elif self.kind == "boolean":
+            if not isinstance(self.default, bool):
+                raise ValueError("Default does not match setting kind 'boolean'")
+        elif self.kind == "integer":
+            if not isinstance(self.default, int) or isinstance(self.default, bool):
+                raise ValueError("Default does not match setting kind 'integer'")
+        elif not isinstance(self.default, (int, float)) or isinstance(self.default, bool):
+            raise ValueError("Default does not match setting kind 'number'")
+        if self.kind in {"integer", "number"}:
+            numeric_default = float(self.default)
+            if self.minimum is not None and numeric_default < self.minimum:
+                raise ValueError("Setting default is below its minimum")
+            if self.maximum is not None and numeric_default > self.maximum:
+                raise ValueError("Setting default is above its maximum")
+        return self
+
+
+class ProviderModel(BaseModel):
+    """Portable model/profile metadata contributed by an engine provider."""
+
+    model_config = ConfigDict(extra="allow", frozen=True)
+
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]{1,79}$")
+    display_name: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1, max_length=500)
+    model: str = Field(min_length=1, max_length=500)
+    device: str = Field(default="auto", max_length=40)
+    compute_type: str = Field(default="auto", max_length=80)
+    managed: bool = True
+    external_file: bool = False
+    recommended: bool = False
+    supports_live: bool = False
+    supports_final: bool = True
+    download_size: str | None = Field(default=None, max_length=80)
+    compatibility_note: str | None = Field(default=None, max_length=500)
+    defaults: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProviderDescriptor(BaseModel):
+    """Stable declaration for a selectable AI provider contributed by a plugin."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]{1,79}$")
+    kind: ProviderKind
+    display_name: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1, max_length=500)
+    models: tuple[ProviderModel, ...] = ()
+    settings: tuple[PluginSettingField, ...] = ()
+    execution_target: Literal["in-process", "isolated-local", "remote"] = "in-process"
+    outputs: tuple[str, ...] = ()
+    homepage: str | None = Field(default=None, max_length=500)
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderRuntimeContext:
+    """Host-owned directories and dynamic settings passed to a provider factory."""
+
+    plugin_id: str
+    data_dir: Path
+    models_dir: Path
+    _settings_provider: Callable[[str], dict[str, Any]] = field(repr=False)
+
+    def settings(self) -> dict[str, Any]:
+        return self._settings_provider(self.plugin_id)
 
 
 class TranscriptDocumentSegment(BaseModel):

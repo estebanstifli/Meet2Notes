@@ -10,6 +10,7 @@ from local_meeting_ai.domain.entities import ModelProfile
 from local_meeting_ai.domain.errors import ValidationError
 from local_meeting_ai.domain.protocols import TranscriptionEngine
 from local_meeting_ai.infrastructure.database.repositories import SettingsRepository
+from local_meeting_ai.plugins.providers import ProviderRegistry
 
 
 class TranscriptionProfileCatalog:
@@ -17,9 +18,11 @@ class TranscriptionProfileCatalog:
         self,
         engine: TranscriptionEngine,
         preferences: SettingsRepository,
+        provider_registry: ProviderRegistry | None = None,
     ) -> None:
         self.engine = engine
         self.preferences = preferences
+        self.provider_registry = provider_registry
 
     def list(self) -> list[ModelProfile]:
         capability = self.engine.capability()
@@ -234,6 +237,66 @@ class TranscriptionProfileCatalog:
                 ),
             )
         )
+        if self.provider_registry is not None:
+            existing_ids = {profile.id for profile in profiles}
+            registrations = self.provider_registry.models("transcription")
+            for registration in registrations:
+                model = registration.model
+                if model.id in existing_ids:
+                    continue
+                capability = self.provider_registry.resolve(
+                    "transcription", registration.provider_id
+                ).capability()
+                installed_models = set(capability.get("installed_models", []))
+                provider_model_count = sum(
+                    item.provider_id == registration.provider_id
+                    for item in registrations
+                )
+                is_installed = (
+                    model.model in installed_models
+                    or (provider_model_count == 1 and bool(capability.get("installed")))
+                    or not model.managed
+                )
+                defaults = dict(model.defaults)
+                profiles.append(
+                    ModelProfile(
+                        id=model.id,
+                        display_name=model.display_name,
+                        description=model.description,
+                        engine=registration.provider_id,
+                        model=model.model,
+                        device=model.device,
+                        compute_type=model.compute_type,
+                        beam_size=int(defaults.pop("beam_size", 1)),
+                        vad_filter=bool(defaults.pop("vad_filter", False)),
+                        device_index=int(defaults.pop("device_index", 0)),
+                        cpu_threads=int(defaults.pop("cpu_threads", 0)),
+                        num_workers=int(defaults.pop("num_workers", 1)),
+                        vad_min_silence_ms=int(
+                            defaults.pop("vad_min_silence_ms", 500)
+                        ),
+                        word_timestamps=bool(defaults.pop("word_timestamps", True)),
+                        condition_on_previous_text=bool(
+                            defaults.pop("condition_on_previous_text", True)
+                        ),
+                        keep_model_loaded=bool(
+                            defaults.pop("keep_model_loaded", True)
+                        ),
+                        recommended=model.recommended,
+                        installed=is_installed,
+                        supports_live=model.supports_live,
+                        supports_final=model.supports_final,
+                        runtime_available=bool(
+                            capability.get(
+                                "runtime_available", capability.get("available")
+                            )
+                        ),
+                        download_size=model.download_size,
+                        compatibility_note=model.compatibility_note,
+                        provider_options=defaults,
+                    )
+                )
+                existing_ids.add(model.id)
         return profiles
 
     def get(self, profile_id: str) -> ModelProfile:

@@ -138,6 +138,19 @@ class FinalProcessingPipeline:
             return
         run_diarization = bool(options.get("diarization", True))
         run_summary = bool(options.get("summary", True))
+        completed_job = self.jobs.get(job.uuid)
+        integrated_speakers = bool(
+            completed_job
+            and completed_job.result
+            and completed_job.result.get("speaker_count", 0)
+        )
+        if integrated_speakers:
+            logger.info("Separate diarization skipped; transcription supplied speaker turns")
+            if run_summary:
+                await self._start_summary(job, transcription_id, options)
+            else:
+                await self._finish(job, status, transcription_id, options)
+            return
         if not run_diarization:
             if run_summary:
                 await self._start_summary(job, transcription_id, options)

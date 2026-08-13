@@ -214,15 +214,18 @@ The post-recording pipeline exposes a versioned Python Plugin API with
 WordPress-inspired actions and filters. Community packages can observe final
 transcription, diarization, analysis, and pipeline lifecycle events or transform
 the temporary document sent to AI. Translation, redaction, terminology,
-enrichment, exporters, and alternative RAG vector stores can therefore be added
-without changing capture or Live transcription. Transcription and diarization
-engine registration is not part of the current public Plugin API.
+enrichment and alternative RAG vector stores can therefore be added
+without altering core capture code. The shared provider registry
+also accepts transcription, diarization, summary, and embedding engines, models
+for an existing engine, declarative settings, and composite ASR results containing
+speaker turns.
 
 Plugins are discovered through the standard `meet2notes.plugins` package entry
 point and managed from Settings -> Plugins. Hook executions have priorities,
 timeouts, failure policies, and a privacy-preserving provenance ledger. The
 canonical recording and transcript are never overwritten by a filter. See the
-[Plugin API guide](docs/plugins.md) and [public roadmap](docs/roadmap.md).
+[Plugin API guide](docs/plugins.md), [provider development guide](docs/plugin-development.md),
+and [public roadmap](docs/roadmap.md).
 
 ## Install from source
 

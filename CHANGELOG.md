@@ -6,6 +6,11 @@
   for final ASR, diarization, saved-voice matching, filters, and AI analysis.
 - Added Plugin API v1 with typed artifacts, actions, filters, deterministic
   priorities, timeouts, failure policies, and Python entry-point discovery.
+- Added a lazy shared provider registry for plugin transcription, diarization,
+  summary, and embedding engines, model-only extensions, scoped directories,
+  declarative settings, and hot registry refresh.
+- Added composite transcription results with speaker turns so end-to-end models
+  can bypass the separate diarization stage safely.
 - Added local plugin management in Settings and a privacy-preserving execution
   ledger containing timings, statuses, and content digests.
 - Added a built-in analysis-cleanup filter, a community plugin example, and

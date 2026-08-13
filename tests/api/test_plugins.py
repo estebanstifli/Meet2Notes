@@ -18,6 +18,16 @@ def test_plugin_catalog_and_final_pipeline_are_exposed(client: TestClient) -> No
         "write_derived_artifact",
     ]
     assert cleanup["hooks"][0]["name"] == "analysis.before"
+    assert cleanup["providers"] == []
+
+    providers = client.get("/api/plugins/providers")
+    assert providers.status_code == 200
+    kinds = {item["kind"] for item in providers.json()["providers"]}
+    assert kinds == {"transcription", "diarization", "summary", "embedding"}
+    assert any(
+        item["id"] == "vibevoice-asr-bitnet"
+        for item in providers.json()["providers"]
+    )
 
     pipeline = client.get("/api/processing/pipeline")
     assert pipeline.status_code == 200

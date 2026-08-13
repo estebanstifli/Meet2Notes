@@ -20,6 +20,7 @@ from typing import Any, cast
 
 from local_meeting_ai.adapters.model_files import remove_managed_model_tree
 from local_meeting_ai.domain.entities import (
+    DiarizationSegment,
     ModelProfile,
     SegmentDraft,
     TranscriptionEngineRequest,
@@ -226,6 +227,7 @@ class VibeVoiceAsrEngine:
                 language_probability=None,
                 duration_ms=duration_ms,
                 segments=drafts,
+                speaker_turns=_speaker_turns(drafts),
             )
         except Exception as error:
             self._set_error(error)
@@ -583,6 +585,7 @@ class VibeVoiceBitNetEngine:
                 language_probability=None,
                 duration_ms=max((item.end_ms for item in drafts), default=None),
                 segments=drafts,
+                speaker_turns=_speaker_turns(drafts),
             )
         except Exception as error:
             self._set_error(error)
@@ -687,6 +690,27 @@ def _parse_bitnet_output(
     )
     segment_ready(draft)
     return [draft]
+
+
+def _speaker_turns(drafts: list[SegmentDraft]) -> list[DiarizationSegment]:
+    labels: dict[str, int] = {}
+    turns: list[DiarizationSegment] = []
+    for draft in drafts:
+        raw = (draft.metadata or {}).get("speaker")
+        if raw is None or draft.end_ms <= draft.start_ms:
+            continue
+        label = str(raw).strip()
+        if not label:
+            continue
+        speaker = labels.setdefault(label, len(labels))
+        turns.append(
+            DiarizationSegment(
+                start_ms=draft.start_ms,
+                end_ms=draft.end_ms,
+                speaker=speaker,
+            )
+        )
+    return turns
 
 
 def _wave_duration_ms(path: Path) -> int:

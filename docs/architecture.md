@@ -91,6 +91,22 @@ capability discovery. Preferences keep the selected provider in a separate
 `transcription_engine` field and Faster Whisper options in a provider-specific
 object, leaving a clean seam for future local adapters or remote API providers.
 
+### Provider registry
+
+`ProviderRegistry` is the single runtime catalog for built-in and plugin AI
+providers. It supports transcription, diarization, summary, and embedding
+engines plus model-only extensions. Factories are lazy; plugin engines receive
+scoped data/model directories and current declarative settings. Rescanning or
+changing plugin state atomically replaces third-party registrations and shuts
+down removed instances. Routers query this shared registry rather than importing
+community adapters in `bootstrap.py`.
+
+Provider IDs and model IDs are validated for collisions. API preference fields
+store extensible string IDs instead of closed Python literals. A transcription
+provider may return speaker turns together with text; the transcription service
+persists them and the final pipeline skips a redundant diarization job. See
+`plugin-development.md` for the stable public contracts.
+
 Model download consent is stored in the job request. Faster Whisper runs with
 `local_files_only` unless the user explicitly allowed a download. The
 `meet2notes-models` setup command provides the same explicit, local-only model

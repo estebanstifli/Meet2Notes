@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from local_meeting_ai.api.app import create_app
 from local_meeting_ai.config import AppSettings
 from local_meeting_ai.domain.entities import (
+    DiarizationSegment,
     MediaProbe,
     SegmentDraft,
     TranscriptionEngineRequest,
@@ -118,6 +119,27 @@ class FakeTranscriptionEngine:
         return None
 
 
+class CompositeTranscriptionEngine(FakeTranscriptionEngine):
+    async def transcribe(
+        self,
+        request: TranscriptionEngineRequest,
+        progress: ProgressReporter,
+        is_cancelled: CancellationCheck,
+        segment_ready: SegmentReporter,
+    ) -> TranscriptionResult:
+        result = await super().transcribe(request, progress, is_cancelled, segment_ready)
+        return TranscriptionResult(
+            language=result.language,
+            language_probability=result.language_probability,
+            duration_ms=result.duration_ms,
+            segments=result.segments,
+            speaker_turns=[
+                DiarizationSegment(start_ms=0, end_ms=1200, speaker=0),
+                DiarizationSegment(start_ms=1200, end_ms=2800, speaker=1),
+            ],
+        )
+
+
 def _wav_bytes() -> bytes:
     buffer = io.BytesIO()
     with wave.open(buffer, "wb") as audio:
@@ -129,7 +151,10 @@ def _wav_bytes() -> bytes:
 
 
 @contextmanager
-def _client(tmp_path: Path) -> Iterator[TestClient]:
+def _client(
+    tmp_path: Path,
+    engine: FakeTranscriptionEngine | None = None,
+) -> Iterator[TestClient]:
     settings = AppSettings(
         data_dir=tmp_path / "transcription-data",
         testing=True,
@@ -139,7 +164,7 @@ def _client(tmp_path: Path) -> Iterator[TestClient]:
     with TestClient(
         create_app(
             settings,
-            transcription_engine=FakeTranscriptionEngine(),
+            transcription_engine=engine or FakeTranscriptionEngine(),
             audio_normalizer=FakeNormalizer(),
         )
     ) as client:
@@ -276,3 +301,28 @@ def test_model_download_requires_explicit_confirmation(tmp_path: Path) -> None:
             json={"profile_id": "fast", "allow_model_download": True},
         )
         assert confirmed.status_code == 202
+
+
+def test_composite_asr_persists_integrated_speaker_turns(tmp_path: Path) -> None:
+    with _client(tmp_path, CompositeTranscriptionEngine()) as client:
+        meeting = client.post("/api/meetings", json={"title": "Composite ASR"}).json()
+        client.post(
+            f"/api/meetings/{meeting['id']}/import",
+            files={"file": ("composite.wav", _wav_bytes(), "audio/wav")},
+        )
+        started = client.post(
+            f"/api/meetings/{meeting['id']}/transcriptions",
+            json={"profile_id": "balanced", "language": "en"},
+        ).json()
+
+        terminal = _wait_for_job(client, started["job"]["uuid"])
+        detail = client.get(
+            f"/api/transcriptions/{started['transcription']['id']}"
+        ).json()
+
+        assert terminal["result"]["speaker_count"] == 2
+        assert terminal["result"]["assigned_segments"] == 2
+        assert [segment["speaker_id"] is not None for segment in detail["segments"]] == [
+            True,
+            True,
+        ]

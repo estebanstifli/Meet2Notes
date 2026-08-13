@@ -1,10 +1,14 @@
 # Meet2Notes Plugin API v1
 
-Meet2Notes plugins extend the post-recording pipeline and can provide a RAG vector
-store through a narrow storage contract. They do not participate in audio capture
-or Live transcription. The saved recording and canonical final transcript remain
-owned by Meet2Notes; filters work with temporary, serializable artifacts used by
-downstream stages.
+Meet2Notes plugins can extend the post-recording pipeline, register selectable
+transcription, diarization, summary, and embedding providers, contribute models
+to an existing provider, and provide a RAG vector store. The saved recording and
+canonical transcript remain owned by Meet2Notes; filters work with temporary,
+serializable artifacts used by downstream stages.
+
+See [Plugin and provider development](plugin-development.md) for the complete
+provider contracts, model metadata, composite speaker output, declarative
+settings, permissions, packaging, and test checklist.
 
 ## Package discovery
 
@@ -126,8 +130,8 @@ content is never stored in the plugin execution ledger.
 - Do not read Meet2Notes' SQLite database or model directories directly.
 - Declare permissions accurately. Network access must never be hidden.
 - Do not log transcripts, API keys, tokens, or recording paths.
-- Use `context.plugin_settings` for configuration and the operating-system
-  keyring for secrets when a future settings API exposes them.
+- Use declarative provider settings for non-secret configuration and the
+  operating-system keyring for secrets.
 - Pin dependencies and test against the declared Plugin API version.
 
 Third-party process isolation, signed packages, staged updates, and rollback are

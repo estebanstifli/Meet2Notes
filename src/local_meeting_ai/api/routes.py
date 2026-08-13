@@ -52,6 +52,7 @@ from local_meeting_ai.api.schemas import (
     MeetingUpdate,
     ModelDirectoryMoveRequest,
     ModelProfileResponse,
+    PluginSettingsUpdate,
     PluginStateUpdate,
     PreferenceResponse,
     PreferenceUpdate,
@@ -183,6 +184,25 @@ def set_plugin_state(
         "enabled" if payload.enabled else "disabled",
     )
     return plugin
+
+
+@router.put("/plugins/{plugin_id}/settings")
+def update_plugin_settings(
+    plugin_id: str,
+    payload: PluginSettingsUpdate,
+    container: ContainerDependency,
+) -> dict[str, Any]:
+    settings = container.plugin_manager.update_settings(plugin_id, payload.settings)
+    logger.info("Plugin %s settings updated", plugin_id)
+    return {"plugin_id": plugin_id, "settings": settings}
+
+
+@router.get("/plugins/providers")
+def plugin_providers(container: ContainerDependency) -> dict[str, Any]:
+    return {
+        **container.plugin_manager.api_info,
+        "providers": container.provider_registry.catalog(),
+    }
 
 
 @router.get("/plugins/executions")
@@ -992,10 +1012,11 @@ async def prepare_summary_engine(
             raise ValidationError("The requested local AI model is unavailable")
         config.update(
             {
-                "provider": "local",
+                "engine": model.get("engine", "llama-cpp"),
+                "provider": model.get("provider", "local"),
                 "profile_id": profile_id,
-                "model": model["repository"],
-                "model_file": model["model_file"],
+                "model": model.get("repository") or model.get("model") or profile_id,
+                "model_file": model.get("model_file") or "provider-managed.model",
             }
         )
         if model.get("external_file"):
@@ -1058,7 +1079,8 @@ async def prepare_embedding_engine(
                 "embedding_model": (
                     "BAAI/bge-m3"
                     if profile_id == "bge-m3"
-                    else config.get("embedding_model", "")
+                    else model.get("repository") or model.get("model")
+                    or config.get("embedding_model", "")
                 ),
             }
         )
@@ -1354,6 +1376,7 @@ async def update_settings(
         raise ValidationError("Note format not found")
     if "models_directory" in values:
         values["models_directory"] = _validate_models_directory(values["models_directory"])
+    _validate_provider_preferences(container, values)
     updated = container.preferences.update(values)
     if values:
         logger.info("Settings updated: %s", _setting_change_summary(values))
@@ -1457,6 +1480,101 @@ async def update_settings(
                 "unload-embedding-engine",
             )
     return _preference_response(container, updated)
+
+
+def _validate_provider_preferences(
+    container: Container,
+    values: dict[str, Any],
+) -> None:
+    current = container.preferences.get_all()
+    for purpose in ("live", "final"):
+        engine_key = f"{purpose}_transcription_engine"
+        profile_key = f"{purpose}_transcription_profile"
+        if engine_key not in values and profile_key not in values:
+            continue
+        engine_id = str(values.get(engine_key) or current.get(engine_key) or "")
+        profile_id = str(values.get(profile_key) or current.get(profile_key) or "default")
+        profile = container.transcription_profiles.get(profile_id)
+        if profile.engine != engine_id:
+            raise ValidationError(
+                f"Transcription profile {profile_id} belongs to {profile.engine}, "
+                f"not {engine_id}"
+            )
+        supported = profile.supports_live if purpose == "live" else profile.supports_final
+        if not supported:
+            raise ValidationError(
+                f"{profile.display_name} cannot be used for {purpose} transcription"
+            )
+
+    diarization = values.get("diarization")
+    if isinstance(diarization, dict) and "engine" in diarization:
+        current_diarization = current.get("diarization")
+        config = {
+            **DIARIZATION_DEFAULTS,
+            **(current_diarization if isinstance(current_diarization, dict) else {}),
+            **diarization,
+        }
+        engine_id = str(config.get("engine") or "")
+        registered = {
+            item.descriptor.id
+            for item in container.provider_registry.registrations("diarization")
+        }
+        if engine_id not in registered:
+            raise ValidationError(f"Unknown diarization provider: {engine_id}")
+
+    summary = values.get("summary_engine")
+    if isinstance(summary, dict) and ({"engine", "profile_id"} & summary.keys()):
+        current_summary = current.get("summary_engine")
+        config = {
+            **SUMMARY_DEFAULTS,
+            **(current_summary if isinstance(current_summary, dict) else {}),
+            **summary,
+        }
+        profile_id = str(config.get("profile_id") or "")
+        engine_id = str(config.get("engine") or "llama-cpp")
+        models = container.summary_engine.capability().get("models", [])
+        selected = next(
+            (
+                item
+                for item in models
+                if isinstance(item, dict) and item.get("id") == profile_id
+            ),
+            None,
+        )
+        if selected is None:
+            raise ValidationError(f"Unknown summary model profile: {profile_id}")
+        if selected.get("engine", "llama-cpp") != engine_id:
+            raise ValidationError(
+                f"Summary profile {profile_id} belongs to "
+                f"{selected.get('engine', 'llama-cpp')}, not {engine_id}"
+            )
+
+    rag = values.get("rag")
+    if isinstance(rag, dict) and ({"profile_id", "embedding_provider"} & rag.keys()):
+        current_rag = current.get("rag")
+        config = {
+            **RAG_DEFAULTS,
+            **(current_rag if isinstance(current_rag, dict) else {}),
+            **rag,
+        }
+        profile_id = str(config.get("profile_id") or "")
+        provider_id = str(config.get("embedding_provider") or "")
+        models = container.embedding_provider.capability(config).get("models", [])
+        selected = next(
+            (
+                item
+                for item in models
+                if isinstance(item, dict) and item.get("id") == profile_id
+            ),
+            None,
+        )
+        if selected is None:
+            raise ValidationError(f"Unknown embedding model profile: {profile_id}")
+        if selected.get("provider") != provider_id:
+            raise ValidationError(
+                f"Embedding profile {profile_id} belongs to "
+                f"{selected.get('provider')}, not {provider_id}"
+            )
 
 
 @router.post("/settings/models-directory/move", response_model=PreferenceResponse)

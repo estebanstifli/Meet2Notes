@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -163,6 +163,7 @@ class TranscriptionResult:
     language_probability: float | None
     duration_ms: int | None
     segments: list[SegmentDraft]
+    speaker_turns: list[DiarizationSegment] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,6 +185,7 @@ class TranscriptionEngineRequest:
     word_timestamps: bool = True
     condition_on_previous_text: bool = True
     keep_model_loaded: bool = True
+    provider_options: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,6 +213,7 @@ class ModelProfile:
     runtime_available: bool = True
     download_size: str | None = None
     compatibility_note: str | None = None
+    provider_options: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

@@ -416,6 +416,7 @@ class TranscriptionService:
                     word_timestamps=profile.word_timestamps,
                     condition_on_previous_text=(profile.condition_on_previous_text),
                     keep_model_loaded=profile.keep_model_loaded,
+                    provider_options=profile.provider_options,
                 ),
                 report_progress,
                 is_cancelled,
@@ -430,6 +431,20 @@ class TranscriptionService:
             )
             if not completed:
                 raise NotFoundError("The transcription no longer exists")
+            assigned_segments = 0
+            if result.speaker_turns:
+                diarization = self.preferences.get_all().get("diarization")
+                minimum_overlap_ratio = (
+                    float(diarization.get("minimum_overlap_ratio", 0.15))
+                    if isinstance(diarization, dict)
+                    else 0.15
+                )
+                assigned_segments = self.transcriptions.assign_diarization(
+                    meeting_id=completed.meeting_id,
+                    transcription_id=transcription_id,
+                    diarization=result.speaker_turns,
+                    minimum_overlap_ratio=minimum_overlap_ratio,
+                )
             return {
                 "transcription_id": transcription_id,
                 "segment_count": len(result.segments),
@@ -437,8 +452,10 @@ class TranscriptionService:
                 "language_probability": result.language_probability,
                 "duration_ms": result.duration_ms,
                 "normalized_recording_id": normalized.id,
-                "speaker_count": 0,
-                "assigned_segments": 0,
+                "speaker_count": len(
+                    {turn.speaker for turn in result.speaker_turns}
+                ),
+                "assigned_segments": assigned_segments,
             }
         except JobCancelledError:
             self.transcriptions.set_status(transcription_id, "cancelled")

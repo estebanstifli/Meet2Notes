@@ -814,9 +814,26 @@
     const selectedEngine = config.engine || "sherpa-onnx";
     const root = capabilities?.diarization || {};
     const engines = root.engines || { [root.engine || "sherpa-onnx"]: root };
+    const engineSelect = $("#diarization-engine");
+    Object.entries(engines).forEach(([engineId, capability]) => {
+      if (!diarizationEngines[engineId]) {
+        diarizationEngines[engineId] = {
+          title: capability?.display_name || engineId,
+          description: capability?.description || "Plugin-provided diarization engine.",
+          note: capability?.compatibility_note || "Configuration is supplied by the plugin provider.",
+          providers: capability?.providers || capability?.devices || ["cpu"],
+        };
+      }
+      if (
+        engineSelect?.tagName === "SELECT"
+        && !Array.from(engineSelect.options).some((option) => option.value === engineId)
+      ) {
+        engineSelect.add(new Option(diarizationEngines[engineId].title, engineId));
+      }
+    });
+    if (engineSelect) engineSelect.value = selectedEngine;
     body.replaceChildren();
     Object.entries(engines).forEach(([engineId, capability]) => {
-      if (!diarizationEngines[engineId]) return;
       const details = diarizationEngines[engineId];
       const selected = engineId === selectedEngine;
       const installed = Boolean(capability?.installed);
@@ -901,8 +918,8 @@
     [$("#diarization-model-state"), $("#diarization-model-state-detail")]
       .filter(Boolean)
       .forEach((element) => { element.textContent = diarizationModelState; });
-    updateDiarizationEngineFields();
     renderDiarizationCatalog(capabilities);
+    updateDiarizationEngineFields();
     $("#ai-model-state").textContent = capabilities.summaries?.installed
       ? "Installed"
       : "Not installed";
@@ -1013,18 +1030,73 @@
       const last = plugin.last_execution
         ? `<small>Last run: ${escapeHTML(plugin.last_execution.status)} · ${plugin.last_execution.duration_ms ?? 0} ms</small>`
         : "";
+      const providers = (plugin.providers || []).map((provider) =>
+        `<span class="neutral-pill">${escapeHTML(provider.kind)} · ${escapeHTML(provider.display_name)}</span>`
+      ).join(" ");
+      const configurable = (plugin.providers || []).some(
+        (provider) => (provider.settings || []).length,
+      );
       return `<tr>
         <td><strong>${escapeHTML(plugin.name)}</strong><small>${escapeHTML(plugin.description)}</small><small>${escapeHTML(plugin.author)} · v${escapeHTML(plugin.version)} · ${escapeHTML(plugin.source)}</small></td>
-        <td><div class="plugin-tags">${hooks}</div></td>
+        <td><div class="plugin-tags">${hooks}${providers ? ` ${providers}` : ""}</div></td>
         <td><div class="plugin-tags">${permissions}</div></td>
         <td><span class="status-badge ${statusClass}">${statusText}</span>${failure}${last}</td>
-        <td><button class="button ${plugin.enabled ? "danger" : "primary"}" type="button" data-plugin-toggle="${escapeHTML(plugin.id)}" data-plugin-enabled="${plugin.enabled}" ${!plugin.enabled && (!plugin.compatible || plugin.error) ? "disabled" : ""}>${plugin.enabled ? "Disable" : "Enable"}</button></td>
+        <td>${configurable ? `<button class="button" type="button" data-plugin-configure="${escapeHTML(plugin.id)}">Configure</button>` : ""}<button class="button ${plugin.enabled ? "danger" : "primary"}" type="button" data-plugin-toggle="${escapeHTML(plugin.id)}" data-plugin-enabled="${plugin.enabled}" ${!plugin.enabled && (!plugin.compatible || plugin.error) ? "disabled" : ""}>${plugin.enabled ? "Disable" : "Enable"}</button></td>
       </tr>`;
     }).join("");
   }
 
+  function pluginSettingFields(plugin) {
+    const fields = new Map();
+    (plugin.providers || []).forEach((provider) => {
+      (provider.settings || []).forEach((field) => fields.set(field.id, field));
+    });
+    return [...fields.values()];
+  }
+
+  function openPluginSettings(pluginId) {
+    const plugin = pluginCatalog.find((item) => item.id === pluginId);
+    if (!plugin) return;
+    const editor = $("#plugin-settings-editor");
+    const fields = $("#plugin-settings-fields");
+    $("#plugin-settings-id").value = plugin.id;
+    $("#plugin-settings-title").textContent = `${plugin.name} settings`;
+    fields.replaceChildren();
+    pluginSettingFields(plugin).forEach((field) => {
+      const label = document.createElement("label");
+      label.className = "engine-field";
+      const value = plugin.settings?.[field.id] ?? field.default ?? "";
+      let control;
+      if (field.kind === "select") {
+        control = document.createElement("select");
+        (field.choices || []).forEach((choice) => control.add(new Option(choice, choice)));
+        control.value = value;
+      } else {
+        control = document.createElement("input");
+        control.type = field.kind === "boolean" ? "checkbox"
+          : ["integer", "number"].includes(field.kind) ? "number" : "text";
+        if (field.kind === "boolean") control.checked = Boolean(value);
+        else control.value = value;
+        if (field.minimum != null) control.min = field.minimum;
+        if (field.maximum != null) control.max = field.maximum;
+        if (field.kind === "number") control.step = "any";
+        control.placeholder = field.placeholder || "";
+      }
+      control.dataset.pluginSetting = field.id;
+      control.dataset.pluginSettingKind = field.kind;
+      control.required = Boolean(field.required);
+      label.innerHTML = `<span>${escapeHTML(field.label)}</span>`;
+      label.append(control);
+      if (field.description) label.insertAdjacentHTML("beforeend", `<small>${escapeHTML(field.description)}</small>`);
+      fields.append(label);
+    });
+    editor.hidden = false;
+    editor.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
   function updateRagFields() {
     const profileId = $("#rag-profile-id").value || "bge-m3";
+    const selectedProfile = embeddingModels.find((item) => item.id === profileId);
     const customGguf = profileId === "custom-gguf";
     const remote = profileId === "litellm-custom";
     $("#rag-bge-basic").hidden = profileId !== "bge-m3";
@@ -1041,7 +1113,9 @@
       "custom-gguf": "Choose a local embedding GGUF and configure its llama.cpp runtime.",
       "litellm-custom": "Connect any local or remote embedding endpoint supported by LiteLLM.",
     };
-    $("#rag-basic-description").textContent = descriptions[profileId];
+    $("#rag-basic-description").textContent = descriptions[profileId]
+      || selectedProfile?.description
+      || "Configuration for the selected plugin embedding provider.";
     const enabled = $("#rag-enabled").checked;
     $("#rag-reindex").disabled = !enabled;
     $("#rag-test-form button[type='submit']").disabled = !enabled;
@@ -1148,12 +1222,16 @@
 
   function ragSettingsPayload() {
     const profileId = $("#rag-profile-id").value || "bge-m3";
-    const provider = profileId === "bge-m3" ? "fastembed" : profileId === "custom-gguf" ? "local" : "litellm";
+    const selectedProfile = embeddingModels.find((item) => item.id === profileId);
+    const provider = selectedProfile?.provider
+      || (profileId === "bge-m3" ? "fastembed" : profileId === "custom-gguf" ? "local" : "litellm");
     const model = profileId === "bge-m3"
       ? "BAAI/bge-m3"
       : profileId === "custom-gguf"
         ? "custom-gguf"
-        : ($("#rag-litellm-model").value.trim() || "openai/text-embedding-3-small");
+        : profileId === "litellm-custom"
+          ? ($("#rag-litellm-model").value.trim() || "openai/text-embedding-3-small")
+          : (selectedProfile?.model || selectedProfile?.repository || profileId);
     const baseUrl = profileId === "litellm-custom"
         ? $("#rag-litellm-base-url").value.trim()
         : "";
@@ -1583,6 +1661,8 @@
       const provider = $("#ai-provider").value;
       const profileId = $("#ai-profile-id").value;
       const selectedProfile = summaryModels.find((item) => item.id === profileId);
+      if (!selectedProfile) throw new Error("The selected AI model is unavailable.");
+      const engine = selectedProfile.engine || "llama-cpp";
       const remote = provider === "litellm";
       const customGguf = profileId === "custom-gguf";
       const apiKey = $("#ai-api-key")?.value.trim() || "";
@@ -1598,6 +1678,7 @@
         method: "PUT",
         body: JSON.stringify({
           summary_engine: {
+            engine,
             provider,
             profile_id: profileId,
             local_runtime: $("#ai-local-runtime").value,
@@ -1820,14 +1901,15 @@
       if (!profile) throw new Error("The selected AI model is unavailable.");
       if (action === "select") {
         const current = summaryPreferences?.summary_engine || {};
-        const remote = profile.id === "litellm-custom";
+        const remote = profile.id === "litellm-custom" || profile.provider === "litellm";
         const customGguf = profile.id === "custom-gguf";
         const updated = await api("/api/settings", {
           method: "PUT",
           body: JSON.stringify({
             summary_engine: {
               ...current,
-              provider: remote ? "litellm" : "local",
+              engine: profile.engine || "llama-cpp",
+              provider: profile.provider || (remote ? "litellm" : "local"),
               profile_id: profile.id,
               local_runtime: "managed-llama-cpp",
               model: remote ? (current.provider === "litellm" ? current.model : "openai/gpt-4.1-mini") : (profile.repository || "custom-gguf"),
@@ -2204,6 +2286,11 @@
   });
 
   $("#plugin-list")?.addEventListener("click", async (event) => {
+    const configure = event.target.closest("[data-plugin-configure]");
+    if (configure) {
+      openPluginSettings(configure.dataset.pluginConfigure);
+      return;
+    }
     const button = event.target.closest("[data-plugin-toggle]");
     if (!button) return;
     button.disabled = true;
@@ -2217,6 +2304,35 @@
     } catch (error) {
       toast(error.message, "error");
       button.disabled = false;
+    }
+  });
+
+  $("#plugin-settings-cancel")?.addEventListener("click", () => {
+    $("#plugin-settings-editor").hidden = true;
+  });
+
+  $("#plugin-settings-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const pluginId = $("#plugin-settings-id").value;
+    const values = {};
+    event.currentTarget.querySelectorAll("[data-plugin-setting]").forEach((control) => {
+      const kind = control.dataset.pluginSettingKind;
+      values[control.dataset.pluginSetting] = kind === "boolean"
+        ? control.checked
+        : kind === "integer" ? Number.parseInt(control.value, 10)
+          : kind === "number" ? Number.parseFloat(control.value) : control.value;
+    });
+    try {
+      const result = await api(`/api/plugins/${encodeURIComponent(pluginId)}/settings`, {
+        method: "PUT",
+        body: JSON.stringify({ settings: values }),
+      });
+      const plugin = pluginCatalog.find((item) => item.id === pluginId);
+      if (plugin) plugin.settings = result.settings;
+      $("#plugin-settings-editor").hidden = true;
+      toast("Plugin settings saved locally.", "success");
+    } catch (error) {
+      toast(error.message, "error");
     }
   });
 

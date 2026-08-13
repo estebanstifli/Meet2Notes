@@ -3,28 +3,16 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from local_meeting_ai.adapters.audio_capture import create_audio_capture_backend
-from local_meeting_ai.adapters.diarization.diarize_cpu import DiarizeCpuEngine
 from local_meeting_ai.adapters.diarization.profile_matching import (
     SherpaOnnxSpeakerProfileMatcher,
 )
-from local_meeting_ai.adapters.diarization.pyannote_community import (
-    PyannoteCommunityDiarizationEngine,
-)
 from local_meeting_ai.adapters.diarization.router import DiarizationEngineRouter
-from local_meeting_ai.adapters.diarization.sherpa_onnx import (
-    SherpaOnnxDiarizationEngine,
-)
 from local_meeting_ai.adapters.embeddings import EmbeddingEngineRouter
-from local_meeting_ai.adapters.summary.llama_cpp import LlamaCppSummaryEngine
-from local_meeting_ai.adapters.transcription.faster_whisper import FasterWhisperEngine
-from local_meeting_ai.adapters.transcription.nvidia_asr import (
-    build_nemotron_engine,
-    build_parakeet_engine,
-)
+from local_meeting_ai.adapters.summary.router import SummaryEngineRouter
 from local_meeting_ai.adapters.transcription.router import TranscriptionEngineRouter
-from local_meeting_ai.adapters.transcription.vibevoice import VibeVoiceBitNetEngine
 from local_meeting_ai.application.ai_services import (
     DiarizationService,
     SummaryService,
@@ -71,7 +59,10 @@ from local_meeting_ai.infrastructure.pytorch_cuda import PytorchCudaRuntime
 from local_meeting_ai.infrastructure.storage import MeetingStorage
 from local_meeting_ai.logging_config import ActivityLog, configure_logging
 from local_meeting_ai.paths import AppPaths
+from local_meeting_ai.plugins.contracts import ProviderRuntimeContext
+from local_meeting_ai.plugins.core_providers import register_core_providers
 from local_meeting_ai.plugins.manager import PluginManager
+from local_meeting_ai.plugins.providers import ProviderRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +115,20 @@ def _retire_ollama_bge_preference(preferences: SettingsRepository) -> None:
     logger.info("Migrated the BGE-M3 embedding runtime from Ollama to FastEmbed")
 
 
+def _plugin_settings(
+    preferences: SettingsRepository,
+    plugin_id: str,
+) -> dict[str, Any]:
+    state = preferences.get_all().get("plugins")
+    if not isinstance(state, dict):
+        return {}
+    settings = state.get("settings")
+    if not isinstance(settings, dict):
+        return {}
+    value = settings.get(plugin_id)
+    return dict(value) if isinstance(value, dict) else {}
+
+
 @dataclass(slots=True)
 class Container:
     settings: AppSettings
@@ -152,6 +157,7 @@ class Container:
     summary_templates: SummaryTemplateRepository
     plugin_executions: PluginExecutionRepository
     plugin_manager: PluginManager
+    provider_registry: ProviderRegistry
     final_pipeline: FinalProcessingPipeline
     speaker_service: SpeakerService
     speaker_profiles: SpeakerProfileRepository
@@ -200,7 +206,22 @@ def build_container(
     summary_templates.seed_builtins(BUILTIN_SUMMARY_TEMPLATES)
     speaker_profiles = SpeakerProfileRepository(database)
     plugin_executions = PluginExecutionRepository(database)
-    plugin_manager = PluginManager(preferences, plugin_executions)
+    provider_registry = ProviderRegistry(
+        ProviderRuntimeContext(
+            plugin_id="meet2notes.core",
+            data_dir=paths.root,
+            models_dir=paths.models,
+            _settings_provider=lambda plugin_id: _plugin_settings(
+                preferences, plugin_id
+            ),
+        )
+    )
+    register_core_providers(provider_registry, settings)
+    plugin_manager = PluginManager(
+        preferences,
+        plugin_executions,
+        provider_registry,
+    )
     transcriptions.recover_interrupted()
     storage = MeetingStorage(paths, settings.max_upload_bytes)
     ffmpeg = FFmpegClient(settings.ffmpeg_path)
@@ -219,16 +240,12 @@ def build_container(
     if transcription_engine is not None:
         resolved_engine = transcription_engine
     else:
-        faster_whisper_engine = FasterWhisperEngine(paths.models)
-        resolved_engine = TranscriptionEngineRouter(
-            {
-                faster_whisper_engine.name: faster_whisper_engine,
-                "vibevoice-asr-bitnet": VibeVoiceBitNetEngine(paths.models),
-                "nvidia-parakeet": build_parakeet_engine(paths.models),
-                "nvidia-nemotron": build_nemotron_engine(paths.models),
-            }
-        )
-    profiles = TranscriptionProfileCatalog(resolved_engine, preferences)
+        resolved_engine = TranscriptionEngineRouter(provider_registry)
+    profiles = TranscriptionProfileCatalog(
+        resolved_engine,
+        preferences,
+        provider_registry if transcription_engine is None else None,
+    )
     transcription_service = TranscriptionService(
         meetings=meetings,
         recordings=recordings,
@@ -260,18 +277,7 @@ def build_container(
         resolved_diarization = diarization_engine
         profile_matcher = None
     else:
-        sherpa_diarization = SherpaOnnxDiarizationEngine(paths.models)
-        resolved_diarization = DiarizationEngineRouter(
-            {
-                sherpa_diarization.name: sherpa_diarization,
-                "diarize": DiarizeCpuEngine(paths.models),
-                "pyannote-community-1": PyannoteCommunityDiarizationEngine(
-                    paths.models,
-                    access_token=settings.pyannote_token,
-                ),
-            },
-            primary=sherpa_diarization.name,
-        )
+        resolved_diarization = DiarizationEngineRouter(provider_registry)
         profile_matcher = SherpaOnnxSpeakerProfileMatcher(paths.models)
     diarization_service = DiarizationService(
         engine=resolved_diarization,
@@ -283,7 +289,10 @@ def build_container(
         speaker_profiles=speaker_profiles,
         profile_matcher=profile_matcher,
     )
-    resolved_summary = summary_engine or LlamaCppSummaryEngine(paths.models)
+    resolved_summary = summary_engine or SummaryEngineRouter(
+        provider_registry,
+        preferences.get_all().get("summary_engine", {}),
+    )
     summary_service = SummaryService(
         engine=resolved_summary,
         summaries=summaries,
@@ -305,7 +314,9 @@ def build_container(
     queue.register_terminal_handler(final_pipeline.job_finished)
     rag_repository = RagRepository(database)
     rag_vector_stores = RagVectorStoreGateway(rag_repository, plugin_manager)
-    resolved_embedding_provider = embedding_provider or EmbeddingEngineRouter(paths.models)
+    resolved_embedding_provider = embedding_provider or EmbeddingEngineRouter(
+        provider_registry
+    )
     rag_service = RagService(
         provider=resolved_embedding_provider,
         vector_stores=rag_vector_stores,
@@ -346,6 +357,7 @@ def build_container(
         summary_templates=summary_templates,
         plugin_executions=plugin_executions,
         plugin_manager=plugin_manager,
+        provider_registry=provider_registry,
         final_pipeline=final_pipeline,
         speaker_service=speaker_service,
         speaker_profiles=speaker_profiles,

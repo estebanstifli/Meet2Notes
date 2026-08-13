@@ -127,14 +127,9 @@ class SummaryEnginePreference(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    provider: Literal["disabled", "local", "litellm", "openai-compatible"] = "local"
-    profile_id: Literal[
-        "lfm2.5-1.2b-q4",
-        "qwen3-0.6b",
-        "qwen3-1.7b",
-        "custom-gguf",
-        "litellm-custom",
-    ] = "lfm2.5-1.2b-q4"
+    engine: str = Field(default="llama-cpp", min_length=1, max_length=80)
+    provider: str = Field(default="local", min_length=1, max_length=80)
+    profile_id: str = Field(default="lfm2.5-1.2b-q4", min_length=1, max_length=80)
     local_runtime: Literal["managed-llama-cpp", "external-openai"] = "managed-llama-cpp"
     model: str = Field(
         default="LiquidAI/LFM2.5-1.2B-Instruct-GGUF",
@@ -202,10 +197,16 @@ class PluginStateUpdate(BaseModel):
     enabled: bool
 
 
+class PluginSettingsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    settings: dict[str, Any] = Field(default_factory=dict)
+
+
 class DiarizationPreference(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    engine: Literal["sherpa-onnx", "diarize", "pyannote-community-1"] = "sherpa-onnx"
+    engine: str = Field(default="sherpa-onnx", min_length=1, max_length=80)
     segmentation_model: Literal["pyannote-3.0"] = "pyannote-3.0"
     embedding_model: Literal["3d-speaker", "nemo-titanet"] = "3d-speaker"
     quantized_segmentation: bool = True
@@ -229,8 +230,8 @@ class RagPreference(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = True
-    profile_id: Literal["bge-m3", "custom-gguf", "litellm-custom"] = "bge-m3"
-    embedding_provider: Literal["fastembed", "local", "litellm"] = "fastembed"
+    profile_id: str = Field(default="bge-m3", min_length=1, max_length=80)
+    embedding_provider: str = Field(default="fastembed", min_length=1, max_length=80)
     embedding_model: str = Field(default="BAAI/bge-m3", min_length=1, max_length=200)
     base_url: str = Field(default="", max_length=500)
     api_key_env: str = Field(default="OPENAI_API_KEY", max_length=120)
@@ -264,8 +265,8 @@ class RagPreference(BaseModel):
             "bge-m3": "fastembed",
             "custom-gguf": "local",
             "litellm-custom": "litellm",
-        }[self.profile_id]
-        if self.embedding_provider != expected_provider:
+        }.get(self.profile_id)
+        if expected_provider is not None and self.embedding_provider != expected_provider:
             raise ValueError(
                 f"Embedding profile {self.profile_id} requires provider {expected_provider}"
             )
@@ -295,17 +296,10 @@ class PreferenceUpdate(BaseModel):
     retention_days: int | None = Field(default=None, ge=1, le=3650)
     confirm_permanent_delete: bool | None = None
     default_summary_template_id: int | None = Field(default=None, ge=1)
-    transcription_engine: Literal["faster-whisper"] = "faster-whisper"
-    live_transcription_engine: Literal[
-        "faster-whisper", "nvidia-nemotron"
-    ] = "faster-whisper"
+    transcription_engine: str = Field(default="faster-whisper", max_length=80)
+    live_transcription_engine: str = Field(default="faster-whisper", max_length=80)
     live_transcription_profile: str = Field(default="default", max_length=40)
-    final_transcription_engine: Literal[
-        "faster-whisper",
-        "vibevoice-asr-bitnet",
-        "nvidia-parakeet",
-        "nvidia-nemotron",
-    ] = "faster-whisper"
+    final_transcription_engine: str = Field(default="faster-whisper", max_length=80)
     final_transcription_profile: str = Field(default="default", max_length=40)
     faster_whisper: FasterWhisperPreference = Field(default_factory=FasterWhisperPreference)
     summary_engine: SummaryEnginePreference = Field(default_factory=SummaryEnginePreference)
@@ -325,17 +319,10 @@ class PreferenceResponse(BaseModel):
     retention_days: int | None = None
     confirm_permanent_delete: bool = True
     default_summary_template_id: int | None = None
-    transcription_engine: Literal["faster-whisper"] = "faster-whisper"
-    live_transcription_engine: Literal[
-        "faster-whisper", "nvidia-nemotron"
-    ] = "faster-whisper"
+    transcription_engine: str = "faster-whisper"
+    live_transcription_engine: str = "faster-whisper"
     live_transcription_profile: str = "default"
-    final_transcription_engine: Literal[
-        "faster-whisper",
-        "vibevoice-asr-bitnet",
-        "nvidia-parakeet",
-        "nvidia-nemotron",
-    ] = "faster-whisper"
+    final_transcription_engine: str = "faster-whisper"
     final_transcription_profile: str = "default"
     faster_whisper: FasterWhisperPreference = Field(default_factory=FasterWhisperPreference)
     summary_engine: SummaryEnginePreference = Field(default_factory=SummaryEnginePreference)
@@ -435,6 +422,7 @@ class ModelProfileResponse(BaseModel):
     runtime_available: bool
     download_size: str | None
     compatibility_note: str | None
+    provider_options: dict[str, Any] = Field(default_factory=dict)
 
 
 class PostprocessOptions(BaseModel):

@@ -60,6 +60,7 @@ DIARIZATION_DEFAULTS: dict[str, Any] = {
 }
 
 SUMMARY_DEFAULTS: dict[str, Any] = {
+    "engine": "llama-cpp",
     "provider": "local",
     "profile_id": "lfm2.5-1.2b-q4",
     "local_runtime": "managed-llama-cpp",

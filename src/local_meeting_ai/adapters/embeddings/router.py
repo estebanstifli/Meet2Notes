@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from local_meeting_ai.adapters.summary.credentials import secure_storage_status
 from local_meeting_ai.domain.errors import ValidationError
 from local_meeting_ai.domain.protocols import EmbeddingProvider
+from local_meeting_ai.plugins.providers import ProviderRegistry
 
 from .fastembed_bge import FastEmbedBgeM3Provider
 from .litellm import LiteLLMEmbeddingProvider
@@ -57,23 +58,26 @@ class EmbeddingEngineRouter:
 
     name = "embedding-router"
 
-    def __init__(self, models_dir: Path) -> None:
-        self._providers: dict[str, EmbeddingProvider] = {
-            "fastembed": FastEmbedBgeM3Provider(models_dir),
-            "local": LlamaCppEmbeddingProvider(),
-            "litellm": LiteLLMEmbeddingProvider(),
-        }
+    def __init__(self, models_dir: Path | ProviderRegistry) -> None:
+        self.registry = models_dir if isinstance(models_dir, ProviderRegistry) else None
+        self._providers: dict[str, EmbeddingProvider] = {}
+        if self.registry is None:
+            self._providers = {
+                "fastembed": FastEmbedBgeM3Provider(cast(Path, models_dir)),
+                "local": LlamaCppEmbeddingProvider(),
+                "litellm": LiteLLMEmbeddingProvider(),
+            }
         self._last_config: dict[str, Any] = {}
 
     def capability(self, config: dict[str, Any]) -> dict[str, Any]:
         self._last_config = dict(config)
-        bge = self._providers["fastembed"].capability(
+        bge = self._provider("bge-m3").capability(
             self._profile_config("bge-m3", config)
         )
-        custom = self._providers["local"].capability(
+        custom = self._provider("custom-gguf").capability(
             self._profile_config("custom-gguf", config)
         )
-        remote = self._providers["litellm"].capability(
+        remote = self._provider("litellm-custom").capability(
             self._profile_config("litellm-custom", config)
         )
         models = [
@@ -99,12 +103,42 @@ class EmbeddingEngineRouter:
                 "resident": False,
             },
         ]
+        if self.registry is not None:
+            known = {item["id"] for item in models}
+            for registration in self.registry.models("embedding"):
+                model = registration.model
+                if model.id in known:
+                    continue
+                profile_config = self._profile_config(model.id, config)
+                capability = self._provider(model.id).capability(profile_config)
+                models.append(
+                    {
+                        **model.model_dump(mode="json"),
+                        "provider": registration.provider_id,
+                        "repository": model.model,
+                        "installed": bool(capability.get("installed")) or not model.managed,
+                        "runtime_available": bool(
+                            capability.get(
+                                "runtime_available", capability.get("available")
+                            )
+                        ),
+                        "resident": bool(
+                            capability.get("model_resident")
+                            or capability.get("worker", {}).get("model_resident")
+                        ),
+                    }
+                )
+                known.add(model.id)
         selected = str(config.get("profile_id") or "bge-m3")
         selected_capability = {
             "bge-m3": bge,
             "custom-gguf": custom,
             "litellm-custom": remote,
         }.get(selected, {})
+        if not selected_capability and self.registry is not None:
+            selected_capability = self._provider(selected).capability(
+                self._profile_config(selected, config)
+            )
         return {
             "engine": self.name,
             "display_name": "Embedding models",
@@ -145,11 +179,11 @@ class EmbeddingEngineRouter:
         if profile_id is not None:
             await self._provider(profile_id).unload(profile_id)
             return
-        for provider in self._providers.values():
+        for provider in self._all_providers():
             await provider.unload()
 
     def shutdown(self) -> None:
-        for provider in self._providers.values():
+        for provider in self._all_providers():
             provider.shutdown()
 
     async def embed(
@@ -171,11 +205,18 @@ class EmbeddingEngineRouter:
             "litellm-custom": "litellm",
         }.get(profile_id)
         if provider_id is None:
-            raise ValidationError("The selected embedding model is unavailable")
+            if self.registry is None:
+                raise ValidationError("The selected embedding model is unavailable")
+            registration = self.registry.provider_for_model("embedding", profile_id)
+            return cast(
+                EmbeddingProvider,
+                self.registry.resolve("embedding", registration.provider_id),
+            )
+        if self.registry is not None:
+            return cast(EmbeddingProvider, self.registry.resolve("embedding", provider_id))
         return self._providers[provider_id]
 
-    @staticmethod
-    def _profile_config(profile_id: str, config: dict[str, Any]) -> dict[str, Any]:
+    def _profile_config(self, profile_id: str, config: dict[str, Any]) -> dict[str, Any]:
         resolved = dict(config)
         selected = str(config.get("profile_id") or "bge-m3")
         if profile_id == "bge-m3":
@@ -197,4 +238,25 @@ class EmbeddingEngineRouter:
                     "embedding_model": "openai/text-embedding-3-small",
                     "base_url": "",
                 })
+        elif self.registry is not None:
+            registration = self.registry.provider_for_model("embedding", profile_id)
+            resolved.update(registration.model.defaults)
+            resolved.update(
+                {
+                    "profile_id": profile_id,
+                    "embedding_provider": registration.provider_id,
+                    "embedding_model": registration.model.model,
+                }
+            )
+            resolved = self.registry.configuration(
+                "embedding", registration.provider_id, resolved
+            )
         return resolved
+
+    def _all_providers(self) -> list[EmbeddingProvider]:
+        if self.registry is None:
+            return list(self._providers.values())
+        return [
+            self.registry.resolve("embedding", registration.descriptor.id)
+            for registration in self.registry.registrations("embedding")
+        ]
