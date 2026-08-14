@@ -47,6 +47,9 @@ Whisper, Sherpa-ONNX, or a particular language model.
   temporal queries, and timestamped source provenance.
 - A separate Prompt window that can use a complete selected transcript or embed
   each question and retrieve grounded context from every meeting.
+- A native Live AI Assistant that watches provisional transcript segments,
+  follows user-defined monitoring rules, and publishes concise insights through
+  its own bounded queue and independent local or LiteLLM worker.
 - Durable outbound webhooks for Live segments and processing milestones, with
   per-endpoint content controls, HMAC signatures, retries, delivery history, and
   optional remote-agent suggestions that never block local transcription.
@@ -54,7 +57,9 @@ Whisper, Sherpa-ONNX, or a particular language model.
   identities across meetings, generating per-speaker summaries, and exporting
   a speaker's text or audio.
 - A meeting library, live job progress, cancellation, diagnostic logs, light
-  and dark themes, and a safe application shutdown button.
+  and dark themes, and a safe application shutdown button. Permanent meeting
+  deletion asks for confirmation and removes that meeting's audio, transcript,
+  notes, Live Assistant data, RAG index entries, jobs, and private files.
 - A Local AI Status panel showing engine state, model residency, system RAM,
   GPU name, VRAM when available, and the Meet2Notes GPU process.
 - Model tables in Settings with installed state, download size, selection,
@@ -62,6 +67,22 @@ Whisper, Sherpa-ONNX, or a particular language model.
 - Basic settings tailored to the selected model and separate advanced controls.
 - Optional preload at startup. Models remain resident after use until they are
   unloaded, replaced, or the application shuts down.
+
+## Product tour
+
+Meet2Notes keeps the complete workflow in one local workspace, in light and
+dark themes.
+
+<p align="center">
+  <img src="capturas/choose_your_audio_source_diurno.png" alt="Choose microphone, system audio or a media file before recording" width="32%">
+  <img src="capturas/transcription_ai_notes_diurno.png" alt="AI Notes shown beside a completed meeting transcript" width="32%">
+  <img src="capturas/prompt_nocturno.png" alt="Dark-mode Prompt workspace using historical RAG" width="32%">
+</p>
+<p align="center">
+  <img src="capturas/settings_ai_engine_nocturno.png" alt="Dark-mode AI Engine model selection" width="32%">
+  <img src="capturas/settings_speakers_diurno.png" alt="Light-mode speaker recognition settings" width="32%">
+  <img src="capturas/speakers_nocturno.png" alt="Dark-mode saved voice directory" width="32%">
+</p>
 
 ## Modular processing pipeline
 
@@ -179,6 +200,24 @@ LiteLLM API keys are stored through the operating system keyring (Windows
 Credential Manager on Windows), not in SQLite or browser storage. The UI stores
 only whether a secret is configured. Environment-based provider credentials
 remain available when supported by LiteLLM.
+
+### Live AI Assistant
+
+Settings -> Live Assistant configures an optional native assistant for active
+meetings. It has its own model selection, API-key vault entry, monitoring
+instructions, trigger phrases, rolling context, compact memory, cooldown, rate
+limit, and request timeout. Its model does not have to match the AI Notes model.
+Responses appear in a movable, resizable, and minimizable floating meeting
+widget so they remain visible without changing the transcript layout. Insights
+are accumulated chronologically while the assistant continues listening; they
+do not require manual accept or dismiss actions.
+
+Capture publishes committed Live segments with a non-blocking `put_nowait` into
+a bounded in-memory queue. A separate dispatcher coalesces updates and invokes a
+dedicated inference engine; recording and transcription never wait for the
+assistant. A separate local model runtime still consumes additional RAM/VRAM and
+can contend for the same physical CPU or GPU, so the feature is disabled by
+default. See the [Live AI Assistant guide](docs/live-ai-assistant.md).
 
 ## Note formats
 

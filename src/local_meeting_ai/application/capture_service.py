@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from local_meeting_ai.application.live_assistant import LiveAssistantService
 from local_meeting_ai.application.services import ImportService, MeetingService
 from local_meeting_ai.application.transcription_config import faster_whisper_config
 from local_meeting_ai.application.transcription_service import TranscriptionService
@@ -50,6 +51,7 @@ class LiveCaptureService:
         preferences: SettingsRepository,
         storage: MeetingStorage,
         webhooks: WebhookService | None = None,
+        live_assistant: LiveAssistantService | None = None,
         poll_interval: float = 0.75,
         chunk_seconds: float = 3.0,
         overlap_seconds: float = 1.0,
@@ -62,6 +64,7 @@ class LiveCaptureService:
         self.preferences = preferences
         self.storage = storage
         self.webhooks = webhooks
+        self.live_assistant = live_assistant
         self.poll_interval = poll_interval
         self.chunk_seconds = chunk_seconds
         self.overlap_seconds = overlap_seconds
@@ -203,6 +206,8 @@ class LiveCaptureService:
             )
             if self.webhooks is not None:
                 self.webhooks.publish_live_session("live.session.started", session)
+            if self.live_assistant is not None:
+                self.live_assistant.session_started(session)
             return session
 
     def status(self) -> LiveCaptureSession | None:
@@ -280,6 +285,8 @@ class LiveCaptureService:
         )
         if self.webhooks is not None:
             self.webhooks.publish_live_session("live.session.stopped", stopped_session)
+        if self.live_assistant is not None:
+            self.live_assistant.session_stopped(stopped_session)
         recording, import_job = await self.import_service.register_capture(
             session.meeting_id,
             captured,
@@ -311,6 +318,42 @@ class LiveCaptureService:
             transcription,
             transcription_job,
         )
+
+    async def discard(self, session_id: str) -> None:
+        """Abort a live capture and discard all data created for its meeting.
+
+        This is deliberately different from ``stop``: it releases the audio
+        backend but never registers the captured file or queues final work.
+        The in-memory session is cleared before the meeting is removed, so a
+        subsequent capture always starts from a clean state.
+        """
+        with self._lock:
+            session = self._require_session(session_id)
+            if self._stopping:
+                raise ValidationError("The live transcription is already stopping")
+            self._stopping = True
+            realtime_task = self._realtime_task
+
+        if realtime_task is not None:
+            await asyncio.gather(realtime_task, return_exceptions=True)
+        try:
+            self.backend.stop()
+        except Exception:
+            # Discard must still clean application state if an audio driver has
+            # already released its stream unexpectedly.
+            logger.exception("Could not stop audio cleanly while discarding live capture")
+        finally:
+            with self._lock:
+                self._session = None
+                self._settings = None
+                self._profile = None
+                self._realtime_task = None
+                self._stopping = False
+            if self.live_assistant is not None:
+                self.live_assistant.session_stopped(session)
+
+        self.meetings.delete(session.meeting_id)
+        logger.info("Discarded live transcription for meeting %s", session.meeting_id)
 
     async def shutdown(self) -> None:
         with self._lock:
@@ -503,6 +546,19 @@ class LiveCaptureService:
             )
             if self.webhooks is not None and self._settings is not None:
                 self.webhooks.publish_live_segments(
+                    meeting_id=int(self._settings["meeting_id"]),
+                    transcription_id=transcription_id,
+                    meeting_title=str(self._settings["meeting_title"]),
+                    segments=added_segments,
+                    sequence=self._chunk_sequence,
+                )
+            if (
+                self.live_assistant is not None
+                and self._settings is not None
+                and self._session is not None
+            ):
+                self.live_assistant.publish_segments(
+                    session_id=self._session.session_id,
                     meeting_id=int(self._settings["meeting_id"]),
                     transcription_id=transcription_id,
                     meeting_title=str(self._settings["meeting_title"]),

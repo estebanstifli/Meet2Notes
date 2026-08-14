@@ -14,6 +14,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from local_meeting_ai import __version__
+from local_meeting_ai.api.live_assistant_routes import router as live_assistant_router
 from local_meeting_ai.api.routes import router as api_router
 from local_meeting_ai.api.webhook_routes import router as webhook_router
 from local_meeting_ai.bootstrap import Container, build_container
@@ -69,6 +70,8 @@ def create_app(
         logger.info("Background job queue is ready")
         await container.webhook_service.start()
         logger.info("Webhook dispatcher is ready")
+        await container.live_assistant_service.start()
+        logger.info("Live AI Assistant service is ready")
 
         async def preload_engines() -> None:
             # Native runtimes own independent workers, but their first loads are
@@ -80,6 +83,7 @@ def create_app(
                 ),
                 ("selected diarization engine", container.diarization_service.preload_default),
                 ("LFM2.5", container.summary_service.preload_default),
+                ("Live AI Assistant", container.live_assistant_service.preload_default),
                 ("selected embedding model", container.rag_service.preload_default),
             ):
                 logger.info("Checking %s preload configuration", engine_name)
@@ -104,6 +108,7 @@ def create_app(
         finally:
             logger.info("Stopping Meet2Notes services")
             await container.capture_service.shutdown()
+            await container.live_assistant_service.shutdown()
             await container.queue.stop()
             # Keep the dispatcher alive until producers have stopped so terminal
             # job events cannot be stranded during application shutdown.
@@ -196,6 +201,7 @@ def create_app(
 
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
     app.include_router(api_router)
+    app.include_router(live_assistant_router)
     app.include_router(webhook_router)
     _register_web_routes(app, templates, container)
     return app

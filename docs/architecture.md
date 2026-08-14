@@ -71,16 +71,27 @@ normalization nor inference blocks the API loop.
 
 ### Independent local AI workers
 
-The three native AI runtimes never execute on the FastAPI event loop:
+The native AI runtimes never execute model inference on the FastAPI event loop:
 
 - `faster-whisper`: dedicated executor for speech recognition.
 - `sherpa-diarization`: one dedicated executor and one resident ONNX pipeline.
 - `llama-summary`: one dedicated executor and one resident llama.cpp model.
+- `live-ai-assistant`: optional bounded async dispatcher backed by a separate
+  summary-engine instance and dedicated single-thread executor.
 
 Each engine exposes preparation, unload, capability and shutdown operations.
 Models can remain resident independently, and Settings shows the actual worker
 state. Startup model loads are deliberately sequenced to avoid simultaneous
 RAM/VRAM allocation spikes; inference remains isolated after startup.
+
+The Live AI Assistant dispatcher is created only while the feature is enabled.
+The capture path appends recent context and calls `put_nowait`; when its queue is
+full, the oldest pending batch is discarded in favor of the newest speech. The
+dispatcher coalesces batches, applies trigger/cooldown/rate limits, and persists
+only compact session memory and assistant insights. This prevents assistant
+latency or remote failures from back-pressuring capture. Executor isolation does
+not provide hardware isolation: running two local LLMs may still compete for
+CPU, RAM, GPU, and VRAM.
 
 Diarization creates meeting-local speakers and assigns them to transcript
 segments using temporal overlap. Summary generation streams tokens from

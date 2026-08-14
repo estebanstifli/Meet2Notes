@@ -11,6 +11,7 @@ from local_meeting_ai.adapters.diarization.profile_matching import (
 )
 from local_meeting_ai.adapters.diarization.router import DiarizationEngineRouter
 from local_meeting_ai.adapters.embeddings import EmbeddingEngineRouter
+from local_meeting_ai.adapters.summary.llama_cpp import LlamaCppSummaryEngine
 from local_meeting_ai.adapters.summary.router import SummaryEngineRouter
 from local_meeting_ai.adapters.transcription.router import TranscriptionEngineRouter
 from local_meeting_ai.application.ai_services import (
@@ -19,6 +20,7 @@ from local_meeting_ai.application.ai_services import (
 )
 from local_meeting_ai.application.capture_service import LiveCaptureService
 from local_meeting_ai.application.final_pipeline import FinalProcessingPipeline
+from local_meeting_ai.application.live_assistant import LiveAssistantService
 from local_meeting_ai.application.rag import PromptService, RagService
 from local_meeting_ai.application.rag_vector_store import RagVectorStoreGateway
 from local_meeting_ai.application.services import ImportService, MeetingService
@@ -41,6 +43,7 @@ from local_meeting_ai.domain.protocols import (
     TranscriptionEngine,
 )
 from local_meeting_ai.infrastructure.database.connection import Database
+from local_meeting_ai.infrastructure.database.live_assistant import LiveAssistantRepository
 from local_meeting_ai.infrastructure.database.migrations import MigrationRunner
 from local_meeting_ai.infrastructure.database.rag_repository import RagRepository
 from local_meeting_ai.infrastructure.database.repositories import (
@@ -57,6 +60,11 @@ from local_meeting_ai.infrastructure.database.repositories import (
 from local_meeting_ai.infrastructure.database.webhooks import WebhookRepository
 from local_meeting_ai.infrastructure.ffmpeg import FFmpegClient
 from local_meeting_ai.infrastructure.jobs import LocalJobQueue
+from local_meeting_ai.infrastructure.live_assistant_credentials import (
+    KeyringLiveAssistantCredentialStore,
+    LiveAssistantCredentialStore,
+    MemoryLiveAssistantCredentialStore,
+)
 from local_meeting_ai.infrastructure.pytorch_cuda import PytorchCudaRuntime
 from local_meeting_ai.infrastructure.storage import MeetingStorage
 from local_meeting_ai.infrastructure.webhook_secrets import (
@@ -176,6 +184,9 @@ class Container:
     prompt_service: PromptService
     webhook_repository: WebhookRepository
     webhook_service: WebhookService
+    live_assistant_repository: LiveAssistantRepository
+    live_assistant_credentials: LiveAssistantCredentialStore
+    live_assistant_service: LiveAssistantService
 
 
 def build_container(
@@ -227,6 +238,21 @@ def build_container(
         summaries=summaries,
         jobs=jobs,
         poll_interval=0.02 if settings.testing else 1.0,
+    )
+    live_assistant_repository = LiveAssistantRepository(database)
+    live_assistant_credentials: LiveAssistantCredentialStore = (
+        MemoryLiveAssistantCredentialStore()
+        if settings.testing
+        else KeyringLiveAssistantCredentialStore()
+    )
+    # This is intentionally a second runtime instance. Its executor, request
+    # queue and resident local model are independent from summaries and Prompt.
+    live_assistant_engine = LlamaCppSummaryEngine(paths.models)
+    live_assistant_service = LiveAssistantService(
+        engine=live_assistant_engine,
+        repository=live_assistant_repository,
+        preferences=preferences,
+        credentials=live_assistant_credentials,
     )
     provider_registry = ProviderRegistry(
         ProviderRuntimeContext(
@@ -290,6 +316,7 @@ def build_container(
         preferences=preferences,
         storage=storage,
         webhooks=webhook_service,
+        live_assistant=live_assistant_service,
         poll_interval=0.02 if settings.testing else 0.75,
         chunk_seconds=0.1 if settings.testing else 3.0,
         overlap_seconds=0.0 if settings.testing else 1.0,
@@ -397,4 +424,7 @@ def build_container(
         prompt_service=prompt_service,
         webhook_repository=webhook_repository,
         webhook_service=webhook_service,
+        live_assistant_repository=live_assistant_repository,
+        live_assistant_credentials=live_assistant_credentials,
+        live_assistant_service=live_assistant_service,
     )

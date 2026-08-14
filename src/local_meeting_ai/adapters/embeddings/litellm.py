@@ -6,6 +6,7 @@ import importlib.util
 import os
 from typing import Any, cast
 
+from local_meeting_ai.adapters.litellm_compat import embedding as litellm_embedding
 from local_meeting_ai.adapters.summary.credentials import get_litellm_api_key
 from local_meeting_ai.domain.errors import CapabilityUnavailableError
 
@@ -75,7 +76,7 @@ class LiteLLMEmbeddingProvider:
         if key:
             arguments["api_key"] = key
         try:
-            response = litellm.embedding(**arguments)
+            response = litellm_embedding(litellm, arguments)
             raw = response.model_dump() if hasattr(response, "model_dump") else cast(Any, response)
             data = raw.get("data") if isinstance(raw, dict) else getattr(raw, "data", None)
             if not isinstance(data, list):

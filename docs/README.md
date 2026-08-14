@@ -17,6 +17,8 @@ and future plans do not become mixed together.
   model.
 - [Webhooks](webhooks.md): outbound event contract, delivery guarantees,
   signatures, Live agents, security, and rules for future changes.
+- [Live AI Assistant](live-ai-assistant.md): native real-time assistant,
+  independent worker, settings, persistence, API, and resource limits.
 
 ## Product direction and research
 

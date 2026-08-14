@@ -41,9 +41,8 @@
 
     <div class="meetings-library-list" id="meeting-library-list">
       {% for meeting in meetings %}
-      <a
+      <article
         class="meeting-library-row"
-        href="/?meeting={{ meeting.id }}"
         data-meeting-search="{{ (meeting.title ~ ' ' ~ (meeting.description or ''))|lower }}"
       >
         <span class="meeting-library-icon">
@@ -66,7 +65,9 @@
         <span class="meeting-library-arrow">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
         </span>
-      </a>
+        <a class="meeting-library-open" href="/?meeting={{ meeting.id }}" aria-label="Open meeting {{ meeting.title }}"></a>
+        <button class="text-button danger meeting-library-delete" type="button" data-delete-meeting-id="{{ meeting.id }}" data-delete-meeting-title="{{ meeting.title }}">Delete</button>
+      </article>
       {% else %}
       <div class="meetings-library-empty">
         <span class="meeting-library-icon">

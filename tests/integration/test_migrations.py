@@ -10,7 +10,7 @@ def test_initial_migration_is_complete_and_idempotent(tmp_path: Path) -> None:
     database = Database(tmp_path / "migration.db")
     runner = MigrationRunner(database)
 
-    assert runner.apply() == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    assert runner.apply() == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     assert runner.apply() == []
 
     with database.read() as connection:
@@ -41,6 +41,8 @@ def test_initial_migration_is_complete_and_idempotent(tmp_path: Path) -> None:
         "webhook_events",
         "webhook_deliveries",
         "webhook_insights",
+        "live_assistant_sessions",
+        "live_assistant_insights",
     } <= tables
     assert foreign_keys == 1
     assert journal_mode == "wal"

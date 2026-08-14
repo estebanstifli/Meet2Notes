@@ -409,6 +409,34 @@
   border-color: var(--line);
 }
 
+[data-theme="dark"] .live-ai-assistant-widget {
+  color: #e5ebf5;
+  background: rgba(18, 25, 37, .98);
+  border-color: #3a5279;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .5), 0 4px 18px rgba(0, 0, 0, .3);
+}
+
+[data-theme="dark"] .live-ai-assistant-widget-header {
+  background: linear-gradient(135deg, #172338, #1a2b48);
+  border-color: #304565;
+}
+
+[data-theme="dark"] .live-ai-assistant-widget-icon {
+  color: #91b8ff;
+  background: #122039;
+  border-color: #35527e;
+}
+
+[data-theme="dark"] .live-ai-assistant-widget-title strong { color: #f0f4fa; }
+[data-theme="dark"] .live-ai-assistant-widget-status { color: #a9b8cc; }
+[data-theme="dark"] .live-ai-assistant-widget-toggle { color: #b2c4df; background: #1a2940; border-color: #3a506f; }
+[data-theme="dark"] .live-ai-assistant-widget-toggle:hover { color: #fff; background: #243957; }
+[data-theme="dark"] .live-ai-assistant-empty { color: #9baabd; background: #111824; border-color: #34465f; }
+[data-theme="dark"] #live-ai-assistant-insight-list .live-agent-insight { background: #131c2a; border-color: #2d3c52; }
+[data-theme="dark"] #live-ai-assistant-insight-list .live-agent-insight:first-child { border-color: #40679d; box-shadow: 0 4px 16px rgba(0, 0, 0, .22); }
+[data-theme="dark"] #live-ai-assistant-insight-list .live-agent-insight p { color: #dce4f0; }
+[data-theme="dark"] #live-ai-assistant-insight-list .live-agent-insight small { color: #93a3b9; }
+
 [data-theme="dark"] .model-directory-note.restart-required {
   color: #e8c77c;
   background: #2d2517;

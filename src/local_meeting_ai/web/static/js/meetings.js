@@ -1,6 +1,7 @@
 (() => {
   "use strict";
 
+  const { api, toast } = window.Meet2Notes;
   const rows = [...document.querySelectorAll(".meeting-library-row")];
   const search = document.querySelector("#meeting-search");
   const empty = document.querySelector("#meetings-search-empty");
@@ -39,7 +40,7 @@
       : `${minutes}:${String(seconds).padStart(2, "0")}`;
   });
 
-  search?.addEventListener("input", () => {
+  function applySearch() {
     const query = search.value.trim().toLocaleLowerCase();
     let visible = 0;
     rows.forEach((row) => {
@@ -49,5 +50,35 @@
     });
     count.textContent = String(visible);
     empty.classList.toggle("hidden", visible > 0 || rows.length === 0);
+  }
+
+  search?.addEventListener("input", applySearch);
+  document.querySelectorAll("[data-delete-meeting-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const title = button.dataset.deleteMeetingTitle || "this meeting";
+      const confirmed = window.confirm(
+        `Delete “${title}” permanently? This removes its audio, transcript, speakers, AI notes, RAG index data and all files. This cannot be undone.`,
+      );
+      if (!confirmed) return;
+      button.disabled = true;
+      try {
+        await api(`/api/meetings/${encodeURIComponent(button.dataset.deleteMeetingId)}`, {
+          method: "DELETE",
+        });
+        const row = button.closest(".meeting-library-row");
+        const index = rows.indexOf(row);
+        if (index >= 0) rows.splice(index, 1);
+        row?.remove();
+        if (!rows.length) {
+          window.location.reload();
+          return;
+        }
+        applySearch();
+        toast("Meeting and all of its local data were deleted.");
+      } catch (error) {
+        button.disabled = false;
+        toast(error.message, "error");
+      }
+    });
   });
 })();

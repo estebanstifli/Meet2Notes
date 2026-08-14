@@ -26,7 +26,14 @@
   const rememberVoiceDialog = document.querySelector("#remember-voice-dialog");
   const aiRebuildDialog = document.querySelector("#ai-rebuild-dialog");
   const aiUnsavedDialog = document.querySelector("#ai-unsaved-dialog");
+  const liveAssistantWidget = document.querySelector("#live-ai-assistant");
+  const liveAssistantDragHandle = document.querySelector("#live-ai-assistant-drag-handle");
+  const liveAssistantResizeHandle = document.querySelector("#live-ai-assistant-resize-handle");
+  const liveAssistantToggle = document.querySelector("#live-ai-assistant-toggle");
+  const liveAssistantWidgetBody = document.querySelector("#live-ai-assistant-widget-body");
+  const liveAssistantEmpty = document.querySelector("#live-ai-assistant-empty");
   const newMeetingRequested = new URL(window.location.href).searchParams.get("new") === "1";
+  const liveAssistantWidgetStorageKey = "meet2notes.liveAssistantWidget.v1";
 
   let meetingId = page.dataset.meetingId || null;
   let draftTitle = page.dataset.defaultTitle || "New Transcription";
@@ -44,6 +51,9 @@
   let capturePollTimer = null;
   let capturePollBusy = false;
   let lastInsightPollAt = 0;
+  let lastAssistantPollAt = 0;
+  let lastAssistantInsightId = null;
+  let liveAssistantWidgetReady = false;
   let lastLiveSegmentCount = -1;
   let lastDetail = null;
   let terminalJobIds = new Set();
@@ -251,6 +261,7 @@
         setLiveState(currentCapture);
         await refreshLiveTranscript(currentCapture, true);
         await refreshWebhookInsights(true);
+        await refreshLiveAssistant(true);
       } else if (meetingId && !preferred) {
         // Imported or otherwise saved meetings still expose the complete
         // workspace, even when they do not have a transcript version yet.
@@ -259,7 +270,10 @@
       if (capabilities.features.transcription !== "available") {
         document.querySelector("#start-transcription").dataset.engineUnavailable = "true";
       }
-      if (meetingId && !currentCapture) await refreshWebhookInsights(true);
+      if (meetingId && !currentCapture) {
+        await refreshWebhookInsights(true);
+        await refreshLiveAssistant(true);
+      }
     } catch (error) {
       toast(error.message, "error");
       renderLoadError(error.message);
@@ -1033,6 +1047,7 @@
     document.querySelector("#postprocess-description").textContent = description;
     document.querySelector("#postprocess-background").classList.remove("hidden");
     document.querySelector("#postprocess-results").classList.add("hidden");
+    document.querySelector("#postprocess-cancel-all").classList.remove("hidden");
     setWorkflowStep("transcription", "active", initialLabel);
     setWorkflowStep("diarization", "waiting", "Waiting");
     setWorkflowStep("summary", "waiting", "Waiting");
@@ -1129,6 +1144,7 @@
     document.querySelector("#postprocess-speaker-count").value = "2";
     document.querySelector("#postprocess-options").classList.remove("hidden");
     document.querySelector("#postprocess-progress-view").classList.add("hidden");
+    document.querySelector("#postprocess-options-cancel-all").classList.toggle("hidden", isImport);
     document.querySelector("#postprocess-title").textContent = "Choose final processing";
     document.querySelector("#postprocess-description").textContent = isImport
       ? "Choose what to do after the complete file transcription."
@@ -1202,6 +1218,7 @@
       : "The selected results have been saved locally.";
     document.querySelector("#postprocess-background").classList.add("hidden");
     document.querySelector("#postprocess-results").classList.remove("hidden");
+    document.querySelector("#postprocess-cancel-all").classList.add("hidden");
     await loadMeetingWorkspace();
   }
 
@@ -1472,6 +1489,7 @@
       updateLiveState(session);
       await refreshLiveTranscript(session);
       await refreshWebhookInsights();
+      await refreshLiveAssistant();
     } catch {
       // The next poll can recover a transient local request.
     } finally {
@@ -1516,6 +1534,219 @@
         <div><p>${escapeHTML(item.text)}</p><small>${escapeHTML(item.endpoint_name)} · ${escapeHTML(item.kind)}${item.confidence == null ? "" : ` · ${Math.round(Number(item.confidence) * 100)}% confidence`}</small></div>
         <div class="live-agent-insight-actions">${item.status === "new" ? `<button class="text-button" type="button" data-insight-status="accepted" data-insight-id="${escapeHTML(item.id)}">Accept</button>` : ""}<button class="text-button" type="button" data-insight-status="dismissed" data-insight-id="${escapeHTML(item.id)}">Dismiss</button></div>
       </article>`).join("");
+  }
+
+  function savedLiveAssistantWidgetState() {
+    try {
+      const value = JSON.parse(window.localStorage.getItem(liveAssistantWidgetStorageKey) || "null");
+      return value && typeof value === "object" ? value : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveLiveAssistantWidgetState() {
+    if (!liveAssistantWidget || !liveAssistantWidgetReady) return;
+    const rect = liveAssistantWidget.getBoundingClientRect();
+    const collapsed = liveAssistantWidget.dataset.collapsed === "true";
+    const state = {
+      collapsed,
+      left: liveAssistantWidget.style.left ? Math.round(rect.left) : null,
+      top: liveAssistantWidget.style.top ? Math.round(rect.top) : null,
+      width: collapsed ? null : Math.round(rect.width),
+      height: collapsed ? null : Math.round(rect.height),
+    };
+    try {
+      window.localStorage.setItem(liveAssistantWidgetStorageKey, JSON.stringify(state));
+    } catch {
+      // Widget geometry is a convenience; storage failures do not affect the meeting.
+    }
+  }
+
+  function constrainLiveAssistantWidget() {
+    if (!liveAssistantWidget || window.innerWidth <= 600 || !liveAssistantWidget.style.left) return;
+    const rect = liveAssistantWidget.getBoundingClientRect();
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8));
+    const top = Math.max(8, Math.min(rect.top, window.innerHeight - rect.height - 8));
+    liveAssistantWidget.style.left = `${Math.round(left)}px`;
+    liveAssistantWidget.style.top = `${Math.round(top)}px`;
+  }
+
+  function setLiveAssistantWidgetCollapsed(collapsed, { persist = true } = {}) {
+    if (!liveAssistantWidget || !liveAssistantToggle) return;
+    liveAssistantWidget.dataset.collapsed = String(collapsed);
+    liveAssistantToggle.setAttribute("aria-expanded", String(!collapsed));
+    liveAssistantToggle.setAttribute(
+      "aria-label",
+      collapsed ? "Expand Live AI Assistant" : "Minimize Live AI Assistant",
+    );
+    constrainLiveAssistantWidget();
+    if (persist) saveLiveAssistantWidgetState();
+  }
+
+  function resizeLiveAssistantWidget(width, height) {
+    if (!liveAssistantWidget) return;
+    const rect = liveAssistantWidget.getBoundingClientRect();
+    const maximumWidth = Math.max(310, window.innerWidth - rect.left - 8);
+    const maximumHeight = Math.max(210, window.innerHeight - rect.top - 8);
+    liveAssistantWidget.style.width = `${Math.round(Math.max(310, Math.min(width, maximumWidth)))}px`;
+    liveAssistantWidget.style.height = `${Math.round(Math.max(210, Math.min(height, maximumHeight)))}px`;
+  }
+
+  function initializeLiveAssistantWidget() {
+    if (!liveAssistantWidget || !liveAssistantDragHandle ||
+        !liveAssistantResizeHandle || !liveAssistantToggle) return;
+    const state = savedLiveAssistantWidgetState();
+    if (Number.isFinite(state.width)) liveAssistantWidget.style.width = `${Math.max(310, state.width)}px`;
+    if (Number.isFinite(state.height)) liveAssistantWidget.style.height = `${Math.max(210, state.height)}px`;
+    if (window.innerWidth > 600 && Number.isFinite(state.left) && Number.isFinite(state.top)) {
+      liveAssistantWidget.style.right = "auto";
+      liveAssistantWidget.style.bottom = "auto";
+      liveAssistantWidget.style.left = `${state.left}px`;
+      liveAssistantWidget.style.top = `${state.top}px`;
+    }
+    setLiveAssistantWidgetCollapsed(Boolean(state.collapsed), { persist: false });
+
+    liveAssistantToggle.addEventListener("click", () => {
+      setLiveAssistantWidgetCollapsed(liveAssistantWidget.dataset.collapsed !== "true");
+    });
+
+    liveAssistantDragHandle.addEventListener("pointerdown", (event) => {
+      if (window.innerWidth <= 600 || event.button !== 0 || event.target.closest("button")) return;
+      const rect = liveAssistantWidget.getBoundingClientRect();
+      const offsetX = event.clientX - rect.left;
+      const offsetY = event.clientY - rect.top;
+      liveAssistantWidget.style.right = "auto";
+      liveAssistantWidget.style.bottom = "auto";
+      liveAssistantWidget.style.left = `${Math.round(rect.left)}px`;
+      liveAssistantWidget.style.top = `${Math.round(rect.top)}px`;
+      liveAssistantDragHandle.setPointerCapture(event.pointerId);
+
+      const move = (moveEvent) => {
+        const width = liveAssistantWidget.offsetWidth;
+        const height = liveAssistantWidget.offsetHeight;
+        const left = Math.max(8, Math.min(moveEvent.clientX - offsetX, window.innerWidth - width - 8));
+        const top = Math.max(8, Math.min(moveEvent.clientY - offsetY, window.innerHeight - height - 8));
+        liveAssistantWidget.style.left = `${Math.round(left)}px`;
+        liveAssistantWidget.style.top = `${Math.round(top)}px`;
+      };
+      const finish = () => {
+        liveAssistantDragHandle.removeEventListener("pointermove", move);
+        liveAssistantDragHandle.removeEventListener("pointerup", finish);
+        liveAssistantDragHandle.removeEventListener("pointercancel", finish);
+        saveLiveAssistantWidgetState();
+      };
+      liveAssistantDragHandle.addEventListener("pointermove", move);
+      liveAssistantDragHandle.addEventListener("pointerup", finish);
+      liveAssistantDragHandle.addEventListener("pointercancel", finish);
+    });
+
+    liveAssistantResizeHandle.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || liveAssistantWidget.dataset.collapsed === "true") return;
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = liveAssistantWidget.getBoundingClientRect();
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startWidth = rect.width;
+      const startHeight = rect.height;
+      liveAssistantResizeHandle.setPointerCapture(event.pointerId);
+      const move = (moveEvent) => {
+        resizeLiveAssistantWidget(
+          startWidth + moveEvent.clientX - startX,
+          startHeight + moveEvent.clientY - startY,
+        );
+      };
+      const finish = () => {
+        liveAssistantResizeHandle.removeEventListener("pointermove", move);
+        liveAssistantResizeHandle.removeEventListener("pointerup", finish);
+        liveAssistantResizeHandle.removeEventListener("pointercancel", finish);
+        saveLiveAssistantWidgetState();
+      };
+      liveAssistantResizeHandle.addEventListener("pointermove", move);
+      liveAssistantResizeHandle.addEventListener("pointerup", finish);
+      liveAssistantResizeHandle.addEventListener("pointercancel", finish);
+    });
+
+    liveAssistantResizeHandle.addEventListener("keydown", (event) => {
+      const delta = event.shiftKey ? 50 : 20;
+      const widthDelta = event.key === "ArrowRight" ? delta : event.key === "ArrowLeft" ? -delta : 0;
+      const heightDelta = event.key === "ArrowDown" ? delta : event.key === "ArrowUp" ? -delta : 0;
+      if (!widthDelta && !heightDelta) return;
+      event.preventDefault();
+      const rect = liveAssistantWidget.getBoundingClientRect();
+      resizeLiveAssistantWidget(rect.width + widthDelta, rect.height + heightDelta);
+      saveLiveAssistantWidgetState();
+    });
+
+    if (window.ResizeObserver) {
+      const observer = new ResizeObserver(() => {
+        if (liveAssistantWidget.dataset.collapsed !== "true") saveLiveAssistantWidgetState();
+      });
+      observer.observe(liveAssistantWidget);
+    }
+    window.addEventListener("resize", constrainLiveAssistantWidget);
+    window.requestAnimationFrame(() => {
+      liveAssistantWidgetReady = true;
+      constrainLiveAssistantWidget();
+    });
+  }
+
+  async function refreshLiveAssistant(force = false) {
+    if (!meetingId) return;
+    const now = Date.now();
+    if (!force && now - lastAssistantPollAt < 1500) return;
+    lastAssistantPollAt = now;
+    try {
+      renderLiveAssistant(await api(`/api/live-assistant/meetings/${meetingId}?limit=30`));
+    } catch {
+      // The assistant is optional and must never disturb recording or transcription.
+    }
+  }
+
+  function renderLiveAssistant(payload) {
+    const target = document.querySelector("#live-ai-assistant-insight-list");
+    if (!liveAssistantWidget || !target) return;
+    const insights = (payload?.insights || []).slice().reverse();
+    const runtime = payload?.runtime || {};
+    liveAssistantWidget.classList.toggle("hidden", !payload?.enabled && !insights.length);
+    const statusLabels = {
+      active: "Listening",
+      listening: "Listening",
+      thinking: "Thinking…",
+      waiting_trigger: "Waiting for trigger",
+      rate_limited: "Rate limited",
+      error: runtime.last_error ? `Error · ${runtime.last_error}` : "Error",
+      stopped: "Meeting stopped",
+      interrupted: "Interrupted",
+      idle: "Idle",
+    };
+    const status = statusLabels[runtime.status] || (runtime.active ? "Listening" : "Idle");
+    const latency = runtime.last_latency_ms ? ` · ${runtime.last_latency_ms} ms` : "";
+    liveAssistantWidget.dataset.runtimeStatus = runtime.status || "idle";
+    document.querySelector("#live-ai-assistant-status").textContent = `${status}${latency}`;
+    if (liveAssistantEmpty) {
+      liveAssistantEmpty.hidden = Boolean(insights.length);
+      liveAssistantEmpty.textContent = runtime.status === "waiting_trigger"
+        ? "No literal trigger has appeared yet. Trigger phrases are exact words or short phrases; put conditional behavior in Instructions."
+        : runtime.status === "thinking"
+          ? "The assistant is evaluating the latest meeting context..."
+          : runtime.status === "error"
+            ? runtime.last_error || "The latest assistant evaluation failed."
+            : "Listening for a useful moment in the meeting. Responses will appear here automatically.";
+    }
+    target.innerHTML = insights.map((item) => `
+      <article class="live-agent-insight" data-status="${escapeHTML(item.status)}">
+        <div><p>${escapeHTML(item.text)}</p><small>${escapeHTML(item.kind)} · ${escapeHTML(item.model)}${item.start_ms == null ? "" : ` · ${formatTimestamp(item.start_ms)}`}${item.confidence == null ? "" : ` · ${Math.round(Number(item.confidence) * 100)}% confidence`}</small></div>
+      </article>`).join("");
+    const latestInsight = insights.at(-1);
+    if (latestInsight?.id && latestInsight.id !== lastAssistantInsightId) {
+      liveAssistantWidgetBody?.scrollTo({
+        top: liveAssistantWidgetBody.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+    lastAssistantInsightId = latestInsight?.id || null;
   }
 
   async function togglePause() {
@@ -1568,6 +1799,7 @@
         description: "Meet2Notes is processing the selected local steps.",
       });
       await loadMeetingWorkspace();
+      await refreshLiveAssistant(true);
     } catch (error) {
       if (postprocessDialog.open) postprocessDialog.close();
       workflowVisible = false;
@@ -1867,6 +2099,30 @@
       ? "intelligence"
       : "transcript");
   });
+  document.querySelectorAll("#postprocess-cancel-all, #postprocess-options-cancel-all").forEach((discardButton) => discardButton.addEventListener("click", async (event) => {
+    const activeSessionId = captureSession?.session_id;
+    const targetMeetingId = postprocessMeetingId || meetingId;
+    if (!activeSessionId && !targetMeetingId) return;
+    const confirmed = window.confirm(
+      "Cancel all remaining processing and permanently discard this meeting? This cannot be undone.",
+    );
+    if (!confirmed) return;
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      if (activeSessionId) {
+        await api(`/api/capture/sessions/${activeSessionId}/discard`, { method: "POST" });
+      } else {
+        await api(`/api/meetings/${targetMeetingId}`, { method: "DELETE" });
+      }
+      clearLiveState();
+      postprocessDialog.close();
+      window.location.assign("/?new=1");
+    } catch (error) {
+      button.disabled = false;
+      toast(error.message, "error");
+    }
+  }));
 
   document.querySelectorAll("[data-close-remember-voice]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -2120,6 +2376,7 @@
 
   async function initializeWorkspace() {
     bindActivityLog();
+    initializeLiveAssistantWidget();
     await loadWorkspace();
     syncStartAction();
 

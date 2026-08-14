@@ -62,8 +62,9 @@
 }
 
 .meeting-library-row {
+  position: relative;
   display: grid;
-  grid-template-columns: auto minmax(180px, 1fr) minmax(120px, .34fr) minmax(95px, .25fr) auto auto;
+  grid-template-columns: auto minmax(180px, 1fr) minmax(120px, .34fr) minmax(95px, .25fr) auto auto auto;
   min-height: 74px;
   align-items: center;
   gap: 14px;
@@ -71,6 +72,23 @@
   color: inherit;
   border-bottom: 1px solid #edf0f4;
   transition: background .15s ease, transform .15s ease;
+}
+
+.meeting-library-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.meeting-library-delete {
+  z-index: 2;
+  padding: 6px 8px;
+  color: #b42318;
+}
+
+.meeting-library-delete:hover {
+  color: #fff;
+  background: #d92d20;
 }
 
 .meeting-library-row:last-of-type {
@@ -263,9 +281,11 @@
   background: #172d4d;
 }
 
+[data-theme="dark"] .meeting-library-delete { color: #fda29b; }
+
 @media (max-width: 900px) {
   .meeting-library-row {
-    grid-template-columns: auto minmax(150px, 1fr) minmax(110px, .4fr) auto auto;
+    grid-template-columns: auto minmax(150px, 1fr) minmax(110px, .4fr) auto auto auto;
   }
 
   .meeting-library-duration {

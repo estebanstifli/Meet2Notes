@@ -98,6 +98,22 @@
       <time id="capture-elapsed">00:00</time>
     </div>
 
+    <section class="live-ai-assistant-widget hidden" id="live-ai-assistant" aria-label="Live AI Assistant" data-collapsed="false">
+      <header class="live-ai-assistant-widget-header" id="live-ai-assistant-drag-handle">
+        <span class="live-ai-assistant-widget-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12h3l2-5 4 10 2-5h5"/><circle cx="12" cy="12" r="9"/></svg></span>
+        <div class="live-ai-assistant-widget-title"><span class="eyebrow">Native copilot</span><strong>Live AI Assistant</strong></div>
+        <span class="live-ai-assistant-widget-status"><i></i><span id="live-ai-assistant-status">Idle</span></span>
+        <button class="live-ai-assistant-widget-toggle" id="live-ai-assistant-toggle" type="button" aria-label="Minimize Live AI Assistant" aria-expanded="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+        </button>
+      </header>
+      <div class="live-ai-assistant-widget-body" id="live-ai-assistant-widget-body">
+        <p class="live-ai-assistant-empty" id="live-ai-assistant-empty">Listening for a useful moment in the meeting...</p>
+        <div id="live-ai-assistant-insight-list" aria-live="polite"></div>
+      </div>
+      <span class="live-ai-assistant-resize-hint" id="live-ai-assistant-resize-handle" role="separator" aria-label="Resize Live AI Assistant" tabindex="0"></span>
+    </section>
+
     <section class="live-agent-insights hidden" id="live-agent-insights" aria-live="polite">
       <header><div><span class="eyebrow">Remote live agent</span><strong>Meeting insights</strong></div><span id="live-agent-insight-count"></span></header>
       <div id="live-agent-insight-list"></div>
@@ -404,6 +420,7 @@
         </div>
       </div>
       <div class="postprocess-actions postprocess-options-actions">
+        <button type="button" class="button danger postprocess-discard" id="postprocess-options-cancel-all">Cancel and discard meeting</button>
         <button type="button" class="button secondary" id="postprocess-options-cancel">Cancel</button>
         <button type="button" class="button primary" id="postprocess-options-start">Start processing</button>
       </div>
@@ -438,6 +455,7 @@
         <textarea id="postprocess-log" readonly spellcheck="false" aria-live="polite" aria-label="Transcription processing log"></textarea>
       </section>
       <div class="postprocess-actions">
+        <button type="button" class="button danger postprocess-discard" id="postprocess-cancel-all">Cancel and discard meeting</button>
         <button type="button" class="button secondary" id="postprocess-background">Continue in background</button>
         <button type="button" class="button primary hidden" id="postprocess-results">View meeting results</button>
       </div>

@@ -501,7 +501,7 @@ def diagnostic_report(container: ContainerDependency) -> dict[str, str]:
             lowered = key.lower()
             if any(secret in lowered for secret in ("password", "secret", "token", "api_key")):
                 sanitized[key] = "<redacted>"
-            elif key == "summary_engine" and isinstance(value, dict):
+            elif key in {"summary_engine", "live_assistant"} and isinstance(value, dict):
                 sanitized[key] = {
                     nested_key: ("<redacted>" if "key" in nested_key.lower() else nested_value)
                     for nested_key, nested_value in value.items()
@@ -1400,6 +1400,18 @@ async def stop_capture(
     )
 
 
+@router.post(
+    "/capture/sessions/{session_id}/discard",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def discard_capture(
+    session_id: str,
+    container: ContainerDependency,
+) -> Response:
+    await container.capture_service.discard(session_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get("/settings", response_model=PreferenceResponse)
 def get_settings(container: ContainerDependency) -> PreferenceResponse:
     return _preference_response(container)
@@ -1651,6 +1663,7 @@ async def move_models_directory(
         container.transcription_engine.unload()
         container.diarization_service.unload()
         container.summary_engine.unload()
+        container.live_assistant_service.engine.unload()
         unload_embeddings = getattr(container.embedding_provider, "unload", None)
         if callable(unload_embeddings):
             await unload_embeddings()

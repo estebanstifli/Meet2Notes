@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from local_meeting_ai.domain.enums import JobStatus, JobType, MeetingStatus, SourceType
 
@@ -191,6 +191,49 @@ class SummaryApiKeyUpdate(BaseModel):
     api_key: str = Field(min_length=1, max_length=4096)
 
 
+class LiveAssistantPreference(SummaryEnginePreference):
+    """Independent low-latency model and behavior for the Live AI Assistant."""
+
+    enabled: bool = False
+    auto_start: bool = True
+    provider: Literal["local", "litellm"] = "local"
+    context_length: int = Field(default=16384, ge=2048, le=131072)
+    max_output_tokens: int = Field(default=1024, ge=128, le=8192)
+    preload_on_start: bool = False
+    system_prompt: str = Field(
+        default=(
+            "You observe a meeting in real time. Follow the user's monitoring rules. "
+            "Intervene only when the rules make your contribution useful, keep answers "
+            "concise, and never repeat information already provided."
+        ),
+        min_length=1,
+        max_length=8000,
+    )
+    trigger_phrases: list[str] = Field(default_factory=list, max_length=50)
+    evaluation_interval_seconds: float = Field(default=8.0, ge=1.0, le=60.0)
+    recent_context_seconds: int = Field(default=180, ge=15, le=1800)
+    cooldown_seconds: float = Field(default=30.0, ge=0.0, le=600.0)
+    max_calls_per_minute: int = Field(default=6, ge=1, le=60)
+    max_memory_chars: int = Field(default=4000, ge=500, le=20000)
+    request_timeout_seconds: float = Field(default=20.0, ge=2.0, le=120.0)
+
+    @field_validator("trigger_phrases")
+    @classmethod
+    def validate_trigger_phrases(cls, value: list[str]) -> list[str]:
+        cleaned = [item.strip() for item in value if item.strip()]
+        if any(len(item) > 120 for item in cleaned):
+            raise ValueError("Live Assistant trigger phrases cannot exceed 120 characters")
+        deduplicated: list[str] = []
+        seen: set[str] = set()
+        for item in cleaned:
+            folded = item.casefold()
+            if folded in seen:
+                continue
+            seen.add(folded)
+            deduplicated.append(item)
+        return deduplicated
+
+
 class PluginStateUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -272,8 +315,10 @@ class RagPreference(BaseModel):
             )
         if self.profile_id == "bge-m3" and self.embedding_model != "BAAI/bge-m3":
             raise ValueError("The BGE-M3 profile requires the BAAI/bge-m3 model")
-        if self.profile_id != "custom-gguf" and self.base_url and not self.base_url.startswith(
-            ("http://", "https://")
+        if (
+            self.profile_id != "custom-gguf"
+            and self.base_url
+            and not self.base_url.startswith(("http://", "https://"))
         ):
             raise ValueError("The embedding base URL must use HTTP or HTTPS")
         if self.chunk_overlap_chars >= self.chunk_size_chars:

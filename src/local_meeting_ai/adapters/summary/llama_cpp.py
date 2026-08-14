@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, cast
 
+from local_meeting_ai.adapters.litellm_compat import completion as litellm_completion
 from local_meeting_ai.application.summary_templates import render_summary_template
 from local_meeting_ai.domain.entities import SummaryResult
 from local_meeting_ai.domain.errors import (
@@ -892,7 +893,15 @@ class LlamaCppSummaryEngine:
                 'LiteLLM is not installed. Run: python -m pip install -e ".[summaries]"'
             )
         litellm = importlib.import_module("litellm")
-        key = get_litellm_api_key() or os.getenv(str(config.get("api_key_env", "")), "")
+        key: str
+        if "api_key" in config:
+            # Feature-specific callers such as the Live AI Assistant inject a
+            # key obtained from their own credential-vault account. An explicit
+            # empty value deliberately prevents falling back to another
+            # feature's secret.
+            key = str(config.get("api_key") or "")
+        else:
+            key = get_litellm_api_key() or os.getenv(str(config.get("api_key_env", "")), "") or ""
         base_url = str(config.get("base_url") or "").rstrip("/")
         arguments: dict[str, Any] = {
             "model": str(config.get("model", "")),
@@ -901,14 +910,14 @@ class LlamaCppSummaryEngine:
             "temperature": float(config.get("temperature", 0.2)),
             "top_p": float(config.get("top_p", 0.9)),
             "drop_params": True,
-            "timeout": 300,
+            "timeout": float(config.get("request_timeout_seconds", 300)),
         }
         if base_url:
             arguments["api_base"] = base_url
         if key:
             arguments["api_key"] = key
         try:
-            response = litellm.completion(**arguments)
+            response = litellm_completion(litellm, arguments)
             if hasattr(response, "model_dump"):
                 return cast(dict[str, Any], response.model_dump())
             return cast(dict[str, Any], response)

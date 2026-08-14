@@ -16,6 +16,9 @@
   and stop controls while it is running.
 - Remote AI providers require explicit configuration before transcript content
   can leave the computer.
+- The Live AI Assistant is disabled by default. Its LiteLLM credential has a
+  separate operating-system keyring entry, and enabling a remote provider warns
+  that provisional transcript context will leave the computer.
 - Outbound webhooks are disabled by default. Each enabled endpoint has an
   explicit event subscription and content level; Internet destinations require
   HTTPS and signing secrets live in the operating-system credential vault. See

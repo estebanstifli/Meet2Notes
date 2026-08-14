@@ -468,6 +468,45 @@ def test_live_capture_pause_stop_and_transcribe(tmp_path: Path) -> None:
         assert refreshed_sources.json()["sources"][0]["id"] == "fake:microphone:0"
 
 
+def test_live_capture_can_be_discarded_before_postprocessing(tmp_path: Path) -> None:
+    settings = AppSettings(
+        data_dir=tmp_path / "discard-live-capture-data",
+        testing=True,
+        open_browser=False,
+        log_level="WARNING",
+    )
+    with TestClient(
+        create_app(
+            settings,
+            transcription_engine=FakeTranscriptionEngine(),
+            audio_normalizer=FakeNormalizer(),
+            audio_capture_backend=FakeCaptureBackend(),
+            diarization_engine=FakeDiarizationEngine(),
+            summary_engine=FakeSummaryEngine(),
+            audio_range_exporter=FakeAudioRangeExporter(),
+        )
+    ) as client:
+        started = client.post(
+            "/api/capture/sessions",
+            json={"source_id": "fake:microphone:0", "title": "Discard this meeting"},
+        )
+        assert started.status_code == 201
+        session = started.json()
+
+        discarded = client.post(f"/api/capture/sessions/{session['session_id']}/discard")
+
+        assert discarded.status_code == 204
+        assert client.get("/api/capture/session").json() is None
+        assert client.get(f"/api/meetings/{session['meeting_id']}").status_code == 404
+
+        restarted = client.post(
+            "/api/capture/sessions",
+            json={"source_id": "fake:microphone:0", "title": "Fresh meeting"},
+        )
+        assert restarted.status_code == 201
+        assert restarted.json()["meeting_id"] != session["meeting_id"]
+
+
 def test_live_capture_can_keep_the_live_text_without_postprocessing(tmp_path: Path) -> None:
     settings = AppSettings(
         data_dir=tmp_path / "capture-without-final-pass-data",

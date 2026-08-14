@@ -17,6 +17,7 @@
       <button type="button" role="tab" aria-selected="false" aria-controls="transcription-engine" data-settings-tab="transcription-engine"><svg viewBox="0 0 24 24"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1"/></svg>Transcription</button>
       <button type="button" role="tab" aria-selected="false" aria-controls="speaker-engine" data-settings-tab="speaker-engine"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>Speakers</button>
       <button type="button" role="tab" aria-selected="false" aria-controls="ai-engine" data-settings-tab="ai-engine"><svg viewBox="0 0 24 24"><path d="m12 3 2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6Z"/></svg>AI engine</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="live-assistant" data-settings-tab="live-assistant"><svg viewBox="0 0 24 24"><path d="M4 12h3l2-5 4 10 2-5h5"/><circle cx="12" cy="12" r="9"/></svg>Live Assistant</button>
       <button type="button" role="tab" aria-selected="false" aria-controls="note-formats" data-settings-tab="note-formats"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg>Note formats</button>
       <button type="button" role="tab" aria-selected="false" aria-controls="rag" data-settings-tab="rag"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg>RAG</button>
       <button type="button" role="tab" aria-selected="false" aria-controls="webhooks" data-settings-tab="webhooks"><svg viewBox="0 0 24 24"><path d="M8 12h8M12 8l4 4-4 4"/><circle cx="6" cy="12" r="2"/><path d="M18 6v3M18 15v3"/></svg>Webhooks</button>
@@ -590,6 +591,60 @@
             <button class="button" id="ai-unload" type="button">Unload</button>
             <button id="ai-install" type="button" hidden></button>
             <button class="button primary" type="submit">Save AI settings</button>
+          </div>
+        </form>
+      </section>
+      <section class="settings-section engine-settings-section" id="live-assistant" role="tabpanel" data-settings-panel hidden>
+        <div class="settings-section-header">
+          <span class="settings-icon engine-blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h3l2-5 4 10 2-5h5"/><circle cx="12" cy="12" r="9"/></svg></span>
+          <div><span class="eyebrow">Real-time meeting intelligence</span><h2>Live AI Assistant</h2><p>Monitor the provisional transcript and surface useful information while people are still speaking.</p></div>
+        </div>
+        <form id="live-assistant-form" class="engine-settings-form">
+          <div class="engine-compatibility-note">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+            <span>The assistant has its own bounded queue, dispatcher and inference worker. Recording and transcription never wait for its model. A local assistant model is loaded as a separate runtime and therefore uses additional RAM or VRAM.</span>
+          </div>
+          <div class="engine-toggle-grid">
+            <label class="engine-toggle"><span><strong>Enable Live AI Assistant</strong><small>Allows the native assistant to start with live meetings.</small></span><span class="switch"><input id="live-assistant-enabled" type="checkbox"><i></i></span></label>
+            <label class="engine-toggle"><span><strong>Start automatically</strong><small>Begin monitoring when live recording starts.</small></span><span class="switch"><input id="live-assistant-auto-start" type="checkbox"><i></i></span></label>
+            <label class="engine-toggle"><span><strong>Preload local model</strong><small>Reduce first-response latency at the cost of resident memory.</small></span><span class="switch"><input id="live-assistant-preload" type="checkbox"><i></i></span></label>
+          </div>
+          <div class="engine-config-group">
+            <div class="engine-config-heading"><div><strong>Independent model</strong><small>Uses the shared model files but never the AI Notes worker.</small></div><span class="engine-runtime-pill" id="live-assistant-runtime"><i></i> Disabled</span></div>
+            <div class="engine-field-grid">
+              <label class="engine-field wide"><span>Assistant model</span><select id="live-assistant-profile"><option value="">Loading model catalog...</option></select><small id="live-assistant-model-note">Select a fast model suitable for frequent short responses.</small></label>
+            </div>
+            <div class="engine-field-grid" id="live-assistant-litellm" hidden>
+              <label class="engine-field wide"><span>LiteLLM model</span><input id="live-assistant-model" maxlength="300" placeholder="openai/gpt-4.1-mini or ollama/qwen3:8b"><small>The provider prefix selects any provider supported by LiteLLM.</small></label>
+              <label class="engine-field wide"><span>API base URL <small>optional</small></span><input id="live-assistant-base-url" type="url" maxlength="500" placeholder="http://127.0.0.1:11434"></label>
+              <label class="engine-field wide"><span>API key <small>optional</small></span><input id="live-assistant-api-key" type="password" maxlength="4096" autocomplete="new-password" placeholder="Leave blank to keep the saved key"><small id="live-assistant-api-key-status">Checking secure credential storage...</small></label>
+              <div class="engine-field"><span>&nbsp;</span><button class="button" id="live-assistant-api-key-clear" type="button">Remove saved API key</button></div>
+            </div>
+          </div>
+          <div class="engine-config-group">
+            <div class="engine-config-heading"><div><strong>Monitoring rules</strong><small>Transcript text is treated as untrusted meeting content, never as assistant instructions.</small></div></div>
+            <div class="engine-field-grid">
+              <label class="engine-field wide"><span>Instructions</span><textarea id="live-assistant-system-prompt" rows="7" maxlength="8000" required placeholder="If somebody asks about Alexa, explain the topic and add concise useful information..."></textarea></label>
+              <label class="engine-field wide"><span>Literal trigger filter <small>optional</small></span><textarea id="live-assistant-triggers" rows="3" placeholder="Alexa&#10;Madrid"></textarea><small>Exact words or short phrases, one per line. Conditional rules such as “If a city is discussed...” belong in Instructions. Leave empty to let the model evaluate every interval.</small></label>
+            </div>
+          </div>
+          <details class="advanced-settings">
+            <summary><span>Live behavior and runtime</span><small>Latency, context, rate limits and independent model resources</small></summary>
+            <div class="engine-config-group"><div class="engine-field-grid">
+              <label class="engine-field compact"><span>Evaluation interval</span><input id="live-assistant-interval" type="number" min="1" max="60" step="0.5"><small>Seconds between model calls.</small></label>
+              <label class="engine-field compact"><span>Recent context</span><input id="live-assistant-context-seconds" type="number" min="15" max="1800"><small>Seconds of transcript supplied.</small></label>
+              <label class="engine-field compact"><span>Response cooldown</span><input id="live-assistant-cooldown" type="number" min="0" max="600" step="1"><small>Seconds after an insight.</small></label>
+              <label class="engine-field compact"><span>Calls per minute</span><input id="live-assistant-rate" type="number" min="1" max="60"></label>
+              <label class="engine-field compact"><span>Context tokens</span><input id="live-assistant-context-length" type="number" min="2048" max="131072" step="1024"></label>
+              <label class="engine-field compact"><span>Output tokens</span><input id="live-assistant-max-output" type="number" min="128" max="8192" step="64"></label>
+              <label class="engine-field compact"><span>Temperature</span><input id="live-assistant-temperature" type="number" min="0" max="2" step="0.05"></label>
+              <label class="engine-field compact"><span>Request timeout</span><input id="live-assistant-timeout" type="number" min="2" max="120" step="1"><small>Seconds; LiteLLM only.</small></label>
+              <label class="engine-field compact"><span>GPU layers</span><input id="live-assistant-gpu-layers" type="number" min="-1" max="999"><small>-1 selects automatically.</small></label>
+            </div></div>
+          </details>
+          <div class="engine-settings-actions multi-action">
+            <span id="live-assistant-worker-summary">Dedicated worker · idle until enabled</span>
+            <button class="button primary" type="submit">Save Live Assistant</button>
           </div>
         </form>
       </section>

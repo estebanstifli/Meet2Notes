@@ -39,6 +39,7 @@
   let diarizationPreferences = null;
   let summaryPreferences = null;
   let summaryModels = [];
+  let liveAssistantCatalog = { settings: {}, models: [], capability: {}, credential: {} };
   let ragPreferences = null;
   let embeddingModels = [];
   let noteFormats = [];
@@ -782,6 +783,83 @@
     renderRagCredentialStatus(status);
   }
 
+  function renderLiveAssistantCredentialStatus(status) {
+    const label = $("#live-assistant-api-key-status");
+    const clear = $("#live-assistant-api-key-clear");
+    if (!label) return;
+    label.textContent = !status?.available
+      ? "Secure OS credential storage is unavailable."
+      : status.configured
+        ? "A separate Live Assistant key is stored by the operating system."
+        : "No Live Assistant key is stored. Local endpoints may not require one.";
+    if (clear) clear.disabled = !status?.configured;
+  }
+
+  function populateLiveAssistant(catalog) {
+    liveAssistantCatalog = catalog || liveAssistantCatalog;
+    const config = liveAssistantCatalog.settings || {};
+    const select = $("#live-assistant-profile");
+    if (!select) return;
+    select.replaceChildren();
+    (liveAssistantCatalog.models || [])
+      .filter((profile) => profile.id !== "custom-gguf")
+      .forEach((profile) => {
+        const remote = profile.id === "litellm-custom";
+        const ready = remote
+          ? profile.runtime_available !== false
+          : Boolean(profile.installed && profile.runtime_available !== false);
+        const suffix = remote ? "" : profile.installed ? " · installed" : " · install in AI Engine";
+        const option = new Option(`${profile.display_name}${suffix}`, profile.id);
+        option.disabled = !ready && profile.id !== config.profile_id;
+        select.add(option);
+      });
+    if (![...select.options].some((option) => option.value === config.profile_id)) {
+      select.add(new Option(config.profile_id || "Unavailable model", config.profile_id || ""));
+    }
+    select.value = config.provider === "litellm" ? "litellm-custom" : config.profile_id;
+    $("#live-assistant-enabled").checked = Boolean(config.enabled);
+    $("#live-assistant-auto-start").checked = config.auto_start ?? true;
+    $("#live-assistant-preload").checked = Boolean(config.preload_on_start);
+    $("#live-assistant-model").value = config.provider === "litellm" ? (config.model || "") : "";
+    $("#live-assistant-base-url").value = config.base_url || "";
+    $("#live-assistant-system-prompt").value = config.system_prompt || "";
+    $("#live-assistant-triggers").value = (config.trigger_phrases || []).join("\n");
+    $("#live-assistant-interval").value = config.evaluation_interval_seconds ?? 8;
+    $("#live-assistant-context-seconds").value = config.recent_context_seconds ?? 180;
+    $("#live-assistant-cooldown").value = config.cooldown_seconds ?? 30;
+    $("#live-assistant-rate").value = config.max_calls_per_minute ?? 6;
+    $("#live-assistant-context-length").value = config.context_length ?? 8192;
+    $("#live-assistant-max-output").value = config.max_output_tokens ?? 1024;
+    $("#live-assistant-temperature").value = config.temperature ?? 0.2;
+    $("#live-assistant-timeout").value = config.request_timeout_seconds ?? 20;
+    $("#live-assistant-gpu-layers").value = config.gpu_layers ?? -1;
+    renderLiveAssistantCredentialStatus(liveAssistantCatalog.credential);
+    const worker = liveAssistantCatalog.capability?.worker || {};
+    $("#live-assistant-worker-summary").textContent =
+      `Dedicated worker · ${worker.state || "idle"} · ${worker.model_resident ? "model resident" : "no model resident"}`;
+    updateLiveAssistantFields();
+  }
+
+  function updateLiveAssistantFields() {
+    const selectedId = $("#live-assistant-profile")?.value;
+    const remote = selectedId === "litellm-custom";
+    $("#live-assistant-litellm").hidden = !remote;
+    $("#live-assistant-preload").disabled = remote;
+    const profile = (liveAssistantCatalog.models || []).find((item) => item.id === selectedId);
+    const note = $("#live-assistant-model-note");
+    if (note && profile) {
+      note.textContent = remote
+        ? "LiteLLM runs in the assistant's dedicated worker and can reach local or remote providers."
+        : profile.installed
+          ? `${profile.description || "Local GGUF model"} A separate model instance may use additional RAM or VRAM.`
+          : "Install this model from AI Engine before enabling the Live Assistant.";
+    }
+    const runtime = $("#live-assistant-runtime");
+    if (runtime) runtime.lastChild.textContent = $("#live-assistant-enabled").checked
+      ? ` ${remote ? "LiteLLM" : "Independent local runtime"}`
+      : " Disabled";
+  }
+
   function renderRagCredentialStatus(status) {
     const label = $("#rag-api-key-status");
     const clear = $("#rag-api-key-clear");
@@ -1446,7 +1524,7 @@
 
   async function loadSettings() {
     try {
-      const [preferences, info, capabilities, models, credential, formats, plugins, embeddings, webhooks] = await Promise.all([
+      const [preferences, info, capabilities, models, credential, formats, plugins, embeddings, webhooks, liveAssistant] = await Promise.all([
         api("/api/settings"),
         api("/api/info"),
         api("/api/capabilities"),
@@ -1456,6 +1534,7 @@
         api("/api/plugins"),
         api("/api/models/embeddings"),
         api("/api/webhooks"),
+        api("/api/live-assistant"),
       ]);
       $("#ui-language").value = preferences.ui_language;
       $("#ui-theme").value = preferences.ui_theme || "system";
@@ -1470,6 +1549,7 @@
       renderNoteFormats(formats);
       renderPlugins(plugins);
       renderWebhooks(webhooks);
+      populateLiveAssistant(liveAssistant);
       populateDiarizationSettings(preferences);
       populateRagSettings(preferences);
       embeddingModels = embeddings;
@@ -1504,6 +1584,8 @@
   $("#fw-chunk-seconds")?.addEventListener("input", updateRealtimeControls);
   $("#fw-overlap-seconds")?.addEventListener("input", updateRealtimeControls);
   $("#ai-provider")?.addEventListener("change", updateAiFields);
+  $("#live-assistant-profile")?.addEventListener("change", updateLiveAssistantFields);
+  $("#live-assistant-enabled")?.addEventListener("change", updateLiveAssistantFields);
   $("#rag-enabled")?.addEventListener("change", updateRagFields);
   $("#rag-vector-store")?.addEventListener("change", updateRagVectorStoreFields);
 
@@ -1886,6 +1968,90 @@
       toast(error.message, "error");
     } finally {
       submit.disabled = false;
+    }
+  });
+
+  $("#live-assistant-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = event.submitter;
+    submit.disabled = true;
+    try {
+      const current = liveAssistantCatalog.settings || {};
+      const profileId = $("#live-assistant-profile").value;
+      const selected = (liveAssistantCatalog.models || []).find((item) => item.id === profileId);
+      if (!selected) throw new Error("The selected Live Assistant model is unavailable.");
+      const remote = profileId === "litellm-custom";
+      const enabled = $("#live-assistant-enabled").checked;
+      if (enabled && !remote && (!selected.installed || selected.runtime_available === false)) {
+        throw new Error("Install this local model from AI Engine before enabling Live Assistant.");
+      }
+      if (enabled && remote && !window.confirm(
+        "The Live AI Assistant will send recent meeting transcript text to the configured LiteLLM provider. Continue?",
+      )) return;
+      const apiKey = $("#live-assistant-api-key")?.value.trim() || "";
+      if (remote && apiKey) {
+        liveAssistantCatalog.credential = await api("/api/live-assistant/api-key", {
+          method: "PUT",
+          body: JSON.stringify({ api_key: apiKey }),
+        });
+        $("#live-assistant-api-key").value = "";
+        renderLiveAssistantCredentialStatus(liveAssistantCatalog.credential);
+      }
+      const model = remote
+        ? $("#live-assistant-model").value.trim()
+        : selected.repository;
+      if (!model) throw new Error("Enter a LiteLLM model identifier.");
+      const payload = {
+        ...current,
+        enabled,
+        auto_start: $("#live-assistant-auto-start").checked,
+        engine: "llama-cpp",
+        provider: remote ? "litellm" : "local",
+        profile_id: profileId,
+        local_runtime: "managed-llama-cpp",
+        model,
+        model_file: remote ? "not-managed.gguf" : selected.model_file,
+        model_path: null,
+        base_url: remote ? ($("#live-assistant-base-url").value.trim() || null) : null,
+        api_key_env: "MEET2NOTES_LIVE_ASSISTANT_API_KEY",
+        context_length: Number($("#live-assistant-context-length").value),
+        max_output_tokens: Number($("#live-assistant-max-output").value),
+        temperature: Number($("#live-assistant-temperature").value),
+        gpu_layers: Number($("#live-assistant-gpu-layers").value),
+        preload_on_start: remote ? false : $("#live-assistant-preload").checked,
+        keep_model_loaded: true,
+        system_prompt: $("#live-assistant-system-prompt").value.trim(),
+        trigger_phrases: $("#live-assistant-triggers").value
+          .split(/\r?\n/).map((item) => item.trim()).filter(Boolean),
+        evaluation_interval_seconds: Number($("#live-assistant-interval").value),
+        recent_context_seconds: Number($("#live-assistant-context-seconds").value),
+        cooldown_seconds: Number($("#live-assistant-cooldown").value),
+        max_calls_per_minute: Number($("#live-assistant-rate").value),
+        request_timeout_seconds: Number($("#live-assistant-timeout").value),
+      };
+      liveAssistantCatalog = await api("/api/live-assistant/settings", {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+      populateLiveAssistant(liveAssistantCatalog);
+      toast("Live AI Assistant settings saved locally.");
+      setSavedState("Live Assistant saved just now");
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      submit.disabled = false;
+    }
+  });
+
+  $("#live-assistant-api-key-clear")?.addEventListener("click", async () => {
+    try {
+      liveAssistantCatalog.credential = await api("/api/live-assistant/api-key", {
+        method: "DELETE",
+      });
+      renderLiveAssistantCredentialStatus(liveAssistantCatalog.credential);
+      toast("Live Assistant API key removed.");
+    } catch (error) {
+      toast(error.message, "error");
     }
   });
 
