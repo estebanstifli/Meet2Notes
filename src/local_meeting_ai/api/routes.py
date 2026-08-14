@@ -572,13 +572,16 @@ def _diagnostic_memory_summary() -> dict[str, str]:
 
         status = MemoryStatus()
         status.length = ctypes.sizeof(status)
-        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+        windows_api: Any = ctypes
+        kernel32 = windows_api.windll.kernel32
+        if not kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
             raise OSError("GlobalMemoryStatusEx failed")
         return {
             "RAM total": f"{status.total_physical / (1024**3):.2f} GiB",
             "RAM available": f"{status.available_physical / (1024**3):.2f} GiB",
         }
-    sysconf = os.sysconf  # type: ignore[attr-defined]
+    posix_api: Any = os
+    sysconf = posix_api.sysconf
     page_size = sysconf("SC_PAGE_SIZE")
     physical_pages = sysconf("SC_PHYS_PAGES")
     return {"RAM total": f"{page_size * physical_pages / (1024**3):.2f} GiB"}

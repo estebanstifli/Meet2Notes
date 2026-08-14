@@ -95,7 +95,8 @@ def _lock_file(handle: BinaryIO) -> None:
     if os.name == "nt":
         import msvcrt
 
-        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        windows_api: Any = msvcrt
+        windows_api.locking(handle.fileno(), windows_api.LK_NBLCK, 1)
         return
     fcntl = importlib.import_module("fcntl")
     fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -105,7 +106,8 @@ def _unlock_file(handle: BinaryIO) -> None:
     if os.name == "nt":
         import msvcrt
 
-        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        windows_api: Any = msvcrt
+        windows_api.locking(handle.fileno(), windows_api.LK_UNLCK, 1)
         return
     fcntl = importlib.import_module("fcntl")
     fcntl.flock(handle.fileno(), fcntl.LOCK_UN)

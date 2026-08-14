@@ -6,6 +6,7 @@ import importlib
 import importlib.util
 import logging
 import os
+import platform
 import shutil
 import sys
 import tarfile
@@ -385,7 +386,7 @@ class SherpaOnnxDiarizationEngine:
 
 def _configure_cuda_dlls() -> None:
     """Expose pip-installed NVIDIA runtime DLLs to ONNX Runtime on Windows."""
-    if sys.platform != "win32" or _CUDA_DLL_HANDLES:
+    if platform.system().casefold() != "windows" or _CUDA_DLL_HANDLES:
         return
     nvidia_root = Path(sys.prefix) / "Lib" / "site-packages" / "nvidia"
     directories = [
@@ -398,8 +399,9 @@ def _configure_cuda_dlls() -> None:
     os.environ["PATH"] = os.pathsep.join(
         [*(str(directory) for directory in directories), os.environ.get("PATH", "")]
     )
+    windows_os: Any = os
     _CUDA_DLL_HANDLES.extend(
-        os.add_dll_directory(str(directory)) for directory in directories
+        windows_os.add_dll_directory(str(directory)) for directory in directories
     )
 
 
