@@ -5,6 +5,7 @@ import gc
 import importlib
 import importlib.util
 import logging
+import math
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -264,130 +265,69 @@ class LlamaCppSummaryEngine:
             if is_cancelled():
                 raise JobCancelledError("Summary generation was cancelled")
             progress(0.05, "Preparing the meeting transcript")
-            response_language = str(config.get("response_language") or "").lower()
-            speaker_scope = config.get("summary_scope") == "speaker"
-            speaker_name = str(config.get("speaker_name") or "the speaker")
             prompt_mode = bool(config.get("prompt_mode"))
-            if prompt_mode:
-                question = str(config.get("prompt_question") or "").strip()
-                history = str(config.get("prompt_history") or "").strip()
-                task_prompt = (
-                    "Answer the user's question in the same language as the question. "
-                    "Use only the supplied meeting context for claims about meetings. "
-                    "If the context does not contain the answer, say so clearly. "
-                    "When R1/R2 source labels exist, cite them inline exactly as [R1]."
-                    + (f"\n\nRECENT CONVERSATION:\n{history}" if history else "")
-                    + f"\n\nQUESTION:\n{question}"
-                )
-            elif speaker_scope and response_language == "es":
-                task_prompt = (
-                    f"Responde exclusivamente en español. Resume únicamente lo que "
-                    f"ha dicho {speaker_name}: sus ideas, argumentos, datos, opiniones, "
-                    "propuestas y compromisos explícitos. No resumas la reunión completa, "
-                    "no atribuyas palabras de otras personas y no inventes información."
-                )
-            elif speaker_scope:
-                task_prompt = (
-                    f"Write in the transcript language. Summarize only what {speaker_name} "
-                    "said: their ideas, arguments, facts, opinions, proposals, and explicit "
-                    "commitments. Do not summarize the whole meeting, attribute other "
-                    "speakers' words, or invent information."
-                )
-            elif response_language == "es":
-                template = config.get("summary_template")
-                task_prompt = "Responde exclusivamente en español. " + (
-                    render_summary_template(template)
-                    if isinstance(template, dict)
-                    else "Resume la reunión con puntos clave, decisiones y tareas."
-                )
-            else:
-                template = config.get("summary_template")
-                task_prompt = "Write in the transcript language. " + (
-                    render_summary_template(template)
-                    if isinstance(template, dict)
-                    else "Create a useful meeting summary with decisions and actions."
-                )
-            template_system = ""
-            if not speaker_scope and isinstance(config.get("summary_template"), dict):
-                template_system = str(
-                    config["summary_template"].get("system_prompt") or ""
-                )
-            messages = [
-                {
-                    "role": "system",
-                    "content": "\n\n".join(
-                        part
-                        for part in (
-                            str(config.get("system_prompt", "")),
-                            template_system,
-                        )
-                        if part
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": (
-                        task_prompt
-                        + ("\n\nMEETING CONTEXT:\n" if prompt_mode else "\n\nTRANSCRIPT:\n")
-                        + transcript
-                    ),
-                },
-            ]
-            if config.get("provider") in {"litellm", "openai-compatible"}:
-                progress(0.2, "Generating the summary through LiteLLM")
-                result = self._litellm_completion(messages, config)
-            else:
+            task_prompt, template_system = self._summary_instructions(config)
+            system_prompt = "\n\n".join(
+                part
+                for part in (str(config.get("system_prompt", "")), template_system)
+                if part
+            )
+            remote = config.get("provider") in {"litellm", "openai-compatible"}
+            model = None
+            if not remote:
                 path = self._resolve_model_path(config, False)
                 model = self._get_model(path, config)
-                progress(0.2, "Generating the summary locally")
-                maximum_tokens = int(config.get("max_output_tokens", 1024))
-                chunks = model.create_chat_completion(
-                    messages=messages,
-                    max_tokens=maximum_tokens,
-                    temperature=float(config.get("temperature", 0.2)),
-                    top_p=float(config.get("top_p", 0.9)),
-                    top_k=int(config.get("top_k", 40)),
-                    min_p=float(config.get("min_p", 0.05)),
-                    repeat_penalty=float(config.get("repeat_penalty", 1.1)),
-                    seed=int(config.get("seed", -1)),
-                    stream=True,
+            context_length = max(1024, int(config.get("context_length", 16384)))
+            maximum_tokens = min(
+                max(128, int(config.get("max_output_tokens", 1024))),
+                max(128, context_length // 2),
+            )
+            messages = self._summary_messages(
+                system_prompt,
+                task_prompt,
+                transcript,
+                label="MEETING CONTEXT" if prompt_mode else "TRANSCRIPT",
+            )
+            if self._fits_context(messages, maximum_tokens, context_length, model):
+                progress(
+                    0.2,
+                    "Generating the summary through LiteLLM"
+                    if remote
+                    else "Generating the summary locally",
                 )
-                parts: list[str] = []
-                for index, chunk in enumerate(chunks):
-                    if is_cancelled():
-                        raise JobCancelledError(
-                            "Summary generation was cancelled"
-                        )
-                    choice = chunk.get("choices", [{}])[0]
-                    text = choice.get("delta", {}).get("content") or choice.get(
-                        "text",
-                        "",
-                    )
-                    if text:
-                        parts.append(str(text))
-                    if index % 8 == 0:
-                        progress(
-                            min(0.94, 0.2 + index / max(1, maximum_tokens) * 0.7),
-                            f"Generated approximately {index} tokens",
-                        )
-                result = {
-                    "choices": [{"message": {"content": "".join(parts)}}],
-                    "usage": {},
-                }
+                result = self._complete_once(
+                    model,
+                    messages,
+                    config,
+                    maximum_tokens,
+                    progress,
+                    is_cancelled,
+                    0.2,
+                    0.94,
+                    "Generating notes",
+                )
+                content, prompt_tokens, completion_tokens = self._completion_content(
+                    result
+                )
+            else:
+                content, prompt_tokens, completion_tokens = self._hierarchical_summary(
+                    transcript=transcript,
+                    task_prompt=task_prompt,
+                    system_prompt=system_prompt,
+                    config=config,
+                    model=model,
+                    context_length=context_length,
+                    maximum_tokens=maximum_tokens,
+                    progress=progress,
+                    is_cancelled=is_cancelled,
+                )
             if is_cancelled():
                 raise JobCancelledError("Summary generation was cancelled")
             progress(0.98, "Finalizing the summary")
-            choice = result.get("choices", [{}])[0]
-            content = choice.get("message", {}).get("content") or choice.get("text")
-            if not content:
-                raise CapabilityUnavailableError(
-                    "The AI engine returned an empty summary"
-                )
-            usage = result.get("usage", {})
             return SummaryResult(
-                content_markdown=str(content).strip(),
-                prompt_tokens=_optional_int(usage.get("prompt_tokens")),
-                completion_tokens=_optional_int(usage.get("completion_tokens")),
+                content_markdown=content,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
             )
         except Exception as error:
             failure = error
@@ -396,6 +336,446 @@ class LlamaCppSummaryEngine:
             if not bool(config.get("keep_model_loaded", True)):
                 self.unload()
             self._request_finished(failure)
+
+    def _hierarchical_summary(
+        self,
+        *,
+        transcript: str,
+        task_prompt: str,
+        system_prompt: str,
+        config: dict[str, Any],
+        model: Any | None,
+        context_length: int,
+        maximum_tokens: int,
+        progress: ProgressReporter,
+        is_cancelled: CancellationCheck,
+    ) -> tuple[str, int | None, int | None]:
+        partial_tokens = min(maximum_tokens, max(256, context_length // 12))
+        extraction_prompt = (
+            "Extract a compact, faithful evidence report from this part of a longer "
+            "meeting. Preserve speaker names, timestamps, facts, explicit decisions, "
+            "action items, owners, deadlines, open questions, disagreements and important "
+            "context. Do not invent or resolve missing information. Write in the transcript "
+            "language. The final requested output will follow this task:\n\n"
+            + task_prompt
+        )
+        overhead = self._estimate_message_tokens(
+            self._summary_messages(system_prompt, extraction_prompt, ""),
+            model,
+        )
+        block_tokens = max(
+            256,
+            self._input_budget(context_length, partial_tokens) - overhead,
+        )
+        blocks = self._split_transcript(transcript, block_tokens * 3)
+        blocks = self._fit_transcript_blocks(
+            blocks,
+            system_prompt,
+            extraction_prompt,
+            partial_tokens,
+            context_length,
+            model,
+        )
+        estimated = self._estimate_message_tokens(
+            self._summary_messages(system_prompt, task_prompt, transcript),
+            model,
+        )
+        progress(
+            0.08,
+            (
+                f"Transcript is approximately {estimated:,} tokens; "
+                f"processing {len(blocks)} hierarchical blocks"
+            ),
+        )
+        reports: list[str] = []
+        prompt_usage = 0
+        completion_usage = 0
+        has_usage = False
+        for index, block in enumerate(blocks, 1):
+            start = 0.1 + (index - 1) / len(blocks) * 0.58
+            end = 0.1 + index / len(blocks) * 0.58
+            progress(start, f"Extracting evidence from block {index}/{len(blocks)}")
+            result = self._complete_once(
+                model,
+                self._summary_messages(
+                    system_prompt,
+                    extraction_prompt,
+                    block,
+                    label=f"PARTIAL TRANSCRIPT {index}/{len(blocks)}",
+                ),
+                config,
+                partial_tokens,
+                progress,
+                is_cancelled,
+                start,
+                end,
+                f"Block {index}/{len(blocks)}",
+            )
+            report, prompt_tokens, completion_tokens = self._completion_content(result)
+            reports.append(f"## Evidence block {index}\n{report}")
+            if prompt_tokens is not None or completion_tokens is not None:
+                has_usage = True
+            prompt_usage += prompt_tokens or 0
+            completion_usage += completion_tokens or 0
+
+        round_number = 0
+        final_messages = self._summary_messages(
+            system_prompt,
+            task_prompt,
+            "\n\n".join(reports),
+            label="CONSOLIDATED MEETING EVIDENCE",
+        )
+        while not self._fits_context(
+            final_messages,
+            maximum_tokens,
+            context_length,
+            model,
+        ):
+            round_number += 1
+            if round_number > 8:
+                raise CapabilityUnavailableError(
+                    "The meeting evidence could not be reduced to the configured context window"
+                )
+            reduction_prompt = (
+                "Consolidate these meeting evidence reports into a shorter faithful report. "
+                "Deduplicate repeated facts but preserve speakers, timestamps, decisions, "
+                "tasks, owners, deadlines, open questions and disagreements. Never invent "
+                "missing details. Write in the source language."
+            )
+            groups = self._pack_reports_for_context(
+                reports,
+                system_prompt,
+                reduction_prompt,
+                partial_tokens,
+                context_length,
+                model,
+            )
+            progress(
+                0.7,
+                f"Consolidating evidence · round {round_number} · {len(groups)} groups",
+            )
+            reduced: list[str] = []
+            for index, group in enumerate(groups, 1):
+                start = 0.7 + (index - 1) / len(groups) * 0.15
+                end = 0.7 + index / len(groups) * 0.15
+                result = self._complete_once(
+                    model,
+                    self._summary_messages(
+                        system_prompt,
+                        reduction_prompt,
+                        group,
+                        label=f"EVIDENCE GROUP {index}/{len(groups)}",
+                    ),
+                    config,
+                    partial_tokens,
+                    progress,
+                    is_cancelled,
+                    start,
+                    end,
+                    f"Consolidating group {index}/{len(groups)}",
+                )
+                report, prompt_tokens, completion_tokens = self._completion_content(
+                    result
+                )
+                reduced.append(f"## Consolidated evidence {index}\n{report}")
+                if prompt_tokens is not None or completion_tokens is not None:
+                    has_usage = True
+                prompt_usage += prompt_tokens or 0
+                completion_usage += completion_tokens or 0
+            reports = reduced
+            final_messages = self._summary_messages(
+                system_prompt,
+                task_prompt,
+                "\n\n".join(reports),
+                label="CONSOLIDATED MEETING EVIDENCE",
+            )
+
+        progress(0.86, "Creating final notes from consolidated meeting evidence")
+        result = self._complete_once(
+            model,
+            final_messages,
+            config,
+            maximum_tokens,
+            progress,
+            is_cancelled,
+            0.86,
+            0.96,
+            "Creating final notes",
+        )
+        content, prompt_tokens, completion_tokens = self._completion_content(result)
+        if prompt_tokens is not None or completion_tokens is not None:
+            has_usage = True
+        prompt_usage += prompt_tokens or 0
+        completion_usage += completion_tokens or 0
+        return (
+            content,
+            prompt_usage if has_usage else None,
+            completion_usage if has_usage else None,
+        )
+
+    def _complete_once(
+        self,
+        model: Any | None,
+        messages: list[dict[str, str]],
+        config: dict[str, Any],
+        maximum_tokens: int,
+        progress: ProgressReporter,
+        is_cancelled: CancellationCheck,
+        progress_start: float,
+        progress_end: float,
+        phase: str,
+    ) -> dict[str, Any]:
+        context_length = max(1024, int(config.get("context_length", 16384)))
+        if not self._fits_context(messages, maximum_tokens, context_length, model):
+            raise CapabilityUnavailableError(
+                "An internal summary block exceeded the configured context window"
+            )
+        if config.get("provider") in {"litellm", "openai-compatible"}:
+            progress(progress_start, phase)
+            return self._litellm_completion(
+                messages,
+                config,
+                maximum_tokens=maximum_tokens,
+            )
+        if model is None:
+            raise CapabilityUnavailableError("The local summary model is not loaded")
+        chunks = model.create_chat_completion(
+            messages=messages,
+            max_tokens=maximum_tokens,
+            temperature=float(config.get("temperature", 0.2)),
+            top_p=float(config.get("top_p", 0.9)),
+            top_k=int(config.get("top_k", 40)),
+            min_p=float(config.get("min_p", 0.05)),
+            repeat_penalty=float(config.get("repeat_penalty", 1.1)),
+            seed=int(config.get("seed", -1)),
+            stream=True,
+        )
+        parts: list[str] = []
+        for index, chunk in enumerate(chunks):
+            if is_cancelled():
+                raise JobCancelledError("Summary generation was cancelled")
+            choice = chunk.get("choices", [{}])[0]
+            text = choice.get("delta", {}).get("content") or choice.get("text", "")
+            if text:
+                parts.append(str(text))
+            if index % 16 == 0:
+                progress(
+                    min(
+                        progress_end,
+                        progress_start
+                        + index / max(1, maximum_tokens) * (progress_end - progress_start),
+                    ),
+                    f"{phase} · generated approximately {index} tokens",
+                )
+        return {
+            "choices": [{"message": {"content": "".join(parts)}}],
+            "usage": {},
+        }
+
+    @staticmethod
+    def _summary_messages(
+        system_prompt: str,
+        task_prompt: str,
+        context: str,
+        *,
+        label: str = "TRANSCRIPT",
+    ) -> list[dict[str, str]]:
+        return [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"{task_prompt}\n\n{label}:\n{context}"},
+        ]
+
+    @staticmethod
+    def _estimate_message_tokens(
+        messages: list[dict[str, str]],
+        model: Any | None = None,
+    ) -> int:
+        characters = sum(len(message.get("content", "")) for message in messages)
+        estimate = math.ceil(characters / 3) + len(messages) * 12
+        tokenizer = getattr(model, "tokenize", None)
+        if not callable(tokenizer):
+            return estimate
+        serialized = "\n\n".join(
+            f"{message.get('role', 'user')}:\n{message.get('content', '')}"
+            for message in messages
+        )
+        try:
+            exact = len(tokenizer(serialized.encode("utf-8"), add_bos=True, special=True))
+        except (RuntimeError, TypeError, ValueError):
+            return estimate
+        return max(estimate, exact + 64)
+
+    @classmethod
+    def _fits_context(
+        cls,
+        messages: list[dict[str, str]],
+        maximum_tokens: int,
+        context_length: int,
+        model: Any | None = None,
+    ) -> bool:
+        return cls._estimate_message_tokens(messages, model) <= cls._input_budget(
+            context_length,
+            maximum_tokens,
+        )
+
+    @staticmethod
+    def _input_budget(context_length: int, maximum_tokens: int) -> int:
+        return max(256, context_length - maximum_tokens - max(128, context_length // 20))
+
+    @staticmethod
+    def _split_transcript(transcript: str, maximum_chars: int) -> list[str]:
+        maximum_chars = max(256, maximum_chars)
+        blocks: list[str] = []
+        current: list[str] = []
+        current_length = 0
+        for line in transcript.splitlines() or [transcript]:
+            pieces = [
+                line[offset : offset + maximum_chars]
+                for offset in range(0, max(1, len(line)), maximum_chars)
+            ] or [""]
+            for piece in pieces:
+                addition = len(piece) + (1 if current else 0)
+                if current and current_length + addition > maximum_chars:
+                    blocks.append("\n".join(current))
+                    current = []
+                    current_length = 0
+                current.append(piece)
+                current_length += len(piece) + (1 if len(current) > 1 else 0)
+        if current:
+            blocks.append("\n".join(current))
+        return blocks or [""]
+
+    @classmethod
+    def _fit_transcript_blocks(
+        cls,
+        blocks: list[str],
+        system_prompt: str,
+        task_prompt: str,
+        maximum_tokens: int,
+        context_length: int,
+        model: Any | None,
+    ) -> list[str]:
+        fitted: list[str] = []
+        pending = list(blocks)
+        while pending:
+            block = pending.pop(0)
+            messages = cls._summary_messages(system_prompt, task_prompt, block)
+            if cls._fits_context(messages, maximum_tokens, context_length, model):
+                fitted.append(block)
+                continue
+            if len(block) <= 256:
+                raise CapabilityUnavailableError(
+                    "The summary instructions leave too little room for transcript text"
+                )
+            midpoint = max(128, len(block) // 2)
+            pieces = cls._split_transcript(block, midpoint)
+            if len(pieces) == 1:
+                pieces = [block[:midpoint], block[midpoint:]]
+            pending = [piece for piece in pieces if piece] + pending
+        return fitted
+
+    @classmethod
+    def _pack_reports_for_context(
+        cls,
+        reports: list[str],
+        system_prompt: str,
+        task_prompt: str,
+        maximum_tokens: int,
+        context_length: int,
+        model: Any | None,
+    ) -> list[str]:
+        groups: list[str] = []
+        current: list[str] = []
+        for report in reports:
+            proposed = "\n\n".join([*current, report])
+            messages = cls._summary_messages(system_prompt, task_prompt, proposed)
+            if current and not cls._fits_context(
+                messages,
+                maximum_tokens,
+                context_length,
+                model,
+            ):
+                groups.append("\n\n".join(current))
+                current = [report]
+            else:
+                current.append(report)
+        if current:
+            group = "\n\n".join(current)
+            if not cls._fits_context(
+                cls._summary_messages(system_prompt, task_prompt, group),
+                maximum_tokens,
+                context_length,
+                model,
+            ):
+                raise CapabilityUnavailableError(
+                    "An intermediate evidence report exceeded the configured context window"
+                )
+            groups.append(group)
+        return groups
+
+    @staticmethod
+    def _completion_content(
+        result: dict[str, Any],
+    ) -> tuple[str, int | None, int | None]:
+        choice = result.get("choices", [{}])[0]
+        content = choice.get("message", {}).get("content") or choice.get("text")
+        if not content:
+            raise CapabilityUnavailableError("The AI engine returned an empty summary")
+        usage = result.get("usage", {})
+        return (
+            str(content).strip(),
+            _optional_int(usage.get("prompt_tokens")),
+            _optional_int(usage.get("completion_tokens")),
+        )
+
+    @staticmethod
+    def _summary_instructions(config: dict[str, Any]) -> tuple[str, str]:
+        response_language = str(config.get("response_language") or "").lower()
+        speaker_scope = config.get("summary_scope") == "speaker"
+        speaker_name = str(config.get("speaker_name") or "the speaker")
+        if config.get("prompt_mode"):
+            question = str(config.get("prompt_question") or "").strip()
+            history = str(config.get("prompt_history") or "").strip()
+            task_prompt = (
+                "Answer the user's question in the same language as the question. "
+                "Use only the supplied meeting context for claims about meetings. "
+                "If the context does not contain the answer, say so clearly. "
+                "When R1/R2 source labels exist, cite them inline exactly as [R1]."
+                + (f"\n\nRECENT CONVERSATION:\n{history}" if history else "")
+                + f"\n\nQUESTION:\n{question}"
+            )
+        elif speaker_scope and response_language == "es":
+            task_prompt = (
+                f"Responde exclusivamente en español. Resume únicamente lo que "
+                f"ha dicho {speaker_name}: sus ideas, argumentos, datos, opiniones, "
+                "propuestas y compromisos explícitos. No resumas la reunión completa, "
+                "no atribuyas palabras de otras personas y no inventes información."
+            )
+        elif speaker_scope:
+            task_prompt = (
+                f"Write in the transcript language. Summarize only what {speaker_name} "
+                "said: their ideas, arguments, facts, opinions, proposals, and explicit "
+                "commitments. Do not summarize the whole meeting, attribute other "
+                "speakers' words, or invent information."
+            )
+        elif response_language == "es":
+            template = config.get("summary_template")
+            task_prompt = "Responde exclusivamente en español. " + (
+                render_summary_template(template)
+                if isinstance(template, dict)
+                else "Resume la reunión con puntos clave, decisiones y tareas."
+            )
+        else:
+            template = config.get("summary_template")
+            task_prompt = "Write in the transcript language. " + (
+                render_summary_template(template)
+                if isinstance(template, dict)
+                else "Create a useful meeting summary with decisions and actions."
+            )
+        template_system = ""
+        if not speaker_scope and isinstance(config.get("summary_template"), dict):
+            template_system = str(config["summary_template"].get("system_prompt") or "")
+        return task_prompt, template_system
 
     def _get_model(self, path: Path, config: dict[str, Any]) -> Any:
         if importlib.util.find_spec("llama_cpp") is None:
@@ -504,6 +884,8 @@ class LlamaCppSummaryEngine:
         self,
         messages: list[dict[str, str]],
         config: dict[str, Any],
+        *,
+        maximum_tokens: int | None = None,
     ) -> dict[str, Any]:
         if importlib.util.find_spec("litellm") is None:
             raise CapabilityUnavailableError(
@@ -515,7 +897,7 @@ class LlamaCppSummaryEngine:
         arguments: dict[str, Any] = {
             "model": str(config.get("model", "")),
             "messages": messages,
-            "max_tokens": int(config.get("max_output_tokens", 1024)),
+            "max_tokens": maximum_tokens or int(config.get("max_output_tokens", 1024)),
             "temperature": float(config.get("temperature", 0.2)),
             "top_p": float(config.get("top_p", 0.9)),
             "drop_params": True,

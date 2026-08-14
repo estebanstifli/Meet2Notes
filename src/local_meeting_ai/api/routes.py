@@ -68,7 +68,9 @@ from local_meeting_ai.api.schemas import (
     SpeakerSummaryStartResponse,
     SpeakerTurnResponse,
     SummaryApiKeyUpdate,
+    SummaryContentUpdate,
     SummaryResponse,
+    SummaryStartRequest,
     SummaryStartResponse,
     SummaryTemplateResponse,
     SummaryTemplateWrite,
@@ -119,6 +121,22 @@ async def index_rag(
         result["indexed_chunks"],
     )
     return result
+
+
+@router.post(
+    "/rag/index/jobs",
+    response_model=JobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def start_rag_index_job(
+    payload: RagIndexRequest,
+    container: ContainerDependency,
+) -> JobResponse:
+    job = await container.rag_service.start_rebuild(
+        meeting_id=payload.meeting_id,
+        force=payload.force,
+    )
+    return JobResponse.model_validate(job)
 
 
 @router.post("/rag/search")
@@ -1259,8 +1277,12 @@ async def start_diarization(
 async def start_summary(
     transcription_id: int,
     container: ContainerDependency,
+    payload: SummaryStartRequest | None = None,
 ) -> SummaryStartResponse:
-    summary, job = await container.summary_service.start(transcription_id)
+    summary, job = await container.summary_service.start(
+        transcription_id,
+        template_id=payload.template_id if payload else None,
+    )
     return SummaryStartResponse(
         summary=SummaryResponse.model_validate(summary),
         job=JobResponse.model_validate(job),
@@ -1281,6 +1303,27 @@ def list_summaries(
         SummaryResponse.model_validate(summary)
         for summary in container.summaries.list_for_meeting(meeting_id)
     ]
+
+
+@router.patch("/summaries/{summary_id}", response_model=SummaryResponse)
+def update_summary_content(
+    summary_id: int,
+    payload: SummaryContentUpdate,
+    container: ContainerDependency,
+) -> SummaryResponse:
+    content = payload.content_markdown.strip()
+    if not content:
+        raise ValidationError("AI notes cannot be empty")
+    try:
+        summary = container.summaries.update_content(
+            summary_id,
+            content,
+        )
+    except ValueError as error:
+        raise ValidationError(str(error)) from error
+    if not summary:
+        raise NotFoundError("AI notes not found")
+    return SummaryResponse.model_validate(summary)
 
 
 @router.get(

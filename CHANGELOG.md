@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Added compact rebuild, copy, Markdown edit, and save controls to meeting AI
+  Notes, including Note Format selection, version preservation, manual-edit
+  provenance, and navigation protection for unsaved changes.
+- Added automatic hierarchical AI notes for transcripts that exceed the model
+  context, including block estimation, grounded evidence extraction, recursive
+  consolidation, and a final Note Format pass.
+- Added confirmation, persistent background progress, and per-meeting logging
+  when rebuilding the historical RAG index.
 - Defined the independent community-plugin workflow, added a public JSON
   listing and issue template, and coordinated the user, contributor, developer,
   and roadmap documentation around that single flow.

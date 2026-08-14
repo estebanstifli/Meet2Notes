@@ -662,6 +662,18 @@ class SummaryResponse(BaseModel):
     completed_at: str | None
 
 
+class SummaryStartRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    template_id: int | None = Field(default=None, ge=1)
+
+
+class SummaryContentUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    content_markdown: str = Field(min_length=1, max_length=500_000)
+
+
 class SummaryStartResponse(BaseModel):
     summary: SummaryResponse
     job: JobResponse

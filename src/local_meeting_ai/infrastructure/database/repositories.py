@@ -1555,6 +1555,30 @@ class SummaryRepository:
                 (utc_now(), summary_id),
             )
 
+    def update_content(self, summary_id: int, content_markdown: str) -> Summary | None:
+        current = self.get(summary_id)
+        if not current:
+            return None
+        if current.status != "completed":
+            raise ValueError("Only completed AI notes can be edited")
+        edited_at = utc_now()
+        structured = dict(current.structured or {})
+        manual_edit = structured.get("manual_edit")
+        edit_metadata = dict(manual_edit) if isinstance(manual_edit, dict) else {}
+        edit_metadata.setdefault("original_content_markdown", current.content_markdown or "")
+        edit_metadata["edited_at"] = edited_at
+        structured["manual_edit"] = edit_metadata
+        with self.database.transaction() as connection:
+            connection.execute(
+                """
+                UPDATE summaries
+                SET content_markdown = ?, structured_json = ?
+                WHERE id = ?
+                """,
+                (content_markdown, json.dumps(structured), summary_id),
+            )
+        return self.get(summary_id)
+
 
 class PluginExecutionRepository:
     """Privacy-preserving provenance for extension hook executions."""

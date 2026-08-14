@@ -48,6 +48,9 @@
   let installActivityCursor = 0;
   let installActivityTimer = null;
   let installProgressTimer = null;
+  let ragReindexTimer = null;
+  let ragReindexRunning = false;
+  let ragReindexLastMessage = "";
 
   const diarizationEngines = {
     "sherpa-onnx": {
@@ -262,6 +265,84 @@
     $("#model-install-bar").style.background = completed ? "" : "#d46161";
     appendInstallLog(error ? `ERROR · ${error.message}` : "Completed successfully.");
     $("#model-install-close").disabled = false;
+  }
+
+  function appendRagReindexLog(message) {
+    const log = $("#rag-reindex-log");
+    if (!log || !message) return;
+    const timestamp = new Date().toLocaleTimeString();
+    log.value += `${log.value ? "\n" : ""}[${timestamp}] ${message}`;
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function finishRagReindex(job) {
+    ragReindexRunning = false;
+    ragReindexTimer = null;
+    const completed = job.status === "completed";
+    $("#rag-reindex-percent").textContent = completed ? "100%" : "Failed";
+    $("#rag-reindex-phase").textContent = completed ? "Ready" : "Review log";
+    $("#rag-reindex-bar").style.width = "100%";
+    $("#rag-reindex-bar").style.background = completed ? "" : "#d46161";
+    $("#rag-reindex-status").textContent = completed
+      ? "The historical meeting index is ready."
+      : "The index could not be rebuilt.";
+    if (completed) {
+      const result = job.result || {};
+      appendRagReindexLog(
+        `Completed: ${result.indexed_meetings || 0} meetings and ${result.indexed_chunks || 0} chunks rebuilt; ${result.skipped_meetings || 0} skipped.`,
+      );
+      toast(`RAG rebuilt: ${result.chunks || 0} chunks across ${result.meetings || 0} meetings.`, "success");
+      refreshRagStatus();
+    } else {
+      appendRagReindexLog(`ERROR · ${job.error_text || "The indexing job failed."}`);
+      toast(job.error_text || "The RAG index could not be rebuilt.", "error");
+    }
+    $("#rag-reindex-close").disabled = false;
+  }
+
+  async function pollRagReindex(jobId) {
+    try {
+      const job = await api(`/api/jobs/${jobId}`);
+      const progress = Math.max(0, Math.min(1, Number(job.progress) || 0));
+      const percent = Math.round(progress * 100);
+      $("#rag-reindex-percent").textContent = `${percent}%`;
+      $("#rag-reindex-bar").style.width = `${percent}%`;
+      $("#rag-reindex-phase").textContent = job.status === "queued"
+        ? "Queued"
+        : job.status === "running" ? "Embedding meetings" : "Finalizing";
+      if (job.message && job.message !== ragReindexLastMessage) {
+        ragReindexLastMessage = job.message;
+        appendRagReindexLog(job.message);
+      }
+      if (["completed", "failed", "cancelled"].includes(job.status)) {
+        finishRagReindex(job);
+        return;
+      }
+    } catch (error) {
+      appendRagReindexLog(`Waiting for job status: ${error.message}`);
+    }
+    ragReindexTimer = window.setTimeout(() => pollRagReindex(jobId), 500);
+  }
+
+  async function startRagReindex() {
+    const confirmButton = $("#rag-reindex-confirm");
+    confirmButton.disabled = true;
+    try {
+      const job = await api("/api/rag/index/jobs", {
+        method: "POST",
+        body: JSON.stringify({ force: true }),
+      });
+      $("#rag-reindex-confirmation").hidden = true;
+      $("#rag-reindex-progress").hidden = false;
+      $("#rag-reindex-status").textContent = "Embedding completed meeting transcripts using the selected RAG settings.";
+      ragReindexRunning = true;
+      ragReindexLastMessage = "";
+      appendRagReindexLog("Rebuild confirmed. The indexing job was added to the local queue.");
+      await pollRagReindex(job.uuid);
+    } catch (error) {
+      confirmButton.disabled = false;
+      toast(error.message, "error");
+    }
   }
 
   function activateSettingsTab(tabId, updateHash = false) {
@@ -2329,23 +2410,25 @@
     }
   });
 
-  $("#rag-reindex")?.addEventListener("click", async (event) => {
-    const button = event.currentTarget;
-    button.disabled = true;
-    button.textContent = "Embedding meetings…";
-    try {
-      const result = await api("/api/rag/index", {
-        method: "POST",
-        body: JSON.stringify({ force: true }),
-      });
-      toast(`RAG rebuilt: ${result.chunks} chunks across ${result.meetings} meetings.`, "success");
-      await refreshRagStatus();
-    } catch (error) {
-      toast(error.message, "error");
-    } finally {
-      button.disabled = false;
-      button.textContent = "Rebuild index";
-    }
+  $("#rag-reindex")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    $("#rag-reindex-confirmation").hidden = false;
+    $("#rag-reindex-progress").hidden = true;
+    $("#rag-reindex-confirm").disabled = false;
+    $("#rag-reindex-close").disabled = true;
+    $("#rag-reindex-status").textContent = "Every completed meeting transcript will be embedded again.";
+    $("#rag-reindex-percent").textContent = "0%";
+    $("#rag-reindex-phase").textContent = "Preparing";
+    $("#rag-reindex-bar").style.width = "0%";
+    $("#rag-reindex-bar").style.background = "";
+    $("#rag-reindex-log").value = "";
+    $("#rag-reindex-dialog").showModal();
+  });
+  $("#rag-reindex-cancel")?.addEventListener("click", () => $("#rag-reindex-dialog").close());
+  $("#rag-reindex-confirm")?.addEventListener("click", startRagReindex);
+  $("#rag-reindex-close")?.addEventListener("click", () => $("#rag-reindex-dialog").close());
+  $("#rag-reindex-dialog")?.addEventListener("cancel", (event) => {
+    if (ragReindexRunning) event.preventDefault();
   });
 
   $("#rag-test-form")?.addEventListener("submit", async (event) => {

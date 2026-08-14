@@ -5,17 +5,22 @@ import json
 import math
 import re
 import unicodedata
+from collections.abc import Awaitable, Callable
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from local_meeting_ai.domain.entities import Job
+from local_meeting_ai.domain.enums import JobType
 from local_meeting_ai.domain.errors import NotFoundError, ValidationError
 from local_meeting_ai.domain.protocols import EmbeddingProvider, SummaryEngine
 from local_meeting_ai.infrastructure.database.repositories import (
+    JobRepository,
     MeetingRepository,
     SettingsRepository,
     TranscriptionRepository,
 )
+from local_meeting_ai.infrastructure.jobs import JobContext, LocalJobQueue
 
 from .ai_services import SUMMARY_DEFAULTS, configured_values
 from .rag_vector_store import RagVectorStoreGateway
@@ -70,12 +75,16 @@ class RagService:
         meetings: MeetingRepository,
         transcriptions: TranscriptionRepository,
         preferences: SettingsRepository,
+        jobs: JobRepository,
+        queue: LocalJobQueue,
     ) -> None:
         self.provider = provider
         self.vector_stores = vector_stores
         self.meetings = meetings
         self.transcriptions = transcriptions
         self.preferences = preferences
+        self.jobs = jobs
+        self.queue = queue
 
     def config(self) -> dict[str, Any]:
         return configured_values(self.preferences, "rag", RAG_DEFAULTS)
@@ -127,6 +136,7 @@ class RagService:
         meeting_id: int | None = None,
         force: bool = False,
         _release_model: bool = True,
+        progress: Callable[[float, str], Awaitable[None]] | None = None,
     ) -> dict[str, Any]:
         config = self.config()
         if not bool(config["enabled"]):
@@ -141,6 +151,12 @@ class RagService:
         else:
             meetings = self.meetings.list(limit=10_000)
 
+        if progress:
+            await progress(
+                0.02,
+                f"Preparing {len(meetings)} meeting{'s' if len(meetings) != 1 else ''}",
+            )
+
         indexed_meetings = 0
         indexed_chunks = 0
         skipped_meetings = 0
@@ -148,10 +164,22 @@ class RagService:
         model = self._embedding_index_id(config)
         batch_size = int(config["embedding_batch_size"])
 
-        for meeting in meetings:
+        meeting_total = max(1, len(meetings))
+        for meeting_position, meeting in enumerate(meetings):
+            meeting_progress = meeting_position / meeting_total
+            if progress:
+                await progress(
+                    0.05 + 0.9 * meeting_progress,
+                    f"Checking meeting {meeting_position + 1}/{len(meetings)}: {meeting.title}",
+                )
             transcription = self.transcriptions.active_for_meeting(meeting.id)
             if not transcription or transcription.status != "completed":
                 skipped_meetings += 1
+                if progress:
+                    await progress(
+                        0.05 + 0.9 * ((meeting_position + 1) / meeting_total),
+                        f"Skipped {meeting.title}: no completed transcript",
+                    )
                 continue
             chunks = self._chunks_for_transcription(meeting, transcription.id, config)
             existing = await self.vector_stores.rows_for_transcription(
@@ -172,10 +200,26 @@ class RagService:
             ]
             if not force and current == persisted:
                 skipped_meetings += 1
+                if progress:
+                    await progress(
+                        0.05 + 0.9 * ((meeting_position + 1) / meeting_total),
+                        f"Skipped {meeting.title}: index is already current",
+                    )
                 continue
             vectors: list[list[float]] = []
             for offset in range(0, len(chunks), batch_size):
                 batch = chunks[offset : offset + batch_size]
+                if progress:
+                    batch_fraction = (offset + len(batch)) / max(1, len(chunks))
+                    await progress(
+                        0.05 + 0.9 * (
+                            (meeting_position + batch_fraction) / meeting_total
+                        ),
+                        (
+                            f"Embedding {meeting.title}: chunks "
+                            f"{offset + 1}-{offset + len(batch)} of {len(chunks)}"
+                        ),
+                    )
                 vectors.extend(await self.provider.embed([item["text"] for item in batch], config))
             self._validate_vectors(vectors)
             await self.vector_stores.replace_transcription(
@@ -189,6 +233,13 @@ class RagService:
             )
             indexed_meetings += 1
             indexed_chunks += len(chunks)
+            if progress:
+                await progress(
+                    0.05 + 0.9 * ((meeting_position + 1) / meeting_total),
+                    f"Indexed {meeting.title}: {len(chunks)} chunks",
+                )
+        if progress:
+            await progress(0.97, "Finalizing vector index statistics")
         result = {
             "indexed_meetings": indexed_meetings,
             "indexed_chunks": indexed_chunks,
@@ -198,6 +249,39 @@ class RagService:
         if _release_model:
             await self._release_model_if_configured(config)
         return result
+
+    async def start_rebuild(
+        self,
+        *,
+        meeting_id: int | None = None,
+        force: bool = True,
+    ) -> Job:
+        job = self.jobs.create(
+            meeting_id=meeting_id,
+            job_type=JobType.INDEX_SEARCH,
+            payload={
+                "action": "rag_rebuild",
+                "meeting_id": meeting_id,
+                "force": force,
+            },
+            message="Waiting to rebuild the historical RAG index",
+        )
+        await self.queue.submit(job.uuid)
+        return job
+
+    async def process_rebuild(self, job: Job, context: JobContext) -> dict[str, Any]:
+        if job.payload.get("action") != "rag_rebuild":
+            raise ValidationError("Unsupported index job")
+
+        async def report(progress: float, message: str) -> None:
+            await context.raise_if_cancelled()
+            await context.update(progress, message)
+
+        return await self.index(
+            meeting_id=job.payload.get("meeting_id"),
+            force=bool(job.payload.get("force", True)),
+            progress=report,
+        )
 
     async def search(
         self,

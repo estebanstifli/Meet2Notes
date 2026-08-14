@@ -278,6 +278,29 @@
   background: #172d4d;
 }
 
+[data-theme="dark"] .ai-note-action {
+  color: #c5cfdd;
+  background: #182230;
+  border-color: #354156;
+}
+
+[data-theme="dark"] .ai-note-action:hover:not(:disabled) {
+  background: #202c3c;
+  border-color: #526079;
+}
+
+[data-theme="dark"] .ai-note-action.primary {
+  color: #d9f99d;
+  background: #275548;
+  border-color: #34705f;
+}
+
+[data-theme="dark"] .ai-report-editor {
+  color: #d8deea;
+  background: #111824;
+  border-color: #354156;
+}
+
 [data-theme="dark"] .speaker-line {
   border-color: #252f40;
 }

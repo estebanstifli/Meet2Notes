@@ -284,7 +284,7 @@ class FakeSummaryEngine:
             assert "Captured locally." in transcript
             assert config["speaker_name"] == "Esteban"
         else:
-            assert "Speaker 1: Captured locally." in transcript
+            assert "Captured locally." in transcript
             assert config["summary_template"]["name"] == self.expected_template_name
             assert config["summary_template"]["sections"]
         assert not is_cancelled()
@@ -654,6 +654,32 @@ def test_imported_media_runs_complete_meeting_pipeline(tmp_path: Path) -> None:
         assert summarized["summary_markdown"].startswith("# Summary")
         summaries = client.get(f"/api/meetings/{meeting['id']}/summaries").json()
         assert summaries[0]["status"] == "completed"
+        edited_notes = "# Edited notes\n\n- Added by the meeting owner."
+        edited = client.patch(
+            f"/api/summaries/{summaries[0]['id']}",
+            json={"content_markdown": edited_notes},
+        )
+        assert edited.status_code == 200
+        assert edited.json()["content_markdown"] == edited_notes
+        assert edited.json()["structured"]["manual_edit"][
+            "original_content_markdown"
+        ].startswith("# Summary")
+        assert edited.json()["structured"]["manual_edit"]["edited_at"]
+
+        rebuilt = client.post(
+            f"/api/transcriptions/{started.json()['transcription']['id']}/summaries",
+            json={"template_id": daily_format["id"]},
+        )
+        assert rebuilt.status_code == 202
+        assert rebuilt.json()["summary"]["template_id"] == daily_format["id"]
+        rebuilt_job = _wait_for_job(client, rebuilt.json()["job"]["uuid"])
+        assert rebuilt_job["status"] == "completed"
+        rebuilt_summaries = client.get(
+            f"/api/meetings/{meeting['id']}/summaries"
+        ).json()
+        assert rebuilt_summaries[0]["id"] == rebuilt.json()["summary"]["id"]
+        assert rebuilt_summaries[0]["content_markdown"].startswith("# Summary")
+        assert any(item["content_markdown"] == edited_notes for item in rebuilt_summaries)
 
         saved_meeting = client.get(f"/api/meetings/{meeting['id']}").json()
         assert saved_meeting["started_at"] is not None

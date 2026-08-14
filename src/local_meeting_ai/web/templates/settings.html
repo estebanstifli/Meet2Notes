@@ -782,6 +782,22 @@
     <div class="modal-actions"><button class="button primary" id="model-install-close" type="button" disabled>Close</button></div>
   </div>
 </dialog>
+<dialog class="modal compact-modal" id="rag-reindex-dialog" aria-labelledby="rag-reindex-title">
+  <div class="modal-panel model-install-modal">
+    <div class="modal-header"><div><span class="eyebrow">Historical RAG</span><h2 id="rag-reindex-title">Rebuild the meeting index?</h2><p id="rag-reindex-status">Every completed meeting transcript will be embedded again.</p></div></div>
+    <div id="rag-reindex-confirmation">
+      <p class="modal-note">The current vectors will be replaced using the selected embedding model and chunk settings. Meetings, recordings and transcripts will not be changed.</p>
+      <div class="modal-actions"><button class="button secondary" id="rag-reindex-cancel" type="button">Cancel</button><button class="button primary" id="rag-reindex-confirm" type="button">Rebuild index</button></div>
+    </div>
+    <div id="rag-reindex-progress" hidden>
+      <div class="install-progress-copy"><span id="rag-reindex-percent">0%</span><span id="rag-reindex-phase">Preparing</span></div>
+      <div class="progress-track"><span id="rag-reindex-bar"></span></div>
+      <label class="install-log-label" for="rag-reindex-log">Indexing log</label>
+      <textarea id="rag-reindex-log" class="install-log" readonly spellcheck="false" aria-live="polite"></textarea>
+      <div class="modal-actions"><button class="button primary" id="rag-reindex-close" type="button" disabled>Close</button></div>
+    </div>
+  </div>
+</dialog>
 <dialog class="modal" id="diagnostics-dialog" aria-labelledby="diagnostics-title">
   <div class="modal-panel diagnostics-modal">
     <div class="modal-header"><div><span class="eyebrow">Support report</span><h2 id="diagnostics-title">System diagnostics</h2><p id="diagnostics-status">Collecting hardware, software and Meet2Notes configuration…</p></div><button class="icon-button close-button" id="diagnostics-close" type="button" aria-label="Close">×</button></div>

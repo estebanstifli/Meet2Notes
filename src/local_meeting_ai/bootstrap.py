@@ -347,7 +347,10 @@ def build_container(
         meetings=meetings,
         transcriptions=transcriptions,
         preferences=preferences,
+        jobs=jobs,
+        queue=queue,
     )
+    queue.register(JobType.INDEX_SEARCH, rag_service.process_rebuild)
     prompt_service = PromptService(
         rag=rag_service,
         summary_engine=resolved_summary,

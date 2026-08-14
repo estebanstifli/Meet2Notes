@@ -3,6 +3,9 @@ from __future__ import annotations
 import asyncio
 import threading
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 from local_meeting_ai.adapters.diarization.profile_matching import (
     SherpaOnnxSpeakerProfileMatcher,
@@ -72,6 +75,75 @@ def test_summary_accepts_an_external_gguf_without_copying_it(tmp_path: Path) -> 
         assert external.is_file()
     finally:
         engine.shutdown()
+
+
+class _ContextCheckingSummaryModel:
+    def __init__(self, engine: LlamaCppSummaryEngine, context_length: int) -> None:
+        self.engine = engine
+        self.context_length = context_length
+        self.calls: list[str] = []
+
+    def create_chat_completion(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        max_tokens: int,
+        **options: Any,
+    ) -> list[dict[str, Any]]:
+        del options
+        assert self.engine._fits_context(messages, max_tokens, self.context_length)
+        user_prompt = messages[-1]["content"]
+        self.calls.append(user_prompt)
+        if "PARTIAL TRANSCRIPT" in user_prompt:
+            content = "evidence " * 80
+        elif "EVIDENCE GROUP" in user_prompt:
+            content = "consolidated " * 30
+        else:
+            content = "# Final notes\n\nAll decisions were preserved."
+        return [{"choices": [{"delta": {"content": content}}]}]
+
+
+def test_long_summary_uses_hierarchical_map_reduce(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = LlamaCppSummaryEngine(tmp_path / "models")
+    context_length = 2048
+    model = _ContextCheckingSummaryModel(engine, context_length)
+    progress_messages: list[str] = []
+    monkeypatch.setattr(engine, "_resolve_model_path", lambda config, download: tmp_path)
+    monkeypatch.setattr(engine, "_get_model", lambda path, config: model)
+    transcript = "\n".join(
+        f"[{index:02d}:00] Speaker {index % 3 + 1}: decision {index} " + "detail " * 30
+        for index in range(240)
+    )
+    config = {
+        "provider": "local",
+        "context_length": context_length,
+        "max_output_tokens": 256,
+        "keep_model_loaded": True,
+        "system_prompt": "Use only meeting evidence.",
+        "summary_template": {
+            "user_prompt_template": "Create complete meeting notes.",
+            "sections": [],
+        },
+    }
+    try:
+        result = engine._summarize_sync(
+            transcript,
+            config,
+            lambda value, message: progress_messages.append(message),
+            lambda: False,
+        )
+    finally:
+        engine.shutdown()
+
+    assert result.content_markdown.startswith("# Final notes")
+    assert sum("PARTIAL TRANSCRIPT" in call for call in model.calls) > 1
+    assert any("EVIDENCE GROUP" in call for call in model.calls)
+    assert "CONSOLIDATED MEETING EVIDENCE" in model.calls[-1]
+    assert any("hierarchical blocks" in message for message in progress_messages)
+    assert any("Creating final notes" in message for message in progress_messages)
 
 
 def test_note_format_renders_an_ordered_grounded_prompt() -> None:

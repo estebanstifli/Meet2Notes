@@ -75,7 +75,19 @@ def test_web_pages_and_security_headers(client: TestClient) -> None:
     assert 'id="shutdown-dialog"' in response.text
     assert 'id="postprocess-log"' in response.text
     assert 'id="postprocess-summary-template"' in response.text
+    assert 'id="postprocess-summary-sizing"' in response.text
     assert 'id="remember-voice-dialog"' in response.text
+    assert 'id="ai-rebuild-dialog"' in response.text
+    assert 'id="ai-rebuild-format"' in response.text
+    assert 'id="ai-copy-notes"' in response.text
+    assert 'id="ai-edit-notes"' in response.text
+    assert 'id="ai-save-notes"' in response.text
+    assert 'id="ai-report-editor"' in response.text
+    assert 'id="ai-unsaved-dialog"' in response.text
+    assert 'id="ai-unsaved-discard"' in response.text
+    assert 'id="ai-cancel-notes"' not in response.text
+    assert 'id="copy-transcript-plain"' in response.text
+    assert 'id="download-transcript-plain"' in response.text
     assert "start-transcription-button hidden" in response.text
     assert "?v=0.5.0-" in response.text
     assert "Find and replace" not in response.text
@@ -112,6 +124,8 @@ def test_web_pages_and_security_headers(client: TestClient) -> None:
     assert 'id="final-transcription-model-list"' in settings.text
     assert 'id="pytorch-cuda-dialog"' in settings.text
     assert 'id="diarization-engine"' in settings.text
+    assert 'id="rag-reindex-dialog"' in settings.text
+    assert 'id="rag-reindex-log"' in settings.text
     assert settings.text.index('data-settings-tab="ai-engine"') < settings.text.index(
         'data-settings-tab="note-formats"'
     ) < settings.text.index('data-settings-tab="rag"')

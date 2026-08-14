@@ -205,6 +205,24 @@ custom formats, and choose any format as the default. Each summary records both
 the selected format ID and an immutable snapshot of its prompt and sections, so
 old results remain reproducible after a format is edited.
 
+Completed AI notes can be edited as Markdown directly from the meeting's AI
+Notes tab. The first generated version and manual-edit timestamp remain in the
+summary metadata. **Rebuild AI notes** creates a new version from the active
+transcript, asks for a Note Format with the Settings default preselected, and
+keeps prior successful, failed, or manually edited versions in local history.
+The compact header actions also copy the complete report and save edits without
+adding another toolbar row. Meet2Notes warns before unsaved edits are discarded
+when changing sections, following an internal link, refreshing, or closing the
+page.
+
+Long transcripts are handled automatically with hierarchical AI notes. The
+summary worker estimates the prompt against the configured context window,
+splits oversized meetings at transcript-line boundaries, extracts grounded
+evidence from every block, recursively consolidates those reports, and only
+then applies the selected Note Format. The finishing dialog shows the estimated
+input size and block count before processing starts; short meetings continue to
+use the faster single-pass path.
+
 ## Historical RAG and Prompt
 
 Settings -> RAG provides three embedding choices: managed BGE-M3 through
@@ -213,6 +231,10 @@ local or remote endpoint through LiteLLM. Basic and advanced settings adapt to
 the selected profile, and RAG can be disabled independently. SQLite is the
 default vector store; plugins can register alternative vector-store backends
 through the public RAG hooks.
+
+Rebuilding the historical index requires explicit confirmation and runs as a
+persistent local job. Its progress dialog reports each meeting and embedding
+batch without blocking the Settings request.
 
 Prompt opens as a separate workspace with the same application header and theme
 controls as the other pages. It can ask the connected AI about one selected

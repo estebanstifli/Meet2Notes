@@ -84,7 +84,19 @@ RAM/VRAM allocation spikes; inference remains isolated after startup.
 
 Diarization creates meeting-local speakers and assigns them to transcript
 segments using temporal overlap. Summary generation streams tokens from
-llama.cpp so cooperative cancellation can interrupt generation.
+llama.cpp so cooperative cancellation can interrupt generation. Before
+inference, the summary worker reserves the configured output and safety margin
+inside the model context. Oversized transcripts use a hierarchical map-reduce
+path: line-aware transcript blocks become grounded evidence reports, reports
+are recursively consolidated when necessary, and the selected Note Format is
+applied only to the final evidence set. A tokenizer-backed count is used for a
+loaded GGUF model, with a conservative estimate as the provider-neutral
+fallback.
+
+AI-note rebuilds create new summary and job rows instead of mutating earlier
+generations. Manual Markdown edits update only the selected completed summary;
+its structured metadata retains the original generated content and the latest
+manual-edit timestamp. Neither operation changes transcript segments.
 
 The engine contract includes preparation, transcription, unload, shutdown, and
 capability discovery. Preferences keep the selected provider in a separate

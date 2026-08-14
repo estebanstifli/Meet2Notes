@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import time
 from pathlib import Path
 from typing import Any
 
@@ -103,6 +104,19 @@ def test_rag_indexes_searches_and_exposes_ranking(settings: AppSettings) -> None
         assert second.status_code == 200
         assert second.json()["indexing"]["indexed_meetings"] == 0
         assert second.json()["indexing"]["skipped_meetings"] == 1
+
+        rebuild = client.post("/api/rag/index/jobs", json={"force": True})
+        assert rebuild.status_code == 202
+        job_uuid = rebuild.json()["uuid"]
+        for _ in range(100):
+            job = client.get(f"/api/jobs/{job_uuid}").json()
+            if job["status"] in {"completed", "failed"}:
+                break
+            time.sleep(0.01)
+        assert job["status"] == "completed"
+        assert job["job_type"] == "index_search"
+        assert job["result"]["indexed_meetings"] == 2
+        assert job["result"]["indexed_chunks"] == 2
 
 
 def test_rag_settings_and_prompt_window_are_available(settings: AppSettings) -> None:

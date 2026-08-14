@@ -1106,6 +1106,93 @@
   background: #ecfdf3;
 }
 
+.ai-result-controls {
+  display: grid;
+  justify-items: end;
+  gap: 9px;
+}
+
+.ai-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.ai-note-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 29px;
+  padding: 5px 9px;
+  color: #475467;
+  background: #fff;
+  border: 1px solid #d7dee8;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 9px;
+  font-weight: 700;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+
+.ai-note-action:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #b8c4d4;
+  transform: translateY(-1px);
+}
+
+.ai-note-action:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+.ai-note-action.primary {
+  color: #d9f99d;
+  background: #18352d;
+  border-color: #18352d;
+}
+
+.ai-note-action.primary:hover:not(:disabled) {
+  background: #234a3f;
+  border-color: #234a3f;
+}
+
+.ai-note-action svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ai-result-actions button[hidden],
+.ai-report-content[hidden],
+.ai-report-editor[hidden] {
+  display: none;
+}
+
+.ai-report-editor {
+  width: calc(100% - 48px);
+  min-height: 320px;
+  flex: 1;
+  margin: 18px 24px 24px;
+  padding: 16px;
+  color: #263248;
+  background: #fff;
+  border: 1px solid #cfd8e5;
+  border-radius: 10px;
+  font: 10px/1.65 Consolas, "Courier New", monospace;
+  resize: none;
+}
+
+.ai-rebuild-modal-panel {
+  width: min(520px, calc(100vw - 32px));
+}
+
 .speaker-results,
 .ai-report-content {
   min-height: 0;
@@ -1596,17 +1683,28 @@
   font-size: 9px;
 }
 
+.postprocess-summary-sizing {
+  display: block;
+  margin-top: 7px;
+  color: #667085;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
 .remember-voice-modal-panel {
   width: min(480px, calc(100vw - 32px));
 }
 
 .postprocess-speakers {
   display: grid;
-  gap: 7px;
-  padding: 10px 12px 12px 38px;
-  background: #f7f9fc;
-  border: 1px solid #e5eaf1;
-  border-radius: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.postprocess-speaker-option > div {
+  min-width: 0;
 }
 
 .postprocess-speakers.is-disabled {
