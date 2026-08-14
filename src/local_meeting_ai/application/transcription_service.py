@@ -541,10 +541,16 @@ class TranscriptionService:
 def _postprocess_options(options: dict[str, Any] | None) -> dict[str, Any]:
     source = options if isinstance(options, dict) else {}
     speaker_count = source.get("speaker_count")
+    summary_template_id = source.get("summary_template_id")
     return {
         "diarization": bool(source.get("diarization", True)),
         "speaker_count": speaker_count if isinstance(speaker_count, int) else None,
         "summary": bool(source.get("summary", True)),
+        "summary_template_id": (
+            summary_template_id
+            if isinstance(summary_template_id, int) and summary_template_id > 0
+            else None
+        ),
     }
 
 

@@ -74,6 +74,8 @@ def test_web_pages_and_security_headers(client: TestClient) -> None:
     assert 'id="application-shutdown"' in response.text
     assert 'id="shutdown-dialog"' in response.text
     assert 'id="postprocess-log"' in response.text
+    assert 'id="postprocess-summary-template"' in response.text
+    assert 'id="remember-voice-dialog"' in response.text
     assert "start-transcription-button hidden" in response.text
     assert "?v=0.5.0-" in response.text
     assert "Find and replace" not in response.text
@@ -110,6 +112,14 @@ def test_web_pages_and_security_headers(client: TestClient) -> None:
     assert 'id="final-transcription-model-list"' in settings.text
     assert 'id="pytorch-cuda-dialog"' in settings.text
     assert 'id="diarization-engine"' in settings.text
+    assert settings.text.index('data-settings-tab="ai-engine"') < settings.text.index(
+        'data-settings-tab="note-formats"'
+    ) < settings.text.index('data-settings-tab="rag"')
+
+    speakers = client.get("/speakers")
+    assert speakers.status_code == 200
+    assert 'data-close-dialog aria-label="Close"' in speakers.text
+    assert 'data-close-dialog>Cancel</button>' in speakers.text
 
 
 def test_application_shutdown_uses_the_cli_graceful_shutdown_callback(client: TestClient) -> None:

@@ -684,9 +684,19 @@ class TranscriptionRepository:
 
     def update_title(self, transcription_id: int, title: str) -> Transcription | None:
         with self.database.transaction() as connection:
+            row = connection.execute(
+                "SELECT meeting_id FROM transcriptions WHERE id = ?",
+                (transcription_id,),
+            ).fetchone()
+            if row is None:
+                return None
             cursor = connection.execute(
                 "UPDATE transcriptions SET title = ? WHERE id = ?",
                 (title, transcription_id),
+            )
+            connection.execute(
+                "UPDATE meetings SET title = ?, updated_at = ? WHERE id = ?",
+                (title, utc_now(), row["meeting_id"]),
             )
         return self.get(transcription_id) if cursor.rowcount else None
 

@@ -374,6 +374,7 @@ class SummaryService:
         *,
         postprocess: bool = False,
         postprocess_options: dict[str, Any] | None = None,
+        template_id: int | None = None,
     ) -> tuple[Summary, Job]:
         transcription = self.transcriptions.get(transcription_id)
         if not transcription:
@@ -395,7 +396,10 @@ class SummaryService:
                 raise CapabilityUnavailableError(
                     "Install the selected local AI model in Settings first"
                 )
-        template = self._default_template()
+        template = self.templates.get(template_id) if template_id is not None else None
+        if template_id is not None and template is None:
+            raise ValidationError("The selected note format no longer exists")
+        template = template or self._default_template()
         summary = self.summaries.create(
             meeting_id=transcription.meeting_id,
             transcription_id=transcription.id,

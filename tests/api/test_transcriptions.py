@@ -224,6 +224,9 @@ def test_transcription_pipeline_editor_and_versions(tmp_path: Path) -> None:
         )
         assert renamed.status_code == 200
         assert renamed.json()["title"] == "Product launch decision"
+        assert client.get(f"/api/meetings/{meeting['id']}").json()["title"] == (
+            "Product launch decision"
+        )
         assert 'data-default-title="New Transcription"' in client.get("/").text
 
         first_segment = detail.json()["segments"][0]
@@ -270,7 +273,8 @@ def test_transcription_pipeline_editor_and_versions(tmp_path: Path) -> None:
 
         library = client.get("/meetings")
         assert library.status_code == 200
-        assert "Product review" in library.text
+        assert "Product launch decision" in library.text
+        assert "Product review" not in library.text
         assert f'href="/?meeting={meeting["id"]}"' in library.text
 
         meeting_redirect = client.get(

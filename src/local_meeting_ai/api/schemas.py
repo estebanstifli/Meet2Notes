@@ -433,6 +433,7 @@ class PostprocessOptions(BaseModel):
     diarization: bool = True
     speaker_count: int | None = Field(default=None, ge=1, le=20)
     summary: bool = True
+    summary_template_id: int | None = Field(default=None, ge=1)
 
 
 class TranscriptionCreate(BaseModel):

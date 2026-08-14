@@ -364,10 +364,13 @@
         <input id="postprocess-final-pass" type="checkbox" checked>
         <span><strong>Final transcription pass</strong><small id="postprocess-final-pass-help">Reprocess the complete recording for the most accurate transcript.</small></span>
       </label>
-      <label class="postprocess-option-card" for="postprocess-summary">
-        <input id="postprocess-summary" type="checkbox" checked>
-        <span><strong>Create AI notes</strong><small>Generate a local summary, decisions and action items.</small></span>
-      </label>
+      <div class="postprocess-option-card postprocess-summary-option" id="postprocess-summary-option">
+        <input id="postprocess-summary" type="checkbox" checked aria-labelledby="postprocess-summary-label">
+        <div>
+          <label for="postprocess-summary" id="postprocess-summary-label"><strong>Create AI notes</strong><small>Generate structured notes with the selected format.</small></label>
+          <label class="postprocess-format-field" for="postprocess-summary-template"><span>Note format</span><select id="postprocess-summary-template" aria-label="Note format"><option value="">Loading note formats…</option></select></label>
+        </div>
+      </div>
       <div class="postprocess-actions postprocess-options-actions">
         <button type="button" class="button secondary" id="postprocess-options-cancel">Cancel</button>
         <button type="button" class="button primary" id="postprocess-options-start">Start processing</button>
@@ -428,6 +431,19 @@
     <div class="postprocess-actions">
       <button type="button" class="button secondary" id="speaker-summary-close">Continue in background</button>
       <button type="button" class="button primary hidden" id="speaker-summary-done">Close</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="modal compact-modal" id="remember-voice-dialog" aria-labelledby="remember-voice-title">
+  <div class="modal-panel remember-voice-modal-panel">
+    <div class="modal-header">
+      <div><span class="eyebrow">Saved voice</span><h2 id="remember-voice-title">Remember this voice?</h2><p id="remember-voice-description">Meet2Notes can use this meeting's voice sample to recognize this person in future meetings.</p></div>
+      <button type="button" class="icon-button close-button" data-close-remember-voice aria-label="Close">×</button>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="button secondary" data-close-remember-voice>Not now</button>
+      <button type="button" class="button primary" id="remember-renamed-voice">Remember this voice</button>
     </div>
   </div>
 </dialog>

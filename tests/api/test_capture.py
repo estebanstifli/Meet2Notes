@@ -259,6 +259,9 @@ class FakeDiarizationEngine:
 class FakeSummaryEngine:
     name = "fake-summary"
 
+    def __init__(self, expected_template_name: str = "General Meeting") -> None:
+        self.expected_template_name = expected_template_name
+
     def capability(self) -> dict[str, Any]:
         return {"engine": self.name, "available": True, "installed": True}
 
@@ -282,8 +285,8 @@ class FakeSummaryEngine:
             assert config["speaker_name"] == "Esteban"
         else:
             assert "Speaker 1: Captured locally." in transcript
-            assert config["summary_template"]["name"] == "General Meeting"
-            assert config["summary_template"]["sections"][0]["title"] == "Summary"
+            assert config["summary_template"]["name"] == self.expected_template_name
+            assert config["summary_template"]["sections"]
         assert not is_cancelled()
         progress(1, "Notes generated")
         return SummaryResult(content_markdown="# Summary\n\nCaptured locally.")
@@ -516,6 +519,7 @@ def test_live_capture_can_keep_the_live_text_without_postprocessing(tmp_path: Pa
             "diarization": False,
             "speaker_count": None,
             "summary": False,
+            "summary_template_id": None,
         }
         jobs = client.get(f"/api/jobs?meeting_id={session['meeting_id']}").json()
         assert {item["job_type"] for item in jobs} == {"import_media", "transcribe"}
@@ -531,16 +535,22 @@ def test_imported_media_runs_complete_meeting_pipeline(tmp_path: Path) -> None:
         open_browser=False,
         log_level="WARNING",
     )
+    summary_engine = FakeSummaryEngine(expected_template_name="Daily Stand-up")
     with TestClient(
         create_app(
             settings,
             transcription_engine=FakeTranscriptionEngine(),
             audio_normalizer=FakeNormalizer(),
             diarization_engine=FakeDiarizationEngine(),
-            summary_engine=FakeSummaryEngine(),
+            summary_engine=summary_engine,
             audio_range_exporter=FakeAudioRangeExporter(),
         )
     ) as client:
+        daily_format = next(
+            item
+            for item in client.get("/api/summary-templates").json()
+            if item["name"] == "Daily Stand-up"
+        )
         meeting = client.post(
             "/api/meetings",
             json={"title": "Imported interview", "source_type": "imported"},
@@ -557,6 +567,12 @@ def test_imported_media_runs_complete_meeting_pipeline(tmp_path: Path) -> None:
                 "profile_id": "balanced",
                 "language": "en",
                 "postprocess": True,
+                "postprocess_options": {
+                    "diarization": True,
+                    "speaker_count": None,
+                    "summary": True,
+                    "summary_template_id": daily_format["id"],
+                },
             },
         )
         assert started.status_code == 202
@@ -578,6 +594,7 @@ def test_imported_media_runs_complete_meeting_pipeline(tmp_path: Path) -> None:
             raise AssertionError("Imported media pipeline did not finish")
 
         assert summary_job["status"] == "completed"
+        assert summary_job["payload"]["summary_template"]["name"] == "Daily Stand-up"
         assert {job["job_type"] for job in workflow_jobs} >= {
             "import_media",
             "transcribe",

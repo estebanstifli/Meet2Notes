@@ -1565,6 +1565,41 @@
   font-size: 10px;
 }
 
+.postprocess-summary-option > div,
+.postprocess-summary-option > div > label:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.postprocess-format-field {
+  display: grid;
+  grid-template-columns: auto minmax(150px, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-top: 9px;
+}
+
+.postprocess-format-field > span {
+  display: block;
+  color: #667085;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.postprocess-format-field select {
+  min-width: 0;
+  padding: 7px 28px 7px 9px;
+  color: #344054;
+  background: #fff;
+  border: 1px solid #d8e0ea;
+  border-radius: 7px;
+  font-size: 9px;
+}
+
+.remember-voice-modal-panel {
+  width: min(480px, calc(100vw - 32px));
+}
+
 .postprocess-speakers {
   display: grid;
   gap: 7px;

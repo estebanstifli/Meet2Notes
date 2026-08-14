@@ -23,6 +23,7 @@
   const postprocessDialog = document.querySelector("#postprocess-dialog");
   const postprocessLogOutput = document.querySelector("#postprocess-log");
   const speakerSummaryDialog = document.querySelector("#speaker-summary-dialog");
+  const rememberVoiceDialog = document.querySelector("#remember-voice-dialog");
   const newMeetingRequested = new URL(window.location.href).searchParams.get("new") === "1";
 
   let meetingId = page.dataset.meetingId || null;
@@ -32,6 +33,7 @@
   let recordings = [];
   let versions = [];
   let meetingSummaries = [];
+  let noteFormats = [];
   let engineCapabilities = {};
   let preferences = {};
   let activeTranscriptionId = null;
@@ -58,6 +60,7 @@
   let activeSpeakerSummaryId = null;
   let speakerSummaryDismissed = false;
   let pendingPostprocessKind = null;
+  let pendingRememberSpeakerId = null;
   const activityLines = [];
   const postprocessLogLines = [];
   const postprocessJobSnapshots = new Map();
@@ -176,6 +179,7 @@
         api("/api/audio/sources"),
         api("/api/capture/session"),
         api("/api/settings"),
+        api("/api/summary-templates"),
       ];
       const meetingRequests = meetingId
         ? [
@@ -195,6 +199,7 @@
         sourceData,
         currentCapture,
         preferenceData,
+        summaryTemplates,
         recordingData,
         versionData,
         jobs,
@@ -203,6 +208,7 @@
 
       engineCapabilities = capabilities;
       preferences = preferenceData;
+      noteFormats = summaryTemplates;
       captureCapability = sourceData.capability || {};
       audioSources = sourceData.sources || [];
       recordings = recordingData;
@@ -766,6 +772,19 @@
     }
   }
 
+  function isGeneratedSpeakerName(value) {
+    return /^speaker\s*\d+$/i.test(String(value || "").trim());
+  }
+
+  function offerToRememberRenamedVoice(speaker) {
+    pendingRememberSpeakerId = speaker.id;
+    document.querySelector("#remember-voice-title").textContent =
+      `Remember ${speaker.display_name}'s voice?`;
+    document.querySelector("#remember-voice-description").textContent =
+      `Use the voice sample from this meeting to recognize ${speaker.display_name} automatically in future meetings.`;
+    if (!rememberVoiceDialog.open) rememberVoiceDialog.showModal();
+  }
+
   async function playAllSpeakerFragments(speakerId) {
     if (!audio.getAttribute("src")) {
       toast("The meeting audio is not available.", "error");
@@ -870,8 +889,29 @@
     });
   }
 
+  function syncPostprocessSummaryControls() {
+    const enabled = document.querySelector("#postprocess-summary").checked;
+    const select = document.querySelector("#postprocess-summary-template");
+    select.disabled = !enabled || !noteFormats.length;
+    document.querySelector("#postprocess-summary-option").classList.toggle(
+      "is-disabled",
+      !enabled,
+    );
+  }
+
+  function populatePostprocessNoteFormats() {
+    const select = document.querySelector("#postprocess-summary-template");
+    select.innerHTML = noteFormats.length
+      ? noteFormats.map((format) => `<option value="${format.id}">${escapeHTML(format.name)}${format.is_default ? " · Default" : ""}</option>`).join("")
+      : '<option value="">No note formats available</option>';
+    const selected = noteFormats.find((format) => format.is_default) || noteFormats[0];
+    if (selected) select.value = String(selected.id);
+    syncPostprocessSummaryControls();
+  }
+
   function selectedPostprocessOptions() {
     const diarization = document.querySelector("#postprocess-diarization").checked;
+    const summary = document.querySelector("#postprocess-summary").checked;
     const known = document.querySelector('input[name="postprocess-speaker-mode"]:checked')?.value === "known";
     const requestedCount = Number(document.querySelector("#postprocess-speaker-count").value);
     return {
@@ -880,7 +920,10 @@
         && requestedCount >= 1 && requestedCount <= 20
         ? requestedCount
         : null,
-      summary: document.querySelector("#postprocess-summary").checked,
+      summary,
+      summary_template_id: summary
+        ? Number(document.querySelector("#postprocess-summary-template").value) || null
+        : null,
     };
   }
 
@@ -892,6 +935,7 @@
       const finalPass = document.querySelector("#postprocess-final-pass");
       document.querySelector("#postprocess-diarization").checked = true;
     document.querySelector("#postprocess-summary").checked = true;
+    populatePostprocessNoteFormats();
     document.querySelector('input[name="postprocess-speaker-mode"][value="auto"]').checked = true;
     document.querySelector("#postprocess-speaker-count").value = "2";
     document.querySelector("#postprocess-options").classList.remove("hidden");
@@ -1471,6 +1515,7 @@
   document.querySelector("#pause-capture").addEventListener("click", togglePause);
   document.querySelector("#stop-capture").addEventListener("click", stopCapture);
   document.querySelector("#postprocess-diarization").addEventListener("change", syncPostprocessSpeakerControls);
+  document.querySelector("#postprocess-summary").addEventListener("change", syncPostprocessSummaryControls);
   document.querySelectorAll('input[name="postprocess-speaker-mode"]').forEach((input) =>
     input.addEventListener("change", syncPostprocessSpeakerControls));
   document.querySelector("#postprocess-options-cancel").addEventListener("click", () => {
@@ -1555,6 +1600,27 @@
     setActiveMeetingTab(meetingSummaries.some((item) => item.status === "completed")
       ? "intelligence"
       : "transcript");
+  });
+
+  document.querySelectorAll("[data-close-remember-voice]").forEach((button) => {
+    button.addEventListener("click", () => {
+      pendingRememberSpeakerId = null;
+      rememberVoiceDialog.close();
+    });
+  });
+  document.querySelector("#remember-renamed-voice").addEventListener("click", async (event) => {
+    const speakerId = pendingRememberSpeakerId;
+    if (!speakerId) return;
+    event.currentTarget.disabled = true;
+    rememberVoiceDialog.close();
+    pendingRememberSpeakerId = null;
+    await rememberSpeakerVoice(speakerId);
+    event.currentTarget.disabled = false;
+  });
+  rememberVoiceDialog.addEventListener("click", (event) => {
+    if (event.target !== rememberVoiceDialog) return;
+    pendingRememberSpeakerId = null;
+    rememberVoiceDialog.close();
   });
   document.querySelector("#speaker-summary-close").addEventListener("click", () => {
     speakerSummaryDismissed = true;
@@ -1664,6 +1730,8 @@
       return;
     }
     input.disabled = true;
+    const renamedGeneratedSpeaker = isGeneratedSpeakerName(input.dataset.originalName)
+      && !isGeneratedSpeakerName(name);
     try {
       const updated = await api(`/api/speakers/${input.dataset.speakerName}`, {
         method: "PATCH",
@@ -1674,6 +1742,7 @@
       if (speaker) Object.assign(speaker, updated);
       renderTranscript(lastDetail);
       toast(`Speaker renamed to ${updated.display_name}.`);
+      if (renamedGeneratedSpeaker) offerToRememberRenamedVoice(updated);
     } catch (error) {
       input.disabled = false;
       input.value = input.dataset.originalName;
