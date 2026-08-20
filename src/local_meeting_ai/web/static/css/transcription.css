@@ -1684,7 +1684,7 @@
   min-width: 0;
   width: 100%;
   padding: 4px 6px;
-  color: #172033;
+  color: var(--speaker-color, #176bff);
   background: transparent;
   border: 1px solid transparent;
   border-radius: 6px;
@@ -1695,7 +1695,7 @@
 }
 
 .speaker-card-name input:hover {
-  color: #0f5ce0;
+  color: var(--speaker-color, #176bff);
   background: #f3f7ff;
   border-color: #d7e3f7;
 }
@@ -1853,10 +1853,21 @@
 }
 
 .speaker-turn-list .speaker-line > div strong {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   margin-bottom: 2px;
   color: var(--speaker-color, #176bff);
   font-size: 8px;
+}
+
+.speaker-line-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  background: var(--speaker-color, #176bff);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--speaker-color, #176bff) 13%, transparent);
 }
 
 .ai-report-content {

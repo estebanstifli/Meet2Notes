@@ -385,7 +385,7 @@
 
 [data-theme="dark"] .speaker-card-name input:hover,
 [data-theme="dark"] .speaker-card-name input:focus {
-  color: #a9c7ff;
+  color: var(--speaker-color, #8db7ff);
   background: #1a2638;
   border-color: #41689f;
 }

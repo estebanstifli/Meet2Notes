@@ -740,7 +740,7 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z"/></svg>
           </button>
           <time>${formatTimestamp(turn.start_ms)}–${formatTimestamp(turn.end_ms)}<small>${formatTimestamp(turn.end_ms - turn.start_ms)}</small></time>
-          <div><strong>${escapeHTML(speaker?.display_name || "Unidentified")}</strong><p>${escapeHTML(transcriptText || "Diarized audio turn")}</p></div>
+          <div><strong><i class="speaker-line-dot" aria-hidden="true"></i>${escapeHTML(speaker?.display_name || "Unidentified")}</strong><p>${escapeHTML(transcriptText || "Diarized audio turn")}</p></div>
         </article>`;
     }).join("");
     container.innerHTML = `
