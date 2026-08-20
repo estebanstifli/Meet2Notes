@@ -352,6 +352,22 @@ environment when necessary.
 > not code-signed. Review its contents before running it and download it only
 > from the official Meet2Notes repository or [meet2notes.eu](https://meet2notes.eu).
 
+### Pinokio: one-click local installation
+
+Meet2Notes can also be installed through [Pinokio](https://pinokio.computer),
+which keeps the application, Python runtime, FFmpeg, dependencies, and
+recommended local models in its isolated application environment.
+
+1. In Pinokio, choose the option to install an app from a Git repository.
+2. Enter `https://github.com/estebanstifli/Meet2Notes.git`.
+3. Select **Install Meet2Notes**, wait for the model downloads to finish, then
+   select **Start Meet2Notes**.
+4. Use **Open Meet2Notes** in Pinokio to open the local web interface.
+
+The Pinokio menu also provides **Update** and **Repair installation**. Repair
+recreates only Pinokio's private runtime; meeting data and downloaded models
+remain managed by Meet2Notes and are not removed automatically.
+
 ### macOS and Linux
 
 ```bash

@@ -1,0 +1,5 @@
+{
+  "title": "Meet2Notes",
+  "description": "Private local AI meeting assistant: record conversations, transcribe speech, identify speakers, search meeting history, and create structured notes without uploading recordings by default.",
+  "icon": "src/local_meeting_ai/web/static/icons/mark.svg"
+}

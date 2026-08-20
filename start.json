@@ -1,0 +1,24 @@
+{
+  "daemon": true,
+  "run": [
+    {
+      "method": "shell.run",
+      "params": {
+        "conda": ".pinokio",
+        "message": "python -m local_meeting_ai --no-browser",
+        "on": [
+          {
+            "event": "/(http:\\/\\/127\\.0\\.0\\.1:[0-9]+)/",
+            "done": true
+          }
+        ]
+      }
+    },
+    {
+      "method": "local.set",
+      "params": {
+        "url": "{{input.event[1]}}"
+      }
+    }
+  ]
+}

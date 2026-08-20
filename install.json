@@ -1,0 +1,38 @@
+{
+  "requires": {
+    "bundle": "ai"
+  },
+  "run": [
+    {
+      "method": "shell.run",
+      "params": {
+        "conda": {
+          "path": ".pinokio",
+          "python": "python=3.12"
+        },
+        "message": "conda install -y -c conda-forge ffmpeg"
+      }
+    },
+    {
+      "method": "shell.run",
+      "params": {
+        "conda": ".pinokio",
+        "message": "python -m pip install --upgrade pip setuptools wheel && python -m pip install --upgrade --force-reinstall --no-cache-dir --progress-bar off torch==2.13.0+cpu --index-url https://download.pytorch.org/whl/cpu && python -m pip install -e \".[capture,transcription,diarization,nvidia-asr,pyannote-diarization]\" && python -m pip install \"huggingface-hub>=0.27,<2\" && python -m pip install \"llama-cpp-python>=0.3.8,<1\" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/{{os.platform() === 'darwin' ? 'metal' : 'cpu'}} && python -m pip check"
+      }
+    },
+    {
+      "method": "shell.run",
+      "params": {
+        "conda": ".pinokio",
+        "message": "python -m local_meeting_ai.model_setup --models all --whisper-model small"
+      }
+    },
+    {
+      "method": "shell.run",
+      "params": {
+        "conda": ".pinokio",
+        "message": "python -c \"from pathlib import Path; Path('.pinokio-installed').write_text('ok\\n', encoding='utf-8')\""
+      }
+    }
+  ]
+}

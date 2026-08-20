@@ -21,16 +21,22 @@ def test_cuda_install_uses_the_private_interpreter_and_cuda_index(
         commands.append(command)
         return CompletedProcess()
 
-    monkeypatch.setattr(
-        pytorch_cuda,
-        "_torch_status",
-        lambda: ("2.13.0+cpu", None, False),
-    )
-    monkeypatch.setattr(pytorch_cuda, "_installed_torch_version", lambda: "2.13.0+cpu")
-    monkeypatch.setattr(pytorch_cuda.shutil, "which", lambda _name: "nvidia-smi")
     monkeypatch.setattr(pytorch_cuda.subprocess, "Popen", fake_popen)
 
-    result = PytorchCudaRuntime("C:/Meet2Notes/.venv/Scripts/python.exe")._install_sync()
+    runtime = PytorchCudaRuntime("C:/Meet2Notes/.venv/Scripts/python.exe")
+    monkeypatch.setattr(
+        runtime,
+        "status",
+        lambda: {
+            "cuda_available": False,
+            "cuda_wheel_installed": False,
+            "is_virtual_environment": True,
+            "nvidia_gpu_detected": True,
+            "restart_required": False,
+        },
+    )
+
+    result = runtime._install_sync()
 
     assert result["restart_required"] is True
     assert commands == [

@@ -86,8 +86,9 @@ def test_web_pages_and_security_headers(client: TestClient) -> None:
     assert 'id="ai-unsaved-dialog"' in response.text
     assert 'id="ai-unsaved-discard"' in response.text
     assert 'id="ai-cancel-notes"' not in response.text
-    assert 'id="copy-transcript-plain"' in response.text
-    assert 'id="download-transcript-plain"' in response.text
+    assert 'data-export-source="transcript" data-export-format="clipboard"' in response.text
+    assert 'data-export-source="transcript" data-export-format="pdf"' in response.text
+    assert 'id="export-dialog"' in response.text
     assert "start-transcription-button hidden" in response.text
     assert "?v=0.5.0-" in response.text
     assert "Find and replace" not in response.text

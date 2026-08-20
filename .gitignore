@@ -2,6 +2,8 @@
 .env.*
 !.env.example
 .venv/
+.pinokio/
+.pinokio-installed
 __pycache__/
 *.py[cod]
 *.egg-info/
