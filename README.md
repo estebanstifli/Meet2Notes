@@ -27,6 +27,12 @@ speakers, and turns conversations into searchable, structured meeting notes.
 It is designed for private local AI workflows: recordings, transcripts, model
 files, and application data remain under the user's control.
 
+Meet2Notes is a private, local-first alternative to commercial AI meeting
+assistants such as **Granola**, **Fireflies.ai**, **Fathom**, and **Otter.ai**.
+It is also an open-source alternative to **Meetily** for people and teams that
+want self-hosted meeting transcription, speaker diarization, and AI notes
+without surrendering control of their recordings.
+
 The official product website is [meet2notes.eu](https://meet2notes.eu).
 
 The processing pipeline is intentionally modular. Transcription, diarization,

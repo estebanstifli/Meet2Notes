@@ -283,7 +283,7 @@ def build_container(
         profiles=speaker_profiles,
     )
     queue = LocalJobQueue(jobs, worker_count=settings.max_heavy_jobs)
-    meeting_service = MeetingService(meetings, jobs, storage)
+    meeting_service = MeetingService(meetings, recordings, jobs, storage)
     import_service = ImportService(meetings, recordings, jobs, storage, ffmpeg, queue)
     if transcription_engine is not None:
         resolved_engine = transcription_engine

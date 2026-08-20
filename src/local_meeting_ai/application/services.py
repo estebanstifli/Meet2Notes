@@ -23,10 +23,12 @@ class MeetingService:
     def __init__(
         self,
         meetings: MeetingRepository,
+        recordings: RecordingRepository,
         jobs: JobRepository,
         storage: MeetingStorage,
     ) -> None:
         self.meetings = meetings
+        self.recordings = recordings
         self.jobs = jobs
         self.storage = storage
 
@@ -79,6 +81,31 @@ class MeetingService:
         self.storage.delete_meeting(meeting.uuid)
         if not self.meetings.delete(meeting_id):
             raise NotFoundError("Meeting not found")
+
+    def delete_audio(self, meeting_id: int) -> Meeting:
+        meeting = self.get(meeting_id)
+        active_jobs = self.jobs.list(meeting_id=meeting_id, active_only=True)
+        if active_jobs:
+            raise ValidationError(
+                "Audio cannot be deleted while meeting processing is still active"
+            )
+        recordings = self.recordings.list_for_meeting(meeting_id)
+        if meeting.audio_deleted_at and not recordings:
+            return meeting
+        deleted_bytes = self.storage.delete_meeting_audio(
+            meeting.uuid, [recording.local_path for recording in recordings]
+        )
+        self.recordings.delete_for_meeting(meeting_id)
+        updated = self.meetings.update(
+            meeting_id,
+            {
+                "audio_deleted_at": datetime.now(UTC).isoformat(timespec="milliseconds"),
+                "audio_deleted_bytes": deleted_bytes,
+            },
+        )
+        if not updated:
+            raise NotFoundError("Meeting not found")
+        return updated
 
 
 class ImportService:

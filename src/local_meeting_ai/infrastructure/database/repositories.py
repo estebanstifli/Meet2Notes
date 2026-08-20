@@ -61,6 +61,10 @@ def _meeting_from_row(row: Any) -> Meeting:
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         recording_count=row["recording_count"] if "recording_count" in keys else 0,
+        audio_deleted_at=row["audio_deleted_at"] if "audio_deleted_at" in keys else None,
+        audio_deleted_bytes=(
+            row["audio_deleted_bytes"] if "audio_deleted_bytes" in keys else None
+        ),
     )
 
 
@@ -277,6 +281,8 @@ class MeetingRepository:
             "duration_ms",
             "started_at",
             "ended_at",
+            "audio_deleted_at",
+            "audio_deleted_bytes",
         }
         changes = {key: value for key, value in values.items() if key in allowed}
         if not changes:
@@ -374,6 +380,13 @@ class RecordingRepository:
                 (meeting_id, role),
             ).fetchone()
         return _recording_from_row(row) if row else None
+
+    def delete_for_meeting(self, meeting_id: int) -> int:
+        with self.database.transaction() as connection:
+            cursor = connection.execute(
+                "DELETE FROM recordings WHERE meeting_id = ?", (meeting_id,)
+            )
+        return cursor.rowcount
 
     def update_probe(
         self,

@@ -59,7 +59,7 @@
         </span>
         <span class="meeting-library-duration">
           <strong data-duration-ms="{{ meeting.duration_ms or 0 }}">—</strong>
-          <small>{{ meeting.recording_count }} audio file{{ '' if meeting.recording_count == 1 else 's' }}</small>
+          <small>{% if meeting.audio_deleted_at %}Audio deleted{% else %}{{ meeting.recording_count }} audio file{{ '' if meeting.recording_count == 1 else 's' }}{% endif %}</small>
         </span>
         <span class="meeting-library-status {{ meeting.status.value }}">{{ meeting.status.value }}</span>
         <span class="meeting-library-arrow">

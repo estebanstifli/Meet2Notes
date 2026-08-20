@@ -40,6 +40,8 @@ class MeetingResponse(BaseModel):
     created_at: str
     updated_at: str
     recording_count: int
+    audio_deleted_at: str | None
+    audio_deleted_bytes: int | None
 
 
 class RecordingResponse(BaseModel):

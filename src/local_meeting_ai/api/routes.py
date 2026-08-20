@@ -1844,6 +1844,17 @@ def delete_meeting(meeting_id: int, container: ContainerDependency) -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.delete(
+    "/meetings/{meeting_id}/audio",
+    response_model=MeetingResponse,
+)
+def delete_meeting_audio(
+    meeting_id: int, container: ContainerDependency
+) -> MeetingResponse:
+    meeting = container.meeting_service.delete_audio(meeting_id)
+    return MeetingResponse.model_validate(meeting)
+
+
 @router.post(
     "/meetings/{meeting_id}/import",
     response_model=ImportResponse,
@@ -2016,6 +2027,17 @@ def update_speaker_profile(
 def delete_speaker_profile(profile_id: int, container: ContainerDependency) -> Response:
     container.speaker_service.delete_profile(profile_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/speaker-profiles/{profile_id}/audio")
+def speaker_profile_audio(profile_id: int, container: ContainerDependency) -> FileResponse:
+    path = container.speaker_service.profile_sample(profile_id)
+    return FileResponse(
+        path,
+        media_type="audio/wav",
+        filename=f"saved-voice-{profile_id}.wav",
+        content_disposition_type="inline",
+    )
 
 
 @router.get("/speaker-profiles/meetings", response_model=list[MeetingResponse])

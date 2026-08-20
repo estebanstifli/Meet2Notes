@@ -10,7 +10,7 @@ def test_initial_migration_is_complete_and_idempotent(tmp_path: Path) -> None:
     database = Database(tmp_path / "migration.db")
     runner = MigrationRunner(database)
 
-    assert runner.apply() == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    assert runner.apply() == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     assert runner.apply() == []
 
     with database.read() as connection:
@@ -23,6 +23,9 @@ def test_initial_migration_is_complete_and_idempotent(tmp_path: Path) -> None:
         foreign_keys = connection.execute("PRAGMA foreign_keys").fetchone()[0]
         journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
         busy_timeout = connection.execute("PRAGMA busy_timeout").fetchone()[0]
+        meeting_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(meetings)")
+        }
 
     assert {
         "meetings",
@@ -47,3 +50,4 @@ def test_initial_migration_is_complete_and_idempotent(tmp_path: Path) -> None:
     assert foreign_keys == 1
     assert journal_mode == "wal"
     assert busy_timeout == 5000
+    assert {"audio_deleted_at", "audio_deleted_bytes"} <= meeting_columns

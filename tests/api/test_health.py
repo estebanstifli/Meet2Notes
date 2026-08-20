@@ -111,6 +111,10 @@ def test_web_pages_and_security_headers(client: TestClient) -> None:
     assert speakers.status_code == 200
     assert "Meeting finder" in speakers.text
     assert 'id="speaker-meeting-results"' in speakers.text
+    speaker_script = client.get("/static/js/speakers.js")
+    assert 'data-play-profile' in speaker_script.text
+    assert '"Stop"' in speaker_script.text
+    assert client.get("/api/speaker-profiles/99999/audio").status_code == 404
 
     static_asset = client.get("/static/js/transcript.js")
     assert static_asset.headers["cache-control"] == "no-cache, must-revalidate"

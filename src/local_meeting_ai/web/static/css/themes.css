@@ -375,8 +375,12 @@
   border-color: #2b3749;
 }
 
-[data-theme="dark"] :is(.speaker-card-name input, .speaker-card-stats strong, .speaker-panel-toolbar > div strong, .speaker-turn-list .speaker-line > div strong) {
+[data-theme="dark"] :is(.speaker-card-stats strong, .speaker-panel-toolbar > div strong) {
   color: #e0e7f1;
+}
+
+[data-theme="dark"] :is(.speaker-card-name input, .speaker-turn-list .speaker-line > div strong) {
+  color: var(--speaker-color, #8db7ff);
 }
 
 [data-theme="dark"] .speaker-card-name input:hover,

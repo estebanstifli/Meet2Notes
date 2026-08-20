@@ -231,11 +231,12 @@
     <section class="meeting-tab-panel" id="meeting-tab-utilities" role="tabpanel" data-meeting-panel="utilities" hidden>
       <div class="utility-grid">
         <section class="utility-card utility-card-audio" aria-labelledby="utility-audio-title">
-          <header><span class="utility-card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg></span><div><h3 id="utility-audio-title">Audio</h3><p>Original recording</p></div></header>
+          <header><span class="utility-card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg></span><div><h3 id="utility-audio-title">Audio</h3><p id="utility-audio-status">Original recording</p></div></header>
           <div class="utility-actions">
             <button type="button" data-audio-export="mp3"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7zM14 3v5h5M9 15h6M10 12h4"/></svg>Export MP3</button>
             <button type="button" data-audio-export="wav"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7zM14 3v5h5M9 15h6M10 12h4"/></svg>Export WAV</button>
             <button type="button" data-audio-export="flac"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7zM14 3v5h5M9 15h6M10 12h4"/></svg>Export FLAC</button>
+            <button type="button" class="utility-delete-action" id="delete-meeting-audio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>Delete audio</button>
           </div>
         </section>
         <section class="utility-card utility-card-transcript" aria-labelledby="utility-transcript-title">
@@ -271,7 +272,7 @@
     aria-label="Resize activity log"
     aria-orientation="horizontal"
     aria-controls="activity-log-card"
-    aria-valuemin="110"
+    aria-valuemin="44"
     aria-valuemax="420"
     aria-valuenow="180"
     title="Drag to resize the activity log"
@@ -476,6 +477,32 @@
         <button type="button" class="button secondary" id="postprocess-background">Continue in background</button>
         <button type="button" class="button primary hidden" id="postprocess-results">View meeting results</button>
       </div>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="modal compact-modal" id="delete-audio-dialog" aria-labelledby="delete-audio-title">
+  <div class="modal-panel delete-audio-modal-panel">
+    <div class="modal-header">
+      <div>
+        <span class="eyebrow">Privacy and storage</span>
+        <h2 id="delete-audio-title">Permanently delete meeting audio?</h2>
+        <p>This removes the original recording, normalized audio and generated audio exports from this meeting.</p>
+      </div>
+      <button type="button" class="icon-button close-button" id="delete-audio-close" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="delete-audio-warning">
+      <strong>The audio cannot be recovered.</strong>
+      <ul>
+        <li>The transcript, identified speakers, AI notes and text exports are kept.</li>
+        <li>Playback, audio exports, speaker rebuilding and future audio processing will be unavailable.</li>
+        <li>Voice profiles previously remembered from this meeting are stored separately and are not deleted.</li>
+      </ul>
+      <p id="delete-audio-size"></p>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="button secondary" id="delete-audio-cancel">Cancel</button>
+      <button type="button" class="button danger" id="delete-audio-confirm">Delete audio permanently</button>
     </div>
   </div>
 </dialog>

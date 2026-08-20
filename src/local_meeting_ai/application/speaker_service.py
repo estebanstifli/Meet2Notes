@@ -63,6 +63,16 @@ class SpeakerService:
             Path(profile.sample_path).unlink(missing_ok=True)
         self.profiles.delete(profile_id)
 
+    def profile_sample(self, profile_id: int) -> Path:
+        profile = self.profiles.get(profile_id)
+        if not profile or not profile.sample_path:
+            raise NotFoundError("Saved voice sample not found")
+        path = Path(profile.sample_path).resolve()
+        profile_root = (self.storage.paths.root / "speaker_profiles").resolve()
+        if not path.is_relative_to(profile_root) or not path.is_file():
+            raise NotFoundError("Saved voice sample not found")
+        return path
+
     async def create_profile_from_speaker(
         self, transcription_id: int, speaker_id: int
     ) -> SpeakerProfile:

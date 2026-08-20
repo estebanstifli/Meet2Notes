@@ -244,7 +244,7 @@ def _register_web_routes(
         saved_meetings = [
             meeting
             for meeting in container.meeting_service.list(limit=250)
-            if meeting.recording_count > 0
+            if meeting.recording_count > 0 or meeting.audio_deleted_at is not None
         ]
         return templates.TemplateResponse(
             request=request,

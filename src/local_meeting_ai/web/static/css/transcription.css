@@ -827,12 +827,75 @@
 }
 
 .minimal-segments .segment-row {
-  grid-template-columns: 118px minmax(0, 1fr) auto;
+  grid-template-columns: 28px fit-content(150px) minmax(0, 1fr) auto;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+}
+
+.minimal-segments .segment-cue {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.minimal-segments .segment-speaker {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.minimal-segments .timestamp-button {
+  display: inline-grid;
+  width: 27px;
+  height: 27px;
+  padding: 0;
+  place-items: center;
+}
+
+.minimal-segments .timestamp-button svg {
+  width: 11px;
+}
+
+.minimal-segments .timestamp-button.playing {
+  color: #fff;
+  background: #176bff;
+  border-color: #176bff;
+}
+
+.minimal-segments .segment-editor {
+  height: 30px;
+  min-height: 30px;
+  padding: 5px 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  resize: none;
+  line-height: 18px;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.minimal-segments .segment-editor::-webkit-scrollbar {
+  display: none;
+}
+
+.minimal-segments .segment-save {
+  margin-top: 0;
+  padding: 5px 7px;
+  opacity: .45;
+}
+
+.minimal-segments .segment-row.dirty .segment-save {
+  opacity: 1;
 }
 
 .minimal-segments .segment-row.live-segment {
-  margin: 4px 0;
-  padding-inline: 10px;
+  margin: 1px 0;
+  padding-inline: 4px;
   background: linear-gradient(90deg, #f1fff8, #fff 42%);
   border: 1px solid #d1fadf;
   border-radius: 10px;
@@ -1659,7 +1722,7 @@
 .speaker-card-stats strong {
   display: block;
   margin-bottom: 2px;
-  color: #344054;
+  color: var(--speaker-color, #176bff);
   font-size: 9px;
 }
 
@@ -1745,6 +1808,11 @@
   background: var(--speaker-color, #176bff);
 }
 
+.speaker-fragment-play.playing {
+  color: #fff;
+  background: var(--speaker-color, #176bff);
+}
+
 .speaker-fragment-play svg {
   width: 14px;
 }
@@ -1787,7 +1855,7 @@
 .speaker-turn-list .speaker-line > div strong {
   display: block;
   margin-bottom: 2px;
-  color: #344054;
+  color: var(--speaker-color, #176bff);
   font-size: 8px;
 }
 
@@ -1801,12 +1869,14 @@
 .utility-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 12px;
   padding: 16px 20px 20px;
 }
 
 .utility-card {
-  min-height: 176px;
+  min-height: 0;
+  align-self: start;
   padding: 14px;
   color: #344054;
   border: 1px solid transparent;
@@ -1831,6 +1901,15 @@
 .utility-actions button { display: inline-flex; min-height: 31px; align-items: center; gap: 6px; padding: 6px 8px; color: #344054; background: rgba(255, 255, 255, .8); border: 1px solid rgba(52, 64, 84, .12); border-radius: 6px; font: inherit; font-size: 9px; font-weight: 700; text-align: left; }
 .utility-actions button:hover { background: #fff; border-color: currentColor; }
 .utility-actions button svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.utility-actions .utility-delete-action { color: #b42318; background: #fff4f2; border-color: #f4c7c3; }
+.utility-actions button:disabled { cursor: not-allowed; opacity: .5; }
+.speaker-export-actions a[aria-disabled="true"] { pointer-events: none; opacity: .45; }
+
+.delete-audio-modal-panel { width: min(560px, calc(100vw - 30px)); }
+.delete-audio-warning { padding: 14px; color: #7a271a; background: #fff4f2; border: 1px solid #fecdca; border-radius: 9px; }
+.delete-audio-warning strong { font-size: 11px; }
+.delete-audio-warning ul { margin: 9px 0; padding-left: 18px; color: #912018; font-size: 9px; line-height: 1.55; }
+.delete-audio-warning p { margin: 0; color: #b42318; font-size: 9px; font-weight: 700; }
 
 .utility-card svg {
   width: 24px;
@@ -2438,7 +2517,8 @@
   }
 
   .minimal-segments .segment-row {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 27px fit-content(96px) minmax(0, 1fr) auto;
+    gap: 6px;
   }
 
   .capture-modal-panel {

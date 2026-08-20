@@ -22,6 +22,7 @@
   const transcriptionWorkspace = document.querySelector("#transcription-workspace");
   const postprocessDialog = document.querySelector("#postprocess-dialog");
   const postprocessLogOutput = document.querySelector("#postprocess-log");
+  const deleteAudioDialog = document.querySelector("#delete-audio-dialog");
   const speakerSummaryDialog = document.querySelector("#speaker-summary-dialog");
   const speakerRebuildDialog = document.querySelector("#speaker-rebuild-dialog");
   const rememberVoiceDialog = document.querySelector("#remember-voice-dialog");
@@ -42,6 +43,7 @@
   let audioSources = [];
   let captureCapability = {};
   let recordings = [];
+  let currentMeeting = null;
   let versions = [];
   let meetingSummaries = [];
   let noteFormats = [];
@@ -70,6 +72,7 @@
   let audioStopAtSeconds = null;
   let speakerPlaybackRanges = [];
   let speakerPlaybackIndex = -1;
+  let activeAudioPlaybackButton = null;
   let activeSpeakerSummaryJobId = null;
   let activeSpeakerSummaryId = null;
   let speakerSummaryDismissed = false;
@@ -93,6 +96,11 @@
     }
     postprocessLogOutput.value = postprocessLogLines.join("\n");
     postprocessLogOutput.scrollTop = postprocessLogOutput.scrollHeight;
+  }
+
+  function appendWorkflowMessage(source, message) {
+    const time = new Date().toLocaleTimeString([], { hour12: false });
+    appendPostprocessLog(`[${time}] INFO    ${source} Â· ${message}`);
   }
 
   function resetPostprocessLog(message) {
@@ -122,11 +130,12 @@
   }
 
   function setActivityLogHeight(requestedHeight) {
+    const minimum = 44;
     const mobile = window.matchMedia("(max-width: 600px)").matches;
     const maximum = mobile
       ? Math.min(220, Math.max(150, transcriptionWorkspace.clientHeight - 420))
       : Math.max(180, transcriptionWorkspace.clientHeight - 320);
-    const height = Math.round(Math.min(maximum, Math.max(110, requestedHeight)));
+    const height = Math.round(Math.min(maximum, Math.max(minimum, requestedHeight)));
     transcriptionWorkspace.style.setProperty("--activity-log-height", `${height}px`);
     activityResizer.setAttribute("aria-valuenow", String(height));
     activityResizer.setAttribute("aria-valuemax", String(maximum));
@@ -172,7 +181,7 @@
       event.preventDefault();
       const current = Number(activityResizer.getAttribute("aria-valuenow"));
       const maximum = Number(activityResizer.getAttribute("aria-valuemax"));
-      if (event.key === "Home") return setActivityLogHeight(110);
+      if (event.key === "Home") return setActivityLogHeight(44);
       if (event.key === "End") return setActivityLogHeight(maximum);
       setActivityLogHeight(current + (event.key === "ArrowUp" ? 24 : -24));
     });
@@ -203,12 +212,14 @@
       ];
       const meetingRequests = meetingId
         ? [
+            api(`/api/meetings/${meetingId}`),
             api(`/api/meetings/${meetingId}/recordings`),
             api(`/api/meetings/${meetingId}/transcriptions`),
             api(`/api/jobs?meeting_id=${meetingId}`),
             api(`/api/meetings/${meetingId}/summaries`),
           ]
         : [
+            Promise.resolve(null),
             Promise.resolve([]),
             Promise.resolve([]),
             Promise.resolve([]),
@@ -220,6 +231,7 @@
         currentCapture,
         preferenceData,
         summaryTemplates,
+        meetingData,
         recordingData,
         versionData,
         jobs,
@@ -229,6 +241,7 @@
       engineCapabilities = capabilities;
       preferences = preferenceData;
       noteFormats = summaryTemplates;
+      currentMeeting = meetingData;
       captureCapability = sourceData.capability || {};
       audioSources = sourceData.sources || [];
       recordings = recordingData;
@@ -288,12 +301,14 @@
 
   async function loadMeetingWorkspace() {
     if (!meetingId) return;
-    const [recordingData, versionData, jobs, summaryData] = await Promise.all([
+    const [meetingData, recordingData, versionData, jobs, summaryData] = await Promise.all([
+      api(`/api/meetings/${meetingId}`),
       api(`/api/meetings/${meetingId}/recordings`),
       api(`/api/meetings/${meetingId}/transcriptions`),
       api(`/api/jobs?meeting_id=${meetingId}`),
       api(`/api/meetings/${meetingId}/summaries`),
     ]);
+    currentMeeting = meetingData;
     recordings = recordingData;
     versions = versionData;
     meetingSummaries = summaryData;
@@ -360,13 +375,49 @@
     const row = document.querySelector("#audio-row");
     if (!original) {
       row.classList.add("hidden");
+      stopAudioPlayback();
       audio.removeAttribute("src");
+      applyAudioAvailability();
       return;
     }
     row.classList.remove("hidden");
     document.querySelector("#audio-filename").textContent =
       original.original_filename || "Original recording";
     audio.src = `/api/recordings/${original.id}/media`;
+    applyAudioAvailability();
+  }
+
+  function audioWasDeleted() {
+    return Boolean(currentMeeting?.audio_deleted_at);
+  }
+
+  function applyAudioAvailability() {
+    const deleted = audioWasDeleted();
+    const available = Boolean(recordings.find((item) => item.role === "original"));
+    const unavailable = deleted || !available;
+    const status = document.querySelector("#utility-audio-status");
+    const deleteButton = document.querySelector("#delete-meeting-audio");
+    if (status) {
+      status.textContent = deleted
+        ? `Deleted locally${currentMeeting.audio_deleted_bytes ? ` · ${formatBytes(currentMeeting.audio_deleted_bytes)} freed` : ""}`
+        : "Original recording";
+    }
+    if (deleteButton) {
+      deleteButton.disabled = unavailable;
+      deleteButton.innerHTML = deleted
+        ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9"/></svg>Audio deleted'
+        : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>Delete audio';
+    }
+    document.querySelectorAll(
+      "[data-audio-export], .timestamp-button, .speaker-fragment-play, [data-play-speaker], [data-remember-speaker], #speaker-rebuild-identification",
+    ).forEach((control) => {
+      control.disabled = unavailable;
+      if (deleted) control.title = "Audio deleted from this meeting";
+    });
+    document.querySelectorAll('.speaker-export-actions a[href*="/audio?"]').forEach((link) => {
+      link.setAttribute("aria-disabled", String(unavailable));
+      if (deleted) link.title = "Audio deleted from this meeting";
+    });
   }
 
   async function refreshSources() {
@@ -570,19 +621,19 @@
       const provisional = !segment.is_final;
       return `
         <article class="segment-row ${hasSpeaker ? `speaker-color-${speakerColor}` : "speaker-pending"} ${provisional ? "live-segment" : ""}" data-segment-id="${segment.id}">
+          <button class="timestamp-button" data-seek-ms="${segment.start_ms}" title="Play from ${formatTimestamp(segment.start_ms)}" aria-label="Play from ${formatTimestamp(segment.start_ms)}" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z"/></svg>
+          </button>
           <div class="segment-cue">
-            ${hasSpeaker ? `<span class="segment-speaker"><i></i>${escapeHTML(speakerNames.get(rawSpeaker) || t("speaker", { number: speakerNumber }))}</span>` : ""}
+            <span class="segment-speaker"><i></i>${hasSpeaker ? escapeHTML(speakerNames.get(rawSpeaker) || t("speaker", { number: speakerNumber })) : "Speaker pending"}</span>
             ${provisional ? '<span class="live-segment-badge"><i></i> Live</span>' : ""}
-            <button class="timestamp-button" data-seek-ms="${segment.start_ms}" title="Play from this timestamp">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z"/></svg>
-              ${formatTimestamp(segment.start_ms)}
-            </button>
           </div>
-          <textarea class="segment-editor" rows="2" aria-label="Transcript segment ${segment.segment_index + 1}" ${provisional ? "readonly" : ""}>${escapeHTML(segment.text)}</textarea>
+          <textarea class="segment-editor" rows="1" aria-label="Transcript segment ${segment.segment_index + 1}" ${provisional ? "readonly" : ""}>${escapeHTML(segment.text)}</textarea>
           <button class="segment-save ${provisional ? "hidden" : ""}" data-save-segment="${segment.id}">Save</button>
         </article>`;
     }).join("");
     applySearch();
+    applyAudioAvailability();
     if (captureSession) {
       window.requestAnimationFrame(() => {
         segmentContainer.scrollTo({
@@ -600,6 +651,7 @@
     tabs.classList.toggle("hidden", !ready);
     renderSpeakerPanel(detail);
     renderSummaryPanel();
+    applyAudioAvailability();
   }
 
   function renderSpeakerPanel(detail = lastDetail || {}) {
@@ -628,7 +680,7 @@
     const colorMap = new Map(speakers.map((speaker, index) => [Number(speaker.id), index]));
     status.textContent = `${speakers.length} speaker${speakers.length === 1 ? "" : "s"}`;
     status.classList.add("ready");
-    const colors = ["#176bff", "#7a5af8", "#079455", "#e04f16", "#c11574", "#0891b2"];
+    const colors = ["#176bff", "#8b5cf6", "#0e9f6e", "#e07219", "#d13f72", "#168aa6"];
     const totalTalkTime = speakers.reduce((total, speaker) => total + speaker.talk_time_ms, 0);
     const cards = speakers.map((speaker, index) => {
       const share = totalTalkTime > 0
@@ -646,8 +698,8 @@
             <span><strong>${share}%</strong> share</span>
           </div>
           <div class="speaker-export-actions">
-            <button type="button" class="text-button speaker-card-action" data-play-speaker="${speaker.id}" title="Play all fragments from this speaker">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z"/></svg> Play all
+            <button type="button" class="text-button speaker-card-action" data-play-speaker="${speaker.id}" title="Play this speaker's fragments" aria-label="Play this speaker's fragments" aria-pressed="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z"/></svg> Play
             </button>
             <a class="text-button speaker-card-action" href="/api/transcriptions/${activeTranscriptionId}/speakers/${speaker.id}/text">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM15 3v5h5M9 12h7M9 16h7"/></svg> Export TXT
@@ -684,7 +736,7 @@
       const colorIndex = colorMap.get(Number(turn.speaker_id)) || 0;
       return `
         <article class="speaker-line" style="--speaker-color:${colors[colorIndex % colors.length]}">
-          <button class="speaker-fragment-play" data-play-range-start="${turn.start_ms}" data-play-range-end="${turn.end_ms}" title="Play this audio fragment">
+          <button class="speaker-fragment-play" data-play-range-start="${turn.start_ms}" data-play-range-end="${turn.end_ms}" title="Play this audio fragment" aria-label="Play this audio fragment" aria-pressed="false">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z"/></svg>
           </button>
           <time>${formatTimestamp(turn.start_ms)}–${formatTimestamp(turn.end_ms)}<small>${formatTimestamp(turn.end_ms - turn.start_ms)}</small></time>
@@ -708,6 +760,7 @@
       <div class="speaker-turn-list">${lines || '<div class="result-empty"><strong>No audio fragments</strong><span>Choose another speaker.</span></div>'}</div>`;
     container.querySelector("#speaker-panel-filter").value = previousFilter;
     container.querySelector("#speaker-panel-order").value = previousOrder;
+    applyAudioAvailability();
   }
 
   function transcriptTextForSpeakerTurn(turn, segments) {
@@ -813,11 +866,83 @@
     if (!rememberVoiceDialog.open) rememberVoiceDialog.showModal();
   }
 
-  async function playAllSpeakerFragments(speakerId) {
+  function setAudioPlaybackButton(button, playing) {
+    if (!button) return;
+    const speakerSequence = button.matches("[data-play-speaker]");
+    const segmentPlayback = button.matches("[data-seek-ms]");
+    const playLabel = speakerSequence
+      ? "Play this speaker's fragments"
+      : segmentPlayback
+        ? `Play from ${formatTimestamp(Number(button.dataset.seekMs))}`
+        : "Play this audio fragment";
+    const pauseLabel = speakerSequence
+      ? "Pause this speaker's fragments"
+      : segmentPlayback
+        ? `Pause playback from ${formatTimestamp(Number(button.dataset.seekMs))}`
+        : "Pause this audio fragment";
+    button.setAttribute("aria-pressed", String(playing));
+    button.setAttribute("aria-label", playing ? pauseLabel : playLabel);
+    button.title = playing ? pauseLabel : playLabel;
+    button.classList.toggle("playing", playing);
+    button.innerHTML = playing
+      ? `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="5" width="3.5" height="14" rx="1"/><rect x="13.5" y="5" width="3.5" height="14" rx="1"/></svg>${speakerSequence ? " Pause" : ""}`
+      : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z"/></svg>${speakerSequence ? " Play" : ""}`;
+  }
+
+  function openDeleteAudioDialog() {
+    if (!meetingId || audioWasDeleted() || !recordings.length) return;
+    const knownBytes = recordings.reduce(
+      (total, recording) => total + Number(recording.size_bytes || 0),
+      0,
+    );
+    document.querySelector("#delete-audio-size").textContent = knownBytes
+      ? `At least ${formatBytes(knownBytes)} of stored audio will be released.`
+      : "All locally stored audio for this meeting will be removed.";
+    if (!deleteAudioDialog.open) deleteAudioDialog.showModal();
+  }
+
+  async function deleteMeetingAudio() {
+    if (!meetingId) return;
+    const confirmButton = document.querySelector("#delete-audio-confirm");
+    confirmButton.disabled = true;
+    confirmButton.textContent = "Deleting audioâ€¦";
+    try {
+      currentMeeting = await api(`/api/meetings/${meetingId}/audio`, {
+        method: "DELETE",
+      });
+      recordings = [];
+      stopAudioPlayback();
+      configureAudio();
+      if (lastDetail) renderTranscript(lastDetail);
+      deleteAudioDialog.close();
+      toast("Meeting audio deleted. Transcript and notes were kept.");
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      confirmButton.disabled = false;
+      confirmButton.textContent = "Delete audio permanently";
+    }
+  }
+
+  function clearAudioPlaybackState() {
+    speakerPlaybackRanges = [];
+    speakerPlaybackIndex = -1;
+    audioStopAtSeconds = null;
+    setAudioPlaybackButton(activeAudioPlaybackButton, false);
+    activeAudioPlaybackButton = null;
+  }
+
+  function stopAudioPlayback() {
+    audio.pause();
+    clearAudioPlaybackState();
+  }
+
+  async function playAllSpeakerFragments(speakerId, button) {
     if (!audio.getAttribute("src")) {
       toast("The meeting audio is not available.", "error");
       return;
     }
+    stopAudioPlayback();
     speakerPlaybackRanges = (lastDetail?.speaker_turns || [])
       .filter((turn) => Number(turn.speaker_id) === Number(speakerId))
       .sort((left, right) => left.start_ms - right.start_ms);
@@ -827,9 +952,14 @@
     }
     speakerPlaybackIndex = 0;
     const range = speakerPlaybackRanges[0];
+    activeAudioPlaybackButton = button;
+    setAudioPlaybackButton(button, true);
     audio.currentTime = range.start_ms / 1000;
     audioStopAtSeconds = range.end_ms / 1000;
-    await audio.play().catch(() => toast("The speaker audio could not be played.", "error"));
+    await audio.play().catch(() => {
+      clearAudioPlaybackState();
+      toast("The speaker audio could not be played.", "error");
+    });
   }
 
   function renderInlineMarkdown(source) {
@@ -1318,13 +1448,16 @@
     initialLabel = "Stopping capture…",
     description = "Meet2Notes is processing everything locally. You can continue in the background.",
   } = {}) {
+    const continuingVisibleWorkflow = workflowVisible
+      && postprocessDialog.open
+      && !document.querySelector("#postprocess-progress-view").classList.contains("hidden");
     workflowDismissed = false;
     workflowVisible = true;
     workflowCompleted = false;
     pendingPostprocessKind = null;
     document.querySelector("#postprocess-options").classList.add("hidden");
     document.querySelector("#postprocess-progress-view").classList.remove("hidden");
-    resetPostprocessLog("Final processing started");
+    if (!continuingVisibleWorkflow) resetPostprocessLog("Final processing started");
     document.querySelector("#postprocess-title").textContent =
       "Turning the conversation into useful notes";
     document.querySelector("#postprocess-description").textContent = description;
@@ -2059,6 +2192,17 @@
     stop.disabled = true;
     pause.disabled = true;
     postprocessMeetingId = String(captureSession.meeting_id);
+    openPostprocessDialog({
+      initialLabel: "Stopping capture...",
+      description: "Saving the buffered audio locally before final processing starts.",
+    });
+    appendWorkflowMessage("capture", "Stop requested; finishing the local audio file");
+    await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+    const stopStartedAt = Date.now();
+    const stopWaitTimer = window.setInterval(() => {
+      const elapsed = Math.max(1, Math.round((Date.now() - stopStartedAt) / 1000));
+      appendWorkflowMessage("capture", `Still finalizing audio locally - ${elapsed}s elapsed`);
+    }, 4000);
     try {
       const response = await api(
         `/api/capture/sessions/${captureSession.session_id}/stop`,
@@ -2076,6 +2220,7 @@
       activeJob = response.transcription_job;
       setTitle(response.transcription.title);
       clearLiveState();
+      appendWorkflowMessage("capture", "Audio saved; final processing job queued");
       window.history.replaceState({}, "", `/?meeting=${meetingId}`);
       openPostprocessDialog({
         initialLabel: finalTranscription ? "Preparing final pass…" : "Saving live transcript…",
@@ -2088,6 +2233,7 @@
       workflowVisible = false;
       toast(error.message, "error");
     } finally {
+      window.clearInterval(stopWaitTimer);
       stop.disabled = false;
       pause.disabled = false;
     }
@@ -2350,6 +2496,10 @@
   });
   document.querySelector("#pause-capture").addEventListener("click", togglePause);
   document.querySelector("#stop-capture").addEventListener("click", stopCapture);
+  document.querySelector("#delete-meeting-audio").addEventListener("click", openDeleteAudioDialog);
+  document.querySelector("#delete-audio-close").addEventListener("click", () => deleteAudioDialog.close());
+  document.querySelector("#delete-audio-cancel").addEventListener("click", () => deleteAudioDialog.close());
+  document.querySelector("#delete-audio-confirm").addEventListener("click", deleteMeetingAudio);
   document.querySelector("#postprocess-diarization").addEventListener("change", syncPostprocessSpeakerControls);
   document.querySelector("#postprocess-summary").addEventListener("change", syncPostprocessSummaryControls);
   document.querySelector("#postprocess-summary-template").addEventListener("change", syncPostprocessSummarySizing);
@@ -2553,7 +2703,11 @@
     }
     const playSpeaker = event.target.closest("[data-play-speaker]");
     if (playSpeaker) {
-      await playAllSpeakerFragments(playSpeaker.dataset.playSpeaker);
+      if (activeAudioPlaybackButton === playSpeaker && !audio.paused) {
+        stopAudioPlayback();
+      } else {
+        await playAllSpeakerFragments(playSpeaker.dataset.playSpeaker, playSpeaker);
+      }
       return;
     }
     const summarizeSpeaker = event.target.closest("[data-summarize-speaker]");
@@ -2572,20 +2726,39 @@
         toast("The meeting audio is not available.", "error");
         return;
       }
-      speakerPlaybackRanges = [];
-      speakerPlaybackIndex = -1;
+      if (activeAudioPlaybackButton === range && !audio.paused) {
+        stopAudioPlayback();
+        return;
+      }
+      stopAudioPlayback();
       audio.currentTime = Number(range.dataset.playRangeStart) / 1000;
       audioStopAtSeconds = Number(range.dataset.playRangeEnd) / 1000;
-      await audio.play().catch(() => toast("The audio fragment could not be played.", "error"));
+      activeAudioPlaybackButton = range;
+      setAudioPlaybackButton(range, true);
+      await audio.play().catch(() => {
+        clearAudioPlaybackState();
+        toast("The audio fragment could not be played.", "error");
+      });
       return;
     }
     const seek = event.target.closest("[data-seek-ms]");
     if (seek) {
-      speakerPlaybackRanges = [];
-      speakerPlaybackIndex = -1;
-      audioStopAtSeconds = null;
+      if (!audio.getAttribute("src")) {
+        toast("The meeting audio is not available.", "error");
+        return;
+      }
+      if (activeAudioPlaybackButton === seek && !audio.paused) {
+        stopAudioPlayback();
+        return;
+      }
+      stopAudioPlayback();
       audio.currentTime = Number(seek.dataset.seekMs) / 1000;
-      await audio.play().catch(() => {});
+      activeAudioPlaybackButton = seek;
+      setAudioPlaybackButton(seek, true);
+      await audio.play().catch(() => {
+        clearAudioPlaybackState();
+        toast("The audio could not be played.", "error");
+      });
       return;
     }
     const save = event.target.closest("[data-save-segment]");
@@ -2612,24 +2785,22 @@
 
   audio.addEventListener("timeupdate", () => {
     if (audioStopAtSeconds === null || audio.currentTime < audioStopAtSeconds) return;
-    audio.pause();
     if (speakerPlaybackIndex >= 0 && speakerPlaybackIndex + 1 < speakerPlaybackRanges.length) {
       speakerPlaybackIndex += 1;
       const next = speakerPlaybackRanges[speakerPlaybackIndex];
       audio.currentTime = next.start_ms / 1000;
       audioStopAtSeconds = next.end_ms / 1000;
       audio.play().catch(() => {
-        speakerPlaybackRanges = [];
-        speakerPlaybackIndex = -1;
-        audioStopAtSeconds = null;
+        clearAudioPlaybackState();
         toast("Speaker playback could not continue.", "error");
       });
       return;
     }
-    speakerPlaybackRanges = [];
-    speakerPlaybackIndex = -1;
-    audioStopAtSeconds = null;
+    stopAudioPlayback();
   });
+
+  audio.addEventListener("pause", clearAudioPlaybackState);
+  audio.addEventListener("ended", clearAudioPlaybackState);
 
   document.addEventListener("change", async (event) => {
     if (event.target.matches("#speaker-panel-filter, #speaker-panel-order")) {

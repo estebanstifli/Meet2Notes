@@ -295,6 +295,43 @@ def test_transcription_pipeline_editor_and_versions(tmp_path: Path) -> None:
         assert meeting_redirect.headers["location"] == f"/?meeting={meeting['id']}"
 
 
+def test_meeting_audio_can_be_deleted_without_removing_transcript(tmp_path: Path) -> None:
+    with _client(tmp_path) as client:
+        meeting = client.post("/api/meetings", json={"title": "Keep the text"}).json()
+        imported = client.post(
+            f"/api/meetings/{meeting['id']}/import",
+            files={"file": ("private.wav", _wav_bytes(), "audio/wav")},
+        ).json()
+        _wait_for_job(client, imported["job"]["uuid"])
+        started = client.post(
+            f"/api/meetings/{meeting['id']}/transcriptions",
+            json={"profile_id": "balanced", "language": "en"},
+        ).json()
+        _wait_for_job(client, started["job"]["uuid"])
+
+        recordings_before = client.get(
+            f"/api/meetings/{meeting['id']}/recordings"
+        ).json()
+        assert {item["role"] for item in recordings_before} == {"original", "normalized"}
+
+        deleted = client.delete(f"/api/meetings/{meeting['id']}/audio")
+
+        assert deleted.status_code == 200
+        assert deleted.json()["audio_deleted_at"]
+        assert deleted.json()["audio_deleted_bytes"] > 0
+        assert deleted.json()["recording_count"] == 0
+        assert client.get(f"/api/meetings/{meeting['id']}/recordings").json() == []
+        detail = client.get(
+            f"/api/transcriptions/{started['transcription']['id']}"
+        ).json()
+        assert [segment["text"] for segment in detail["segments"]] == [
+            "Welcome to the product review.",
+            "We approved the product launch.",
+        ]
+        assert "Keep the text" in client.get("/meetings").text
+        assert "Audio deleted" in client.get("/meetings").text
+
+
 def test_model_download_requires_explicit_confirmation(tmp_path: Path) -> None:
     with _client(tmp_path) as client:
         meeting = client.post("/api/meetings", json={"title": "Download consent"}).json()

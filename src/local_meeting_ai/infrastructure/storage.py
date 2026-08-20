@@ -162,3 +162,33 @@ class MeetingStorage:
             raise ValidationError("Refusing to remove a path outside meeting storage")
         if target.exists():
             shutil.rmtree(target)
+
+    def delete_meeting_audio(
+        self, meeting_uuid: str, recording_paths: list[str]
+    ) -> int:
+        meeting_root = self.meeting_root(meeting_uuid).resolve()
+        storage_root = self.paths.meetings.resolve()
+        if meeting_root.parent != storage_root:
+            raise ValidationError("Refusing to remove audio outside meeting storage")
+
+        deleted_bytes = 0
+        candidates = {Path(value).resolve() for value in recording_paths}
+        for directory_name in ("original", "audio", "temp"):
+            directory = meeting_root / directory_name
+            if directory.is_dir():
+                candidates.update(path.resolve() for path in directory.rglob("*") if path.is_file())
+        export_dir = meeting_root / "exports"
+        if export_dir.is_dir():
+            candidates.update(
+                path.resolve()
+                for path in export_dir.rglob("*")
+                if path.is_file() and path.suffix.lower() in ALLOWED_MEDIA_EXTENSIONS
+            )
+
+        for path in candidates:
+            if not path.is_relative_to(meeting_root):
+                raise ValidationError("Refusing to remove audio outside this meeting")
+            if path.is_file():
+                deleted_bytes += path.stat().st_size
+                path.unlink()
+        return deleted_bytes
