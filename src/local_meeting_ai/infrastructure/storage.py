@@ -61,6 +61,10 @@ class MeetingStorage:
         export_dir = self.ensure_meeting(meeting_uuid) / "exports"
         return export_dir / f"speaker-{speaker_id}.{output_format}"
 
+    def meeting_export_path(self, meeting_uuid: str, output_format: str) -> Path:
+        export_dir = self.ensure_meeting(meeting_uuid) / "exports"
+        return export_dir / f"meeting.{output_format}"
+
     def speaker_profile_path(self, profile_id: int) -> Path:
         directory = self.paths.root / "speaker_profiles"
         directory.mkdir(parents=True, exist_ok=True)

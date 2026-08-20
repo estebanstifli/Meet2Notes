@@ -270,6 +270,11 @@ def test_transcription_pipeline_editor_and_versions(tmp_path: Path) -> None:
         assert 'data-meeting-tab="speakers"' in workspace.text
         assert 'data-meeting-tab="intelligence"' in workspace.text
         assert 'data-meeting-tab="utilities"' in workspace.text
+        assert 'id="export-dialog"' in workspace.text
+        assert 'data-audio-export="mp3"' in workspace.text
+        assert 'data-export-source="transcript" data-export-format="markdown"' in workspace.text
+        assert 'data-export-source="notes" data-export-format="pdf"' in workspace.text
+        assert 'id="download-meeting-json"' in workspace.text
 
         library = client.get("/meetings")
         assert library.status_code == 200

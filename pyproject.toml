@@ -11,8 +11,11 @@ requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Meet2Notes contributors" }]
 keywords = [
+    "ai-meeting-assistant",
+    "offline-transcription",
     "meeting-notes",
     "meeting-transcription",
+    "speech-to-text",
     "speaker-diarization",
     "faster-whisper",
     "local-ai",
@@ -95,7 +98,7 @@ meet2notes = "local_meeting_ai.cli:main"
 meet2notes-models = "local_meeting_ai.model_setup:main"
 
 [project.urls]
-Homepage = "https://github.com/estebanstifli/Meet2Notes"
+Homepage = "https://meet2notes.eu"
 Repository = "https://github.com/estebanstifli/Meet2Notes"
 Issues = "https://github.com/estebanstifli/Meet2Notes/issues"
 

@@ -1,8 +1,15 @@
 <div align="center">
   <img src="src/local_meeting_ai/web/static/icons/mark.svg" alt="Meet2Notes logo" width="88">
   <h1>Meet2Notes</h1>
-  <p><strong>Private, modular transcription, speaker diarization, and AI meeting notes.</strong></p>
-  <p>Your recordings and local models stay on your computer.</p>
+  <p><strong>Private AI meeting notes, local transcription, and speaker diarization.</strong></p>
+  <p>Record, transcribe, identify speakers, and create structured meeting summaries on your own computer.</p>
+
+  <p>
+    <a href="https://meet2notes.eu"><strong>Website</strong></a> ·
+    <a href="#easy-installation">Install</a> ·
+    <a href="docs/README.md">Documentation</a> ·
+    <a href="https://github.com/estebanstifli/Meet2Notes/issues">Support</a>
+  </p>
 
   <p>
     <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white">
@@ -13,14 +20,14 @@
   </p>
 </div>
 
-Meet2Notes is a self-hosted meeting workspace. It records microphones and
-desktop audio, imports common media files, produces a live and/or final
-transcript, separates speakers, recognizes saved voices, and converts the
-result into structured notes.
+Meet2Notes is an open-source, self-hosted AI meeting assistant for Windows,
+macOS, and Linux. It captures microphone and system audio, imports recordings,
+creates live or high-quality final transcripts, separates and recognizes
+speakers, and turns conversations into searchable, structured meeting notes.
+It is designed for private local AI workflows: recordings, transcripts, model
+files, and application data remain under the user's control.
 
-The GitHub Pages landing page lives in [`landing/`](landing/) and is deployed
-automatically by [the Pages workflow](.github/workflows/pages.yml) after changes
-reach `main`.
+The official product website is [meet2notes.eu](https://meet2notes.eu).
 
 The processing pipeline is intentionally modular. Transcription, diarization,
 saved-voice matching, and analysis are independent stages with their own model
@@ -318,7 +325,47 @@ permissions, and enable it. See the [Plugin API and installation guide](docs/plu
 [plugin/provider development guide](docs/plugin-development.md),
 [documentation index](docs/README.md), and [public roadmap](docs/roadmap.md).
 
-## Install from source
+## Easy installation
+
+### Windows: download and run one file
+
+1. Download [`install-update.bat`](https://github.com/estebanstifli/Meet2Notes/raw/main/install-update.bat).
+2. Double-click the downloaded file.
+3. Wait for setup to finish, then open the new `Meet2Notes` folder and
+   double-click `start.bat`.
+4. Open `http://127.0.0.1:8765` in your browser.
+
+The bootstrap installer checks for Git and Python 3.11 or newer, installs
+missing prerequisites for the current Windows user, clones or updates
+Meet2Notes, and runs the normal isolated-environment installer. It does not
+install Python packages globally.
+
+The installation folder is deterministic: the installer creates a
+`Meet2Notes` folder beside the downloaded `.bat`. For example, a file saved as
+`C:\Users\Name\Downloads\install-update.bat` installs the application in
+`C:\Users\Name\Downloads\Meet2Notes`. Move the `.bat` to another writable
+folder before running it if you want the application installed elsewhere.
+Re-running the same file updates that installation and repairs its Python
+environment when necessary.
+
+> Windows may show a SmartScreen warning because this open-source batch file is
+> not code-signed. Review its contents before running it and download it only
+> from the official Meet2Notes repository or [meet2notes.eu](https://meet2notes.eu).
+
+### macOS and Linux
+
+```bash
+git clone https://github.com/estebanstifli/Meet2Notes.git
+cd Meet2Notes
+chmod +x install.sh
+./install.sh --ai-backend cpu
+.venv/bin/meet2notes --no-browser
+```
+
+Python 3.11 or newer must already be installed on macOS and Linux. See the
+advanced source installation below for NVIDIA CUDA and model-storage options.
+
+## Advanced installation from source
 
 The installers create an isolated `.venv` inside the repository. Meet2Notes
 does not install packages into the global Python environment. Python 3.11 or

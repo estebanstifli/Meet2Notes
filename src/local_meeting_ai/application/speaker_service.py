@@ -169,7 +169,31 @@ class SpeakerService:
         )
         safe_name = re.sub(r"[^a-zA-Z0-9_-]+", "-", speaker.display_name).strip("-")
         filename = f"{safe_name or f'speaker-{speaker.id}'}.{output_format}"
-        media_type = "audio/wav" if output_format == "wav" else "audio/mpeg"
+        media_type = _audio_media_type(output_format)
+        return destination, filename, media_type
+
+    async def export_meeting_audio(
+        self,
+        transcription_id: int,
+        output_format: str,
+    ) -> tuple[Path, str, str]:
+        transcription = self.transcriptions.get(transcription_id)
+        if not transcription:
+            raise NotFoundError("Transcription not found")
+        recording = self.recordings.latest_for_role(transcription.meeting_id, "normalized")
+        meeting = self.meetings.get(transcription.meeting_id)
+        if not recording or not meeting or not recording.duration_ms:
+            raise NotFoundError("The normalized meeting audio is unavailable")
+        destination = self.storage.meeting_export_path(meeting.uuid, output_format)
+        await self.exporter.export_audio_ranges(
+            Path(recording.local_path),
+            destination,
+            [(0, recording.duration_ms)],
+            output_format=output_format,
+        )
+        safe_name = re.sub(r"[^a-zA-Z0-9_-]+", "-", transcription.title).strip("-")
+        filename = f"{safe_name or 'meeting'}.{output_format}"
+        media_type = _audio_media_type(output_format)
         return destination, filename, media_type
 
     def export_text(
@@ -194,3 +218,11 @@ class SpeakerService:
         )
         safe_name = re.sub(r"[^a-zA-Z0-9_-]+", "-", speaker.display_name).strip("-")
         return content + "\n", f"{safe_name or f'speaker-{speaker.id}'}.txt"
+
+
+def _audio_media_type(output_format: str) -> str:
+    if output_format == "wav":
+        return "audio/wav"
+    if output_format == "flac":
+        return "audio/flac"
+    return "audio/mpeg"

@@ -325,6 +325,10 @@
   display: none;
 }
 
+#meeting-tab-utilities {
+  overflow-y: auto;
+}
+
 .live-action-group {
   display: flex;
   min-height: 39px;
@@ -1680,29 +1684,37 @@
 
 .utility-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  padding: 22px 24px;
+  padding: 16px 20px 20px;
 }
 
 .utility-card {
-  display: flex;
-  min-height: 92px;
-  align-items: center;
-  gap: 12px;
-  padding: 15px;
+  min-height: 176px;
+  padding: 14px;
   color: #344054;
-  background: #fff;
-  border: 1px solid #dfe5ee;
-  border-radius: 11px;
+  border: 1px solid transparent;
+  border-radius: 8px;
   text-align: left;
 }
 
-.utility-card:hover {
-  color: #176bff;
-  background: #f8faff;
-  border-color: #aac7ff;
-}
+.utility-card-audio { background: #edf7ff; border-color: #b8ddf6; }
+.utility-card-transcript { background: #f0f8ed; border-color: #c8e4bf; }
+.utility-card-notes { background: #fff5e8; border-color: #f5d5a7; }
+.utility-card-other { background: #f7f0fb; border-color: #dfc9ef; }
+
+.utility-card header { display: flex; align-items: center; gap: 9px; }
+.utility-card-icon { display: grid; width: 34px; height: 34px; place-items: center; color: #176bff; background: #fff; border-radius: 7px; }
+.utility-card-transcript .utility-card-icon { color: #287a45; }
+.utility-card-notes .utility-card-icon { color: #bb6d11; }
+.utility-card-other .utility-card-icon { color: #8050a5; }
+.utility-card h3, .utility-card p { margin: 0; }
+.utility-card h3 { font-size: 11px; }
+.utility-card p { margin-top: 3px; color: #667085; font-size: 9px; }
+.utility-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 13px; }
+.utility-actions button { display: inline-flex; min-height: 31px; align-items: center; gap: 6px; padding: 6px 8px; color: #344054; background: rgba(255, 255, 255, .8); border: 1px solid rgba(52, 64, 84, .12); border-radius: 6px; font: inherit; font-size: 9px; font-weight: 700; text-align: left; }
+.utility-actions button:hover { background: #fff; border-color: currentColor; }
+.utility-actions button svg { width: 14px; height: 14px; flex: 0 0 auto; }
 
 .utility-card svg {
   width: 24px;
@@ -1712,6 +1724,17 @@
 .utility-card strong,
 .utility-card small {
   display: block;
+}
+
+.export-modal-panel { width: min(520px, calc(100vw - 30px)); }
+.export-option-group { display: grid; gap: 10px; margin: 0; padding: 14px; border: 1px solid #dfe5ee; border-radius: 8px; }
+.export-option-group legend { padding: 0 4px; color: #475467; font-size: 10px; font-weight: 750; }
+.export-option-group label { display: flex; align-items: center; gap: 8px; color: #344054; font-size: 10px; }
+.export-option-group input { accent-color: #176bff; }
+
+@media (max-width: 760px) {
+  .utility-grid { grid-template-columns: 1fr; padding: 14px 16px 18px; }
+  .utility-card { min-height: auto; }
 }
 
 .utility-card strong {

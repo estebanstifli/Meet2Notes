@@ -309,7 +309,7 @@ class FakeAudioRangeExporter:
     ) -> None:
         assert source.is_file()
         assert ranges == [(0, 500)]
-        assert output_format in {"wav", "mp3"}
+        assert output_format in {"wav", "mp3", "flac"}
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(b"speaker-audio")
 

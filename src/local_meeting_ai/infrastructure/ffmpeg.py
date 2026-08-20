@@ -192,8 +192,8 @@ class FFmpegClient:
             raise CapabilityUnavailableError(
                 "FFmpeg is required to export speaker audio"
             )
-        if output_format not in {"wav", "mp3"}:
-            raise ValidationError("Speaker audio can only be exported as WAV or MP3")
+        if output_format not in {"wav", "mp3", "flac"}:
+            raise ValidationError("Speaker audio can only be exported as WAV, MP3, or FLAC")
         merged = _merge_audio_ranges(ranges)
         if not merged:
             raise ValidationError("This speaker has no audio turns to export")
@@ -214,12 +214,12 @@ class FFmpegClient:
             f"{''.join(labels)}concat=n={len(labels)}:v=0:a=1[out]"
         )
         filter_script.write_text(";\n".join(filters), encoding="utf-8")
-        codec = ["-c:a", "pcm_s16le"] if output_format == "wav" else [
-            "-c:a",
-            "libmp3lame",
-            "-q:a",
-            "2",
-        ]
+        if output_format == "wav":
+            codec = ["-c:a", "pcm_s16le"]
+        elif output_format == "flac":
+            codec = ["-c:a", "flac"]
+        else:
+            codec = ["-c:a", "libmp3lame", "-q:a", "2"]
         process = await asyncio.create_subprocess_exec(
             self.ffmpeg_path,
             "-hide_banner",

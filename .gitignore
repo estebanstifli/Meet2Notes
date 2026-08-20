@@ -17,6 +17,7 @@ models/
 cache/
 logs/
 temp/
+landing/
 *.db
 *.db-shm
 *.db-wal

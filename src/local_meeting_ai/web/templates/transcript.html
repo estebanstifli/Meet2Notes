@@ -235,26 +235,36 @@
         </div>
       </header>
       <div class="utility-grid">
-        <button type="button" class="utility-card" id="copy-transcript">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2"/></svg>
-          <span><strong>Copy transcript</strong><small>Plain text with timestamps and speakers</small></span>
-        </button>
-        <button type="button" class="utility-card" id="download-transcript">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
-          <span><strong>Download TXT</strong><small>Portable, readable transcript</small></span>
-        </button>
-        <button type="button" class="utility-card" id="copy-transcript-plain">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2"/></svg>
-          <span><strong>Copy text only</strong><small>Grouped by speaker, without timestamps</small></span>
-        </button>
-        <button type="button" class="utility-card" id="download-transcript-plain">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
-          <span><strong>Download TXT (text only)</strong><small>Grouped by speaker, without timestamps</small></span>
-        </button>
-        <button type="button" class="utility-card" id="download-meeting-json">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3M10 8l-3 4 3 4M14 8l3 4-3 4"/></svg>
-          <span><strong>Download JSON</strong><small>Transcript, metadata and AI report</small></span>
-        </button>
+        <section class="utility-card utility-card-audio" aria-labelledby="utility-audio-title">
+          <header><span class="utility-card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg></span><div><h3 id="utility-audio-title">Audio</h3><p>Original recording</p></div></header>
+          <div class="utility-actions">
+            <button type="button" data-audio-export="mp3"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7zM14 3v5h5M9 15h6M10 12h4"/></svg>Export MP3</button>
+            <button type="button" data-audio-export="wav"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7zM14 3v5h5M9 15h6M10 12h4"/></svg>Export WAV</button>
+            <button type="button" data-audio-export="flac"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7zM14 3v5h5M9 15h6M10 12h4"/></svg>Export FLAC</button>
+          </div>
+        </section>
+        <section class="utility-card utility-card-transcript" aria-labelledby="utility-transcript-title">
+          <header><span class="utility-card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7zM14 3v5h5M10 12h5M10 16h5"/></svg></span><div><h3 id="utility-transcript-title">Transcription</h3><p>Editable conversation</p></div></header>
+          <div class="utility-actions">
+            <button type="button" data-export-source="transcript" data-export-format="markdown"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM8 15V9l4 4 4-4v6"/></svg>Export Markdown</button>
+            <button type="button" data-export-source="transcript" data-export-format="word"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7zM14 3v5h5M9 12l1 5 2-3 2 3 1-5"/></svg>Export Word</button>
+            <button type="button" data-export-source="transcript" data-export-format="pdf"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7zM14 3v5h5M9 16h6M9 12h4"/></svg>Export PDF</button>
+            <button type="button" data-export-source="transcript" data-export-format="clipboard"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2"/></svg>Copy to Clipboard</button>
+          </div>
+        </section>
+        <section class="utility-card utility-card-notes" aria-labelledby="utility-notes-title">
+          <header><span class="utility-card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 9.8 8.8 4 11l5.8 2.2L12 19l2.2-5.8L20 11l-5.8-2.2L12 3Z"/></svg></span><div><h3 id="utility-notes-title">AI notes</h3><p>Meeting insights</p></div></header>
+          <div class="utility-actions">
+            <button type="button" data-export-source="notes" data-export-format="markdown"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM8 15V9l4 4 4-4v6"/></svg>Export Markdown</button>
+            <button type="button" data-export-source="notes" data-export-format="word"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7zM14 3v5h5M9 12l1 5 2-3 2 3 1-5"/></svg>Export Word</button>
+            <button type="button" data-export-source="notes" data-export-format="pdf"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7zM14 3v5h5M9 16h6M9 12h4"/></svg>Export PDF</button>
+            <button type="button" data-export-source="notes" data-export-format="clipboard"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2"/></svg>Copy to Clipboard</button>
+          </div>
+        </section>
+        <section class="utility-card utility-card-other" aria-labelledby="utility-other-title">
+          <header><span class="utility-card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3M10 8l-3 4 3 4M14 8l3 4-3 4"/></svg></span><div><h3 id="utility-other-title">Others</h3><p>Meeting archive</p></div></header>
+          <div class="utility-actions"><button type="button" id="download-meeting-json"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 20h14"/></svg>Download JSON</button></div>
+        </section>
       </div>
     </section>
   </section>
@@ -291,6 +301,18 @@
   </section>
   </div>
 </div>
+
+<dialog class="modal export-modal" id="export-dialog">
+  <form class="modal-panel export-modal-panel" id="export-form">
+    <div class="modal-header">
+      <div><span class="eyebrow">Export</span><h2 id="export-dialog-title">Export transcription</h2><p>Choose how the content should be arranged in the exported file.</p></div>
+      <button type="button" class="icon-button close-button" id="export-close" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+    </div>
+    <fieldset class="export-option-group" id="export-layout-options"><legend>Arrangement</legend><label><input type="radio" name="export-layout" value="speaker" checked> Group by speaker</label><label><input type="radio" name="export-layout" value="time"> Follow timeline</label></fieldset>
+    <fieldset class="export-option-group" id="export-detail-options"><legend>Include</legend><label><input id="export-timestamps" type="checkbox" checked> Timestamps</label><label><input id="export-speakers" type="checkbox" checked> Speakers</label></fieldset>
+    <div class="modal-actions"><button type="button" class="button secondary" id="export-cancel">Cancel</button><button type="submit" class="button primary" id="export-confirm">Export</button></div>
+  </form>
+</dialog>
 
 <dialog class="modal capture-modal" id="transcription-dialog">
   <form class="modal-panel capture-modal-panel" id="transcription-form">

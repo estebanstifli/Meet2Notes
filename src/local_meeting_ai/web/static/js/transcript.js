@@ -26,6 +26,7 @@
   const rememberVoiceDialog = document.querySelector("#remember-voice-dialog");
   const aiRebuildDialog = document.querySelector("#ai-rebuild-dialog");
   const aiUnsavedDialog = document.querySelector("#ai-unsaved-dialog");
+  const exportDialog = document.querySelector("#export-dialog");
   const liveAssistantWidget = document.querySelector("#live-ai-assistant");
   const liveAssistantDragHandle = document.querySelector("#live-ai-assistant-drag-handle");
   const liveAssistantResizeHandle = document.querySelector("#live-ai-assistant-resize-handle");
@@ -75,6 +76,7 @@
   let pendingRememberSpeakerId = null;
   let editingSummaryId = null;
   let pendingAiNavigation = null;
+  let pendingExport = null;
   const activityLines = [];
   const postprocessLogLines = [];
   const postprocessJobSnapshots = new Map();
@@ -1909,6 +1911,104 @@
     }).join("\n\n");
   }
 
+  function transcriptForExport({ layout, timestamps, speakers }) {
+    const segments = lastDetail?.segments || [];
+    const speakerMap = new Map((lastDetail?.speakers || []).map((speaker) =>
+      [Number(speaker.id), speaker.display_name]));
+    const formatSegment = (segment) => {
+      const parts = [];
+      if (timestamps) parts.push(`[${formatTimestamp(segment.start_ms)}]`);
+      if (speakers && segment.speaker_id !== null) {
+        parts.push(`${speakerMap.get(Number(segment.speaker_id)) || "Unidentified speaker"}:`);
+      }
+      parts.push(String(segment.text || "").trim());
+      return parts.join(" ").trim();
+    };
+    if (layout === "time" || !speakers) return segments.map(formatSegment).filter(Boolean).join("\n\n");
+    const groups = [];
+    segments.forEach((segment) => {
+      const speakerId = segment.speaker_id === null ? null : Number(segment.speaker_id);
+      const previous = groups[groups.length - 1];
+      if (previous && previous.speakerId === speakerId) previous.segments.push(segment);
+      else groups.push({ speakerId, segments: [segment] });
+    });
+    return groups.map((group) => group.segments.map(formatSegment).filter(Boolean).join("\n"))
+      .filter(Boolean).join("\n\n");
+  }
+
+  function aiNotesForExport() {
+    const editor = document.querySelector("#ai-report-editor");
+    const summary = meetingSummaries.find((item) =>
+      Number(item.transcription_id) === Number(activeTranscriptionId)) || meetingSummaries[0];
+    return editingSummaryId ? editor.value.trim() : (summary?.content_markdown || "").trim();
+  }
+
+  function htmlDocument(title, content) {
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHTML(title)}</title><style>body{font:12pt/1.55 Arial,sans-serif;color:#1d2939;max-width:760px;margin:48px auto;padding:0 24px;white-space:pre-wrap}h1{font-size:20pt}@media print{body{margin:0;max-width:none}}</style></head><body><h1>${escapeHTML(title)}</h1><main>${escapeHTML(content)}</main></body></html>`;
+  }
+
+  function openExportDialog(source, format) {
+    const isTranscript = source === "transcript";
+    pendingExport = { source, format };
+    document.querySelector("#export-dialog-title").textContent =
+      `Export ${isTranscript ? "transcription" : "AI notes"}`;
+    document.querySelector("#export-layout-options").hidden = !isTranscript;
+    document.querySelector("#export-detail-options").hidden = !isTranscript;
+    document.querySelector("#export-confirm").textContent = format === "clipboard" ? "Copy" : "Export";
+    if (!exportDialog.open) exportDialog.showModal();
+  }
+
+  async function exportPendingContent() {
+    if (!pendingExport) return;
+    const { source, format } = pendingExport;
+    const content = source === "transcript"
+      ? transcriptForExport({
+        layout: document.querySelector('input[name="export-layout"]:checked').value,
+        timestamps: document.querySelector("#export-timestamps").checked,
+        speakers: document.querySelector("#export-speakers").checked,
+      })
+      : aiNotesForExport();
+    if (!content) {
+      toast(`There is no ${source === "transcript" ? "transcription" : "AI notes"} to export.`, "error");
+      return;
+    }
+    if (format === "clipboard") {
+      try {
+        await navigator.clipboard.writeText(content);
+        toast("Copied to the clipboard.");
+      } catch {
+        toast("The content could not be copied.", "error");
+        return;
+      }
+    } else if (format === "markdown") {
+      downloadFile(exportFilename("md"), content, "text/markdown;charset=utf-8");
+    } else if (format === "word") {
+      downloadFile(exportFilename("doc"), htmlDocument(draftTitle, content), "application/msword;charset=utf-8");
+    } else if (format === "pdf") {
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        toast("Allow pop-ups to export a PDF.", "error");
+        return;
+      }
+      printWindow.document.write(htmlDocument(draftTitle, content));
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+    }
+    exportDialog.close();
+  }
+
+  function exportAudio(requestedFormat) {
+    if (!activeTranscriptionId) {
+      toast("There is no audio recording to export.", "error");
+      return;
+    }
+    const link = document.createElement("a");
+    link.href = `/api/transcriptions/${activeTranscriptionId}/audio?format=${requestedFormat}`;
+    link.download = exportFilename(requestedFormat);
+    link.click();
+  }
+
   function downloadFile(filename, content, type) {
     const url = URL.createObjectURL(new Blob([content], { type }));
     const link = document.createElement("a");
@@ -2056,27 +2156,18 @@
     event.preventDefault();
     event.returnValue = "";
   });
-  document.querySelector("#copy-transcript").addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(transcriptAsText());
-      toast("Transcript copied to the clipboard.");
-    } catch {
-      toast("The transcript could not be copied.", "error");
-    }
+  document.querySelectorAll("[data-export-source]").forEach((button) => button.addEventListener("click", () =>
+    openExportDialog(button.dataset.exportSource, button.dataset.exportFormat)));
+  document.querySelectorAll("[data-audio-export]").forEach((button) => button.addEventListener("click", () =>
+    exportAudio(button.dataset.audioExport)));
+  document.querySelector("#export-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    exportPendingContent();
   });
-  document.querySelector("#download-transcript").addEventListener("click", () => {
-    downloadFile(exportFilename("txt"), transcriptAsText(), "text/plain;charset=utf-8");
-  });
-  document.querySelector("#copy-transcript-plain").addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(transcriptAsPlainText());
-      toast("Text-only transcript copied to the clipboard.");
-    } catch {
-      toast("The text-only transcript could not be copied.", "error");
-    }
-  });
-  document.querySelector("#download-transcript-plain").addEventListener("click", () => {
-    downloadFile(exportFilename("txt"), transcriptAsPlainText(), "text/plain;charset=utf-8");
+  document.querySelectorAll("#export-close, #export-cancel").forEach((button) =>
+    button.addEventListener("click", () => exportDialog.close()));
+  exportDialog.addEventListener("click", (event) => {
+    if (event.target === exportDialog) exportDialog.close();
   });
   document.querySelector("#download-meeting-json").addEventListener("click", () => {
     downloadFile(

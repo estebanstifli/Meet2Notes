@@ -2066,11 +2066,29 @@ async def export_speaker_audio(
     transcription_id: int,
     speaker_id: int,
     container: ContainerDependency,
-    output_format: str = Query(default="wav", alias="format", pattern="^(wav|mp3)$"),
+    output_format: str = Query(default="wav", alias="format", pattern="^(wav|mp3|flac)$"),
 ) -> FileResponse:
     path, filename, media_type = await container.speaker_service.export_audio(
         transcription_id,
         speaker_id,
+        output_format,
+    )
+    return FileResponse(
+        path,
+        media_type=media_type,
+        filename=filename,
+        content_disposition_type="attachment",
+    )
+
+
+@router.get("/transcriptions/{transcription_id}/audio")
+async def export_meeting_audio(
+    transcription_id: int,
+    container: ContainerDependency,
+    output_format: str = Query(default="wav", alias="format", pattern="^(wav|mp3|flac)$"),
+) -> FileResponse:
+    path, filename, media_type = await container.speaker_service.export_meeting_audio(
+        transcription_id,
         output_format,
     )
     return FileResponse(
