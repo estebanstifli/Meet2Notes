@@ -39,6 +39,7 @@ from local_meeting_ai.api.dependencies import get_container
 from local_meeting_ai.api.schemas import (
     AudioCaptureSourceResponse,
     AudioSourcesResponse,
+    DiarizationStartRequest,
     FindReplaceRequest,
     FindReplaceResponse,
     ImportResponse,
@@ -1267,8 +1268,12 @@ def unload_summary_engine(
 async def start_diarization(
     transcription_id: int,
     container: ContainerDependency,
+    payload: DiarizationStartRequest | None = None,
 ) -> JobResponse:
-    job = await container.diarization_service.start(transcription_id)
+    job = await container.diarization_service.start(
+        transcription_id,
+        speaker_count=payload.speaker_count if payload else None,
+    )
     return JobResponse.model_validate(job)
 
 

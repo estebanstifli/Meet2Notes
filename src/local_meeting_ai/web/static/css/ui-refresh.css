@@ -32,6 +32,15 @@ body {
   font-size: 14px;
 }
 
+/* Match the comfortable 110% browser scale on large desktop workspaces. */
+@media (min-width: 1800px) and (min-height: 900px) {
+  html { zoom: 1.1; }
+}
+
+@media (min-width: 3000px) and (min-height: 1500px) {
+  html { zoom: 1.2; }
+}
+
 .app-shell {
   min-height: 100vh;
 }
@@ -44,13 +53,45 @@ body {
   color: #344054;
   background: #fff;
   border-right: 1px solid #dfe4ec;
+  transition: width .2s ease, padding .2s ease;
 }
 
 .brand {
   gap: 11px;
   margin-bottom: 12px;
-  padding: 8px 3px 16px;
+  padding: 8px 34px 16px 3px;
   border-bottom: 1px solid #eef1f5;
+}
+
+.sidebar-collapse-toggle {
+  position: absolute;
+  top: 27px;
+  right: 13px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  color: #667085;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.sidebar-collapse-toggle:hover,
+.sidebar-collapse-toggle:focus-visible {
+  color: #176bff;
+  background: #f4f7fb;
+  border-color: #e1e8f2;
+}
+
+.sidebar-collapse-toggle svg {
+  width: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .brand .brand-mark {
@@ -468,6 +509,77 @@ body {
   min-height: 100vh;
   margin-left: 246px;
   background: #f7f9fc;
+  transition: margin-left .2s ease;
+}
+
+@media (min-width: 821px) {
+  html.sidebar-collapsed .sidebar {
+    width: 72px;
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  html.sidebar-collapsed .brand {
+    justify-content: center;
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  html.sidebar-collapsed .brand > span,
+  html.sidebar-collapsed .primary-nav a > span,
+  html.sidebar-collapsed .sidebar-collapse-toggle,
+  html.sidebar-collapsed .system-engine-card > :not(.engine-card-header),
+  html.sidebar-collapsed .engine-card-header > span,
+  html.sidebar-collapsed .version-row {
+    display: none;
+  }
+
+  html.sidebar-collapsed .brand .brand-mark {
+    cursor: pointer;
+  }
+
+  html.sidebar-collapsed .primary-nav a {
+    justify-content: center;
+    gap: 0;
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  html.sidebar-collapsed .primary-nav .sidebar-new-meeting {
+    margin-bottom: 5px;
+  }
+
+  html.sidebar-collapsed .system-engine-card {
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+    background: transparent;
+    border-color: transparent;
+  }
+
+  html.sidebar-collapsed .engine-card-header {
+    justify-content: center;
+    padding: 0;
+    border: 0;
+  }
+
+  html.sidebar-collapsed .engine-card-settings-link {
+    width: 42px;
+    height: 42px;
+  }
+
+  html.sidebar-collapsed .sidebar-bottom {
+    gap: 0;
+  }
+
+  html.sidebar-collapsed .main-content {
+    margin-left: 72px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .main-content { transition: none; }
 }
 
 .page {
@@ -1091,6 +1203,10 @@ body {
 }
 
 @media (max-width: 820px) {
+  .sidebar-collapse-toggle {
+    display: none;
+  }
+
   .sidebar {
     inset: 0 auto 0 0;
     width: 246px;

@@ -270,6 +270,11 @@ def test_transcription_pipeline_editor_and_versions(tmp_path: Path) -> None:
         assert 'data-meeting-tab="speakers"' in workspace.text
         assert 'data-meeting-tab="intelligence"' in workspace.text
         assert 'data-meeting-tab="utilities"' in workspace.text
+        assert 'id="speaker-rebuild-identification"' in workspace.text
+        assert 'id="speaker-rebuild-dialog"' in workspace.text
+        assert 'id="ai-toggle-view"' in workspace.text
+        assert "Who spoke during the meeting" not in workspace.text
+        assert "Use your meeting outside Meet2Notes" not in workspace.text
         assert 'id="export-dialog"' in workspace.text
         assert 'data-audio-export="mp3"' in workspace.text
         assert 'data-export-source="transcript" data-export-format="markdown"' in workspace.text

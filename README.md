@@ -6,7 +6,7 @@
 
   <p>
     <a href="https://meet2notes.eu"><strong>Website</strong></a> ·
-    <a href="#easy-installation">Install</a> ·
+    <a href="#installation">Install</a> ·
     <a href="docs/README.md">Documentation</a> ·
     <a href="https://github.com/estebanstifli/Meet2Notes/issues">Support</a>
   </p>
@@ -74,6 +74,65 @@ Whisper, Sherpa-ONNX, or a particular language model.
 - Basic settings tailored to the selected model and separate advanced controls.
 - Optional preload at startup. Models remain resident after use until they are
   unloaded, replaced, or the application shuts down.
+
+<a id="installation"></a>
+
+## Easy installation
+
+### Windows: download and run one file
+
+1. Download [`install-update.bat`](https://github.com/estebanstifli/Meet2Notes/raw/main/install-update.bat).
+2. Double-click the downloaded file.
+3. Wait for setup to finish, then open the new `Meet2Notes` folder and
+   double-click `start.bat`.
+4. Open `http://127.0.0.1:8765` in your browser.
+
+The bootstrap installer checks for Git and Python 3.11 or newer, installs
+missing prerequisites for the current Windows user, clones or updates
+Meet2Notes, and runs the normal isolated-environment installer. It does not
+install Python packages globally.
+
+The installation folder is deterministic: the installer creates a
+`Meet2Notes` folder beside the downloaded `.bat`. For example, a file saved as
+`C:\Users\Name\Downloads\install-update.bat` installs the application in
+`C:\Users\Name\Downloads\Meet2Notes`. Move the `.bat` to another writable
+folder before running it if you want the application installed elsewhere.
+Re-running the same file updates that installation and repairs its Python
+environment when necessary.
+
+> Windows may show a SmartScreen warning because this open-source batch file is
+> not code-signed. Review its contents before running it and download it only
+> from the official Meet2Notes repository or [meet2notes.eu](https://meet2notes.eu).
+
+### Pinokio: one-click local installation
+
+Meet2Notes can also be installed through [Pinokio](https://pinokio.computer),
+which keeps the application, Python runtime, FFmpeg, dependencies, and
+recommended local models in its isolated application environment.
+
+1. In Pinokio, choose the option to install an app from a Git repository.
+2. Enter `https://github.com/estebanstifli/Meet2Notes.git`.
+3. Select **Install Meet2Notes**, wait for the model downloads to finish, then
+   select **Start Meet2Notes**.
+4. Use **Open Meet2Notes** in Pinokio to open the local web interface.
+
+The Pinokio menu also provides **Update** and **Repair installation**. Repair
+recreates only Pinokio's private runtime; meeting data and downloaded models
+remain managed by Meet2Notes and are not removed automatically.
+
+### macOS and Linux
+
+```bash
+git clone https://github.com/estebanstifli/Meet2Notes.git
+cd Meet2Notes
+chmod +x install.sh
+./install.sh --ai-backend cpu
+.venv/bin/meet2notes --no-browser
+```
+
+Python 3.11 or newer must already be installed on macOS and Linux. For CUDA,
+custom model storage, and backend-specific setup, continue to the
+[advanced installation options](#advanced-installation-from-source).
 
 ## Product tour
 
@@ -324,62 +383,6 @@ Then open Settings -> Plugins, rescan installed packages, review the requested
 permissions, and enable it. See the [Plugin API and installation guide](docs/plugins.md),
 [plugin/provider development guide](docs/plugin-development.md),
 [documentation index](docs/README.md), and [public roadmap](docs/roadmap.md).
-
-## Easy installation
-
-### Windows: download and run one file
-
-1. Download [`install-update.bat`](https://github.com/estebanstifli/Meet2Notes/raw/main/install-update.bat).
-2. Double-click the downloaded file.
-3. Wait for setup to finish, then open the new `Meet2Notes` folder and
-   double-click `start.bat`.
-4. Open `http://127.0.0.1:8765` in your browser.
-
-The bootstrap installer checks for Git and Python 3.11 or newer, installs
-missing prerequisites for the current Windows user, clones or updates
-Meet2Notes, and runs the normal isolated-environment installer. It does not
-install Python packages globally.
-
-The installation folder is deterministic: the installer creates a
-`Meet2Notes` folder beside the downloaded `.bat`. For example, a file saved as
-`C:\Users\Name\Downloads\install-update.bat` installs the application in
-`C:\Users\Name\Downloads\Meet2Notes`. Move the `.bat` to another writable
-folder before running it if you want the application installed elsewhere.
-Re-running the same file updates that installation and repairs its Python
-environment when necessary.
-
-> Windows may show a SmartScreen warning because this open-source batch file is
-> not code-signed. Review its contents before running it and download it only
-> from the official Meet2Notes repository or [meet2notes.eu](https://meet2notes.eu).
-
-### Pinokio: one-click local installation
-
-Meet2Notes can also be installed through [Pinokio](https://pinokio.computer),
-which keeps the application, Python runtime, FFmpeg, dependencies, and
-recommended local models in its isolated application environment.
-
-1. In Pinokio, choose the option to install an app from a Git repository.
-2. Enter `https://github.com/estebanstifli/Meet2Notes.git`.
-3. Select **Install Meet2Notes**, wait for the model downloads to finish, then
-   select **Start Meet2Notes**.
-4. Use **Open Meet2Notes** in Pinokio to open the local web interface.
-
-The Pinokio menu also provides **Update** and **Repair installation**. Repair
-recreates only Pinokio's private runtime; meeting data and downloaded models
-remain managed by Meet2Notes and are not removed automatically.
-
-### macOS and Linux
-
-```bash
-git clone https://github.com/estebanstifli/Meet2Notes.git
-cd Meet2Notes
-chmod +x install.sh
-./install.sh --ai-backend cpu
-.venv/bin/meet2notes --no-browser
-```
-
-Python 3.11 or newer must already be installed on macOS and Linux. See the
-advanced source installation below for NVIDIA CUDA and model-storage options.
 
 ## Advanced installation from source
 

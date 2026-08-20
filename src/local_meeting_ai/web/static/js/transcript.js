@@ -23,6 +23,7 @@
   const postprocessDialog = document.querySelector("#postprocess-dialog");
   const postprocessLogOutput = document.querySelector("#postprocess-log");
   const speakerSummaryDialog = document.querySelector("#speaker-summary-dialog");
+  const speakerRebuildDialog = document.querySelector("#speaker-rebuild-dialog");
   const rememberVoiceDialog = document.querySelector("#remember-voice-dialog");
   const aiRebuildDialog = document.querySelector("#ai-rebuild-dialog");
   const aiUnsavedDialog = document.querySelector("#ai-unsaved-dialog");
@@ -72,9 +73,12 @@
   let activeSpeakerSummaryJobId = null;
   let activeSpeakerSummaryId = null;
   let speakerSummaryDismissed = false;
+  let activeSpeakerRebuildJobId = null;
+  let speakerRebuildDismissed = false;
   let pendingPostprocessKind = null;
   let pendingRememberSpeakerId = null;
   let editingSummaryId = null;
+  let aiNotesViewMode = "markdown";
   let pendingAiNavigation = null;
   let pendingExport = null;
   const activityLines = [];
@@ -601,6 +605,10 @@
   function renderSpeakerPanel(detail = lastDetail || {}) {
     const container = document.querySelector("#speaker-results");
     const status = document.querySelector("#speaker-result-status");
+    document.querySelector("#speaker-rebuild-identification").disabled =
+      Boolean(activeSpeakerRebuildJobId)
+      || !activeTranscriptionId
+      || detail?.transcription?.status !== "completed";
     const speakers = detail.speakers || [];
     const segments = detail.segments || [];
     const rawTurns = detail.speaker_turns || [];
@@ -824,21 +832,154 @@
     await audio.play().catch(() => toast("The speaker audio could not be played.", "error"));
   }
 
+  function renderInlineMarkdown(source) {
+    const tokens = [];
+    const token = (html) => {
+      const marker = `M2NMARKDOWNTOKEN${tokens.length}X`;
+      tokens.push(html);
+      return marker;
+    };
+    let value = String(source || "");
+    value = value.replace(/`([^`]+)`/g, (_match, code) =>
+      token(`<code>${escapeHTML(code)}</code>`));
+    value = value.replace(/\[([^\]]+)\]\(([^\s)]+)(?:\s+"[^"]*")?\)/g, (_match, label, href) => {
+      const safeHref = /^(https?:\/\/|mailto:|#)/i.test(href) ? href : "#";
+      const external = /^https?:\/\//i.test(safeHref)
+        ? ' target="_blank" rel="noopener noreferrer"'
+        : "";
+      return token(`<a href="${escapeHTML(safeHref)}"${external}>${escapeHTML(label)}</a>`);
+    });
+    value = escapeHTML(value)
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+      .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+      .replace(/(^|[^_])_([^_\n]+)_/g, "$1<em>$2</em>")
+      .replace(/~~([^~]+)~~/g, "<del>$1</del>");
+    tokens.forEach((html, index) => {
+      value = value.replace(`M2NMARKDOWNTOKEN${index}X`, html);
+    });
+    return value;
+  }
+
+  function isMarkdownBlockStart(lines, index) {
+    const line = lines[index] || "";
+    const next = lines[index + 1] || "";
+    return /^\s*(```|~~~|#{1,6}\s|>|[-+*]\s+|\d+[.)]\s+|([-*_])(?:\s*\2){2,}\s*$)/.test(line)
+      || (line.includes("|") && /^\s*\|?\s*:?-{3,}/.test(next));
+  }
+
+  function renderMarkdown(source) {
+    const lines = String(source || "").replace(/\r\n?/g, "\n").split("\n");
+    const output = [];
+    let index = 0;
+    while (index < lines.length) {
+      const line = lines[index];
+      if (!line.trim()) {
+        index += 1;
+        continue;
+      }
+      const fence = line.match(/^\s*(```|~~~)(.*)$/);
+      if (fence) {
+        const body = [];
+        index += 1;
+        while (index < lines.length && !new RegExp(`^\\s*${fence[1]}`).test(lines[index])) {
+          body.push(lines[index]);
+          index += 1;
+        }
+        if (index < lines.length) index += 1;
+        output.push(`<pre><code>${escapeHTML(body.join("\n"))}</code></pre>`);
+        continue;
+      }
+      const heading = line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/);
+      if (heading) {
+        const level = heading[1].length;
+        output.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+        index += 1;
+        continue;
+      }
+      if (/^\s*([-*_])(?:\s*\1){2,}\s*$/.test(line)) {
+        output.push("<hr>");
+        index += 1;
+        continue;
+      }
+      if (line.includes("|") && /^\s*\|?\s*:?-{3,}/.test(lines[index + 1] || "")) {
+        const splitRow = (row) => row.trim().replace(/^\||\|$/g, "").split("|").map((cell) => cell.trim());
+        const headers = splitRow(line);
+        index += 2;
+        const rows = [];
+        while (index < lines.length && lines[index].includes("|") && lines[index].trim()) {
+          rows.push(splitRow(lines[index]));
+          index += 1;
+        }
+        output.push(`<table><thead><tr>${headers.map((cell) => `<th>${renderInlineMarkdown(cell)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${headers.map((_header, cellIndex) => `<td>${renderInlineMarkdown(row[cellIndex] || "")}</td>`).join("")}</tr>`).join("")}</tbody></table>`);
+        continue;
+      }
+      if (/^\s*>/.test(line)) {
+        const quoted = [];
+        while (index < lines.length && /^\s*>/.test(lines[index])) {
+          quoted.push(lines[index].replace(/^\s*>\s?/, ""));
+          index += 1;
+        }
+        output.push(`<blockquote>${renderMarkdown(quoted.join("\n"))}</blockquote>`);
+        continue;
+      }
+      const list = line.match(/^\s*([-+*]|\d+[.)])\s+(.+)/);
+      if (list) {
+        const ordered = /^\d/.test(list[1]);
+        const tag = ordered ? "ol" : "ul";
+        const items = [];
+        while (index < lines.length) {
+          const item = lines[index].match(/^\s*([-+*]|\d+[.)])\s+(.+)/);
+          if (!item || /^\d/.test(item[1]) !== ordered) break;
+          items.push(`<li>${renderInlineMarkdown(item[2])}</li>`);
+          index += 1;
+        }
+        output.push(`<${tag}>${items.join("")}</${tag}>`);
+        continue;
+      }
+      const paragraph = [line.trim()];
+      index += 1;
+      while (index < lines.length && lines[index].trim() && !isMarkdownBlockStart(lines, index)) {
+        paragraph.push(lines[index].trim());
+        index += 1;
+      }
+      output.push(`<p>${paragraph.map(renderInlineMarkdown).join("<br>")}</p>`);
+    }
+    return output.join("");
+  }
+
+  function markdownToPlainText(source) {
+    return String(source || "")
+      .replace(/```[^\n]*\n([\s\S]*?)```/g, "$1")
+      .replace(/~~~[^\n]*\n([\s\S]*?)~~~/g, "$1")
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+      .replace(/^\s*\|?(?:\s*:?-{3,}:?\s*\|)+(?:\s*:?-{3,}:?\s*)?$/gm, "")
+      .replace(/^\s*\|(.+)\|\s*$/gm, (_match, row) =>
+        row.split("|").map((cell) => cell.trim()).join("\t"))
+      .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+      .replace(/^\s*>\s?/gm, "")
+      .replace(/^\s*[-+*]\s+/gm, "")
+      .replace(/^\s*\d+[.)]\s+/gm, "")
+      .replace(/(\*\*|__|~~|`)(.*?)\1/g, "$2")
+      .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1$2")
+      .replace(/(^|[^_])_([^_\n]+)_/g, "$1$2")
+      .replace(/^\s*([-*_])(?:\s*\1){2,}\s*$/gm, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
   function renderSummaryPanel() {
     const container = document.querySelector("#ai-report-content");
     const editor = document.querySelector("#ai-report-editor");
     const copyButton = document.querySelector("#ai-copy-notes");
     const editButton = document.querySelector("#ai-edit-notes");
     const saveButton = document.querySelector("#ai-save-notes");
+    const toggleButton = document.querySelector("#ai-toggle-view");
     const status = document.querySelector("#ai-result-status");
     const summary = meetingSummaries.find(
       (item) => Number(item.transcription_id) === Number(activeTranscriptionId),
     ) || meetingSummaries[0];
-    const configured = preferences.summary_engine || {};
-    const engineName = configured.provider === "local"
-      ? (engineCapabilities.summaries?.display_name || configured.model_file || "Local AI")
-      : (configured.model || configured.provider || "Selected AI engine");
-    document.querySelector("#ai-result-engine").textContent = `Generated by ${engineName}.`;
     document.querySelector("#ai-rebuild-notes").disabled = !activeTranscriptionId
       || lastDetail?.transcription?.status !== "completed";
     if (!summary) {
@@ -846,6 +987,7 @@
       copyButton.hidden = true;
       editButton.hidden = true;
       saveButton.hidden = true;
+      toggleButton.hidden = true;
       container.hidden = false;
       editor.hidden = true;
       status.textContent = "Not processed";
@@ -865,24 +1007,61 @@
     copyButton.hidden = !editable;
     editButton.hidden = !editable || editing;
     saveButton.hidden = !editing;
+    toggleButton.hidden = !editable;
+    toggleButton.setAttribute("aria-pressed", String(aiNotesViewMode === "plain"));
+    toggleButton.title = aiNotesViewMode === "markdown"
+      ? "Show AI notes as plain text"
+      : "Render AI notes as Markdown";
+    document.querySelector("#ai-view-mode-label").textContent =
+      aiNotesViewMode === "markdown" ? "Markdown" : "Plain text";
     container.hidden = editing;
     editor.hidden = !editing;
     if (editing && editor.dataset.summaryId !== String(summary.id)) {
       editor.value = summary.content_markdown || "";
       editor.dataset.summaryId = String(summary.id);
       editor.dataset.originalContent = summary.content_markdown || "";
+      editor.dataset.markdownDraft = summary.content_markdown || "";
+      editor.dataset.viewMode = "markdown";
+    }
+    if (editing && aiNotesViewMode !== editor.dataset.viewMode) {
+      if (aiNotesViewMode === "plain") {
+        editor.dataset.markdownDraft = editor.value;
+        editor.dataset.plainOriginal = markdownToPlainText(editor.dataset.markdownDraft);
+        editor.value = editor.dataset.plainOriginal;
+        editor.classList.add("plain-text-mode");
+      } else {
+        const plainWasEdited = editor.value !== (editor.dataset.plainOriginal || "");
+        editor.value = plainWasEdited
+          ? editor.value
+          : (editor.dataset.markdownDraft || summary.content_markdown || "");
+        editor.dataset.markdownDraft = editor.value;
+        delete editor.dataset.plainOriginal;
+        editor.classList.remove("plain-text-mode");
+      }
+      editor.dataset.viewMode = aiNotesViewMode;
     }
     status.textContent = summary.status === "completed" ? "Ready" : summary.status;
     status.classList.toggle("ready", summary.status === "completed");
-    container.innerHTML = summary.content_markdown
-      ? escapeHTML(summary.content_markdown).replace(/\n/g, "<br>")
-      : `<div class="result-empty"><strong>AI analysis is ${escapeHTML(summary.status)}</strong><span>The report will appear automatically.</span></div>`;
+    container.classList.toggle("plain-text-view", aiNotesViewMode === "plain");
+    if (summary.content_markdown) {
+      if (aiNotesViewMode === "markdown") {
+        container.innerHTML = renderMarkdown(summary.content_markdown);
+      } else {
+        container.textContent = markdownToPlainText(summary.content_markdown);
+      }
+    } else {
+      container.innerHTML = `<div class="result-empty"><strong>AI analysis is ${escapeHTML(summary.status)}</strong><span>The report will appear automatically.</span></div>`;
+    }
   }
 
   function hasUnsavedAiNotes() {
     const editor = document.querySelector("#ai-report-editor");
+    const content = editor.dataset.viewMode === "plain"
+      && editor.value === (editor.dataset.plainOriginal || "")
+      ? (editor.dataset.markdownDraft || "")
+      : editor.value;
     return Boolean(editingSummaryId)
-      && editor.value !== (editor.dataset.originalContent || "");
+      && content !== (editor.dataset.originalContent || "");
   }
 
   function discardAiNoteChanges() {
@@ -890,6 +1069,10 @@
     editingSummaryId = null;
     delete editor.dataset.summaryId;
     delete editor.dataset.originalContent;
+    delete editor.dataset.markdownDraft;
+    delete editor.dataset.viewMode;
+    delete editor.dataset.plainOriginal;
+    editor.classList.remove("plain-text-mode");
     renderSummaryPanel();
   }
 
@@ -959,10 +1142,13 @@
     ) || meetingSummaries[0];
     if (!summary?.content_markdown || summary.status !== "completed") return;
     editingSummaryId = summary.id;
+    aiNotesViewMode = "markdown";
     const editor = document.querySelector("#ai-report-editor");
     editor.value = summary.content_markdown;
     editor.dataset.summaryId = String(summary.id);
     editor.dataset.originalContent = summary.content_markdown;
+    editor.dataset.markdownDraft = summary.content_markdown;
+    editor.dataset.viewMode = "markdown";
     renderSummaryPanel();
     editor.focus();
   }
@@ -972,7 +1158,12 @@
     const summary = meetingSummaries.find(
       (item) => Number(item.transcription_id) === Number(activeTranscriptionId),
     ) || meetingSummaries[0];
-    const content = editingSummaryId ? editor.value : (summary?.content_markdown || "");
+    const content = editingSummaryId
+      ? (editor.dataset.viewMode === "plain"
+        && editor.value === (editor.dataset.plainOriginal || "")
+        ? editor.dataset.markdownDraft
+        : editor.value)
+      : (summary?.content_markdown || "");
     if (!content) return;
     try {
       await navigator.clipboard.writeText(content);
@@ -984,7 +1175,10 @@
 
   async function saveAiNotes() {
     const editor = document.querySelector("#ai-report-editor");
-    const content = editor.value.trim();
+    const content = (editor.dataset.viewMode === "plain"
+      && editor.value === (editor.dataset.plainOriginal || "")
+      ? editor.dataset.markdownDraft
+      : editor.value).trim();
     if (!content) {
       toast("AI notes cannot be empty.", "error");
       return;
@@ -1001,8 +1195,95 @@
       editingSummaryId = null;
       delete editor.dataset.summaryId;
       delete editor.dataset.originalContent;
+      delete editor.dataset.markdownDraft;
+      delete editor.dataset.viewMode;
+      delete editor.dataset.plainOriginal;
       renderSummaryPanel();
       toast("AI notes saved.", "success");
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  function toggleAiNotesView() {
+    aiNotesViewMode = aiNotesViewMode === "markdown" ? "plain" : "markdown";
+    renderSummaryPanel();
+    if (editingSummaryId) document.querySelector("#ai-report-editor").focus();
+  }
+
+  function syncSpeakerRebuildControls() {
+    const known = document.querySelector('input[name="speaker-rebuild-mode"]:checked')?.value === "known";
+    document.querySelector("#speaker-rebuild-count").disabled = !known;
+  }
+
+  function openSpeakerRebuildDialog() {
+    if (activeSpeakerRebuildJobId) {
+      toast("Speaker identification is already running.");
+      return;
+    }
+    if (!activeTranscriptionId || lastDetail?.transcription?.status !== "completed") {
+      toast("Complete the transcription before rebuilding speaker identification.", "error");
+      return;
+    }
+    speakerRebuildDismissed = false;
+    document.querySelector('input[name="speaker-rebuild-mode"][value="auto"]').checked = true;
+    document.querySelector("#speaker-rebuild-count").value = "2";
+    document.querySelector("#speaker-rebuild-options").hidden = false;
+    document.querySelector("#speaker-rebuild-progress-view").hidden = true;
+    document.querySelector("#speaker-rebuild-done").hidden = true;
+    document.querySelector("#speaker-rebuild-background").hidden = false;
+    document.querySelector("#speaker-rebuild-description").textContent =
+      "Run diarization again without changing the transcript or AI notes.";
+    syncSpeakerRebuildControls();
+    if (!speakerRebuildDialog.open) speakerRebuildDialog.showModal();
+  }
+
+  function renderSpeakerRebuildJob(job) {
+    if (!job) return;
+    const terminal = ["completed", "failed", "cancelled"].includes(job.status);
+    const progress = job.status === "completed"
+      ? 1
+      : Math.max(0, Math.min(1, Number(job.progress || 0)));
+    document.querySelector("#speaker-rebuild-options").hidden = true;
+    document.querySelector("#speaker-rebuild-progress-view").hidden = false;
+    document.querySelector("#speaker-rebuild-progress").value = progress * 100;
+    document.querySelector("#speaker-rebuild-percent").textContent = `${Math.round(progress * 100)}%`;
+    document.querySelector("#speaker-rebuild-status").textContent = job.status === "failed"
+      ? (job.error_text || "Speaker identification failed")
+      : job.status === "cancelled"
+        ? "Speaker identification was cancelled"
+        : (job.message || (job.status === "completed" ? "Speaker identification complete" : "Identifying speakers..."));
+    document.querySelector("#speaker-rebuild-background").hidden = terminal;
+    document.querySelector("#speaker-rebuild-done").hidden = !terminal;
+    document.querySelector("#speaker-rebuild-description").textContent = terminal
+      ? (job.status === "completed"
+        ? "The speaker results have been updated."
+        : "The existing speaker results remain available.")
+      : "Only diarization is running. The transcript and AI notes are unchanged.";
+    if (!speakerRebuildDismissed && !speakerRebuildDialog.open) {
+      speakerRebuildDialog.showModal();
+    }
+  }
+
+  async function startSpeakerRebuild() {
+    const known = document.querySelector('input[name="speaker-rebuild-mode"]:checked')?.value === "known";
+    const requestedCount = Number(document.querySelector("#speaker-rebuild-count").value);
+    if (known && (!Number.isInteger(requestedCount) || requestedCount < 1 || requestedCount > 20)) {
+      toast("Enter a number of speakers between 1 and 20.", "error");
+      return;
+    }
+    const button = document.querySelector("#speaker-rebuild-confirm");
+    button.disabled = true;
+    try {
+      const job = await api(`/api/transcriptions/${activeTranscriptionId}/diarize`, {
+        method: "POST",
+        body: JSON.stringify({ speaker_count: known ? requestedCount : null }),
+      });
+      activeSpeakerRebuildJobId = job.uuid;
+      document.querySelector("#speaker-rebuild-identification").disabled = true;
+      renderSpeakerRebuildJob(job);
     } catch (error) {
       toast(error.message, "error");
     } finally {
@@ -1943,8 +2224,15 @@
     return editingSummaryId ? editor.value.trim() : (summary?.content_markdown || "").trim();
   }
 
-  function htmlDocument(title, content) {
-    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHTML(title)}</title><style>body{font:12pt/1.55 Arial,sans-serif;color:#1d2939;max-width:760px;margin:48px auto;padding:0 24px;white-space:pre-wrap}h1{font-size:20pt}@media print{body{margin:0;max-width:none}}</style></head><body><h1>${escapeHTML(title)}</h1><main>${escapeHTML(content)}</main></body></html>`;
+  function plainTextExportHtml(content) {
+    return String(content || "").replace(/\r\n?/g, "\n").split(/\n{2,}/)
+      .map((paragraph) => `<p>${escapeHTML(paragraph).replace(/\n/g, "<br>")}</p>`)
+      .join("");
+  }
+
+  function htmlDocument(title, content, markdown = false) {
+    const body = markdown ? renderMarkdown(content) : plainTextExportHtml(content);
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHTML(title)}</title><style>body{font:12pt/1.55 Arial,sans-serif;color:#1d2939;max-width:760px;margin:48px auto;padding:0 24px}h1{font-size:20pt;margin:0 0 18pt}h2{font-size:16pt}h3{font-size:13pt}p{margin:0 0 10pt}ul,ol{margin:0 0 10pt;padding-left:24pt}blockquote{margin:0 0 10pt;padding-left:12pt;border-left:3px solid #b8cefa}table{width:100%;margin:0 0 10pt;border-collapse:collapse}th,td{padding:6pt;border:1px solid #cfd8e5;text-align:left}pre{white-space:pre-wrap}main>:first-child{margin-top:0}@media print{body{margin:0;max-width:none}}</style></head><body><h1>${escapeHTML(title)}</h1><main>${body}</main></body></html>`;
   }
 
   function openExportDialog(source, format) {
@@ -1983,14 +2271,14 @@
     } else if (format === "markdown") {
       downloadFile(exportFilename("md"), content, "text/markdown;charset=utf-8");
     } else if (format === "word") {
-      downloadFile(exportFilename("doc"), htmlDocument(draftTitle, content), "application/msword;charset=utf-8");
+      downloadFile(exportFilename("doc"), htmlDocument(draftTitle, content, source === "notes"), "application/msword;charset=utf-8");
     } else if (format === "pdf") {
       const printWindow = window.open("", "_blank");
       if (!printWindow) {
         toast("Allow pop-ups to export a PDF.", "error");
         return;
       }
-      printWindow.document.write(htmlDocument(draftTitle, content));
+      printWindow.document.write(htmlDocument(draftTitle, content, source === "notes"));
       printWindow.document.close();
       printWindow.focus();
       printWindow.print();
@@ -2132,6 +2420,19 @@
   document.querySelector("#ai-copy-notes").addEventListener("click", copyAiNotes);
   document.querySelector("#ai-edit-notes").addEventListener("click", beginAiNotesEdit);
   document.querySelector("#ai-save-notes").addEventListener("click", saveAiNotes);
+  document.querySelector("#ai-toggle-view").addEventListener("click", toggleAiNotesView);
+  document.querySelector("#speaker-rebuild-identification").addEventListener("click", openSpeakerRebuildDialog);
+  document.querySelectorAll('input[name="speaker-rebuild-mode"]').forEach((input) =>
+    input.addEventListener("change", syncSpeakerRebuildControls));
+  document.querySelector("#speaker-rebuild-confirm").addEventListener("click", startSpeakerRebuild);
+  document.querySelectorAll("#speaker-rebuild-close, #speaker-rebuild-cancel, #speaker-rebuild-background, #speaker-rebuild-done").forEach((button) =>
+    button.addEventListener("click", () => {
+      speakerRebuildDismissed = true;
+      speakerRebuildDialog.close();
+    }));
+  speakerRebuildDialog.addEventListener("cancel", () => {
+    speakerRebuildDismissed = true;
+  });
   document.querySelectorAll("#ai-unsaved-close, #ai-unsaved-stay").forEach((button) =>
     button.addEventListener("click", stayOnAiNotes));
   document.querySelector("#ai-unsaved-discard").addEventListener("click", discardAiNotesAndContinue);
@@ -2404,6 +2705,21 @@
 
   subscribeJobs(async (jobs) => {
     if (!meetingId) return;
+    if (activeSpeakerRebuildJobId) {
+      const rebuildJob = jobs.find((job) => job.uuid === activeSpeakerRebuildJobId);
+      if (rebuildJob) {
+        renderSpeakerRebuildJob(rebuildJob);
+        if (["completed", "failed", "cancelled"].includes(rebuildJob.status)) {
+          activeSpeakerRebuildJobId = null;
+          if (rebuildJob.status === "completed" && activeTranscriptionId) {
+            await selectTranscription(activeTranscriptionId);
+            toast("Speaker identification rebuilt.", "success");
+          } else {
+            renderSpeakerPanel();
+          }
+        }
+      }
+    }
     if (activeSpeakerSummaryJobId) {
       const speakerJob = jobs.find((job) => job.uuid === activeSpeakerSummaryJobId);
       const speaker = lastDetail?.speakers?.find(

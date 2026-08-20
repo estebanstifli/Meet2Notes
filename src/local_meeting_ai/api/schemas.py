@@ -691,6 +691,12 @@ class FindReplaceResponse(BaseModel):
     replacements: int
 
 
+class DiarizationStartRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    speaker_count: int | None = Field(default=None, ge=1, le=20)
+
+
 class SummaryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

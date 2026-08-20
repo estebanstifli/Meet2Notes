@@ -443,6 +443,19 @@ def test_live_capture_pause_stop_and_transcribe(tmp_path: Path) -> None:
         else:
             raise AssertionError("Post-processing did not reach the summary stage")
         assert summary_job["status"] == "completed"
+        rebuilt = client.post(
+            f"/api/transcriptions/{payload['transcription']['id']}/diarize",
+            json={"speaker_count": 1},
+        )
+        assert rebuilt.status_code == 202
+        assert rebuilt.json()["payload"]["speaker_count"] == 1
+        assert rebuilt.json()["payload"]["postprocess"] is False
+        assert _wait_for_job(client, rebuilt.json()["uuid"])["status"] == "completed"
+        invalid_rebuild = client.post(
+            f"/api/transcriptions/{payload['transcription']['id']}/diarize",
+            json={"speaker_count": 21},
+        )
+        assert invalid_rebuild.status_code == 422
         plugin_runs = client.get("/api/plugins/executions").json()
         assert any(
             run["plugin_id"] == "meet2notes.analysis-cleanup"

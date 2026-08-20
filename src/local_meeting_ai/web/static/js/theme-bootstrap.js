@@ -14,4 +14,12 @@
     : preference;
   document.documentElement.dataset.themePreference = preference;
   document.documentElement.dataset.theme = resolved;
+  try {
+    if (window.localStorage.getItem("meet2notes-sidebar-collapsed") === "true"
+        && window.matchMedia("(min-width: 821px)").matches) {
+      document.documentElement.classList.add("sidebar-collapsed");
+    }
+  } catch (_error) {
+    // The sidebar defaults to expanded when browser storage is unavailable.
+  }
 })();

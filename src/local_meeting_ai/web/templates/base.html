@@ -16,28 +16,31 @@
 <body data-page="{{ page }}">
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
-      <a class="brand" href="/" aria-label="Meet2Notes">
+      <a class="brand" id="sidebar-brand" href="/" aria-label="Meet2Notes home">
         <img class="brand-mark" src="/static/icons/mark.svg" alt="">
         <span>
           <strong>Meet2Notes</strong>
           <small data-i18n="brand.subtitle">Private meeting workspace</small>
         </span>
       </a>
+      <button class="sidebar-collapse-toggle" id="sidebar-collapse-toggle" type="button" aria-label="Minimize sidebar" aria-expanded="true" title="Minimize sidebar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>
+      </button>
 
       <nav class="primary-nav" aria-label="Main navigation">
-        <a href="/?new=1" class="sidebar-new-meeting">
+        <a href="/?new=1" class="sidebar-new-meeting" title="New meeting">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           <span data-i18n="nav.new_meeting">New meeting</span>
         </a>
-        <a href="/meetings" class="{{ 'active' if page == 'meetings' else '' }}">
+        <a href="/meetings" class="{{ 'active' if page == 'meetings' else '' }}" title="Meetings">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>
           <span data-i18n="nav.meetings">Meetings</span>
         </a>
-        <a href="/speakers" class="{{ 'active' if page == 'speakers' else '' }}">
+        <a href="/speakers" class="{{ 'active' if page == 'speakers' else '' }}" title="Speakers">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M14 19.5a4 4 0 0 1 6.5-3.1"/></svg>
           <span>Speakers</span>
         </a>
-        <a href="/prompt" target="_blank" rel="noopener" class="{{ 'active' if page == 'prompt' else '' }}">
+        <a href="/prompt" target="_blank" rel="noopener" class="{{ 'active' if page == 'prompt' else '' }}" title="Prompt">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z"/><path d="M18 16v5M15.5 18.5h5"/></svg>
           <span>Prompt</span>
         </a>

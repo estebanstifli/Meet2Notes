@@ -70,6 +70,8 @@ def test_web_pages_and_security_headers(client: TestClient) -> None:
     assert 'id="activity-log-resizer"' in response.text
     assert 'id="activity-log-output"' in response.text
     assert 'id="global-engine-list"' in response.text
+    assert 'id="sidebar-brand"' in response.text
+    assert 'id="sidebar-collapse-toggle"' in response.text
     assert 'id="global-hardware-list"' in response.text
     assert 'id="application-shutdown"' in response.text
     assert 'id="shutdown-dialog"' in response.text
@@ -105,8 +107,14 @@ def test_web_pages_and_security_headers(client: TestClient) -> None:
     assert "Meeting library" in meetings.text
     assert 'id="meeting-search"' in meetings.text
 
+    speakers = client.get("/speakers")
+    assert speakers.status_code == 200
+    assert "Meeting finder" in speakers.text
+    assert 'id="speaker-meeting-results"' in speakers.text
+
     static_asset = client.get("/static/js/transcript.js")
     assert static_asset.headers["cache-control"] == "no-cache, must-revalidate"
+    assert "plainTextExportHtml" in static_asset.text
 
     missing = client.get("/meetings/99999")
     assert missing.status_code == 404

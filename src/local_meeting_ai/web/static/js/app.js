@@ -9,6 +9,7 @@
   let lastSidebarSystemState = null;
   let sidebarSystemTimer = null;
   const themeStorageKey = "meet2notes-ui-theme";
+  const sidebarStorageKey = "meet2notes-sidebar-collapsed";
   const performanceLogThresholdMs = 250;
 
   function timingLog(event, details = {}) {
@@ -441,6 +442,53 @@
 
   function bindNavigation() {
     const toggle = document.querySelector("#menu-toggle");
+    const collapseToggle = document.querySelector("#sidebar-collapse-toggle");
+    const brand = document.querySelector("#sidebar-brand");
+    let sidebarCollapsed = document.documentElement.classList.contains("sidebar-collapsed");
+    try {
+      sidebarCollapsed = window.localStorage.getItem(sidebarStorageKey) === "true";
+    } catch (_error) {
+      // Keep the state applied by the early bootstrap script.
+    }
+
+    const applySidebarState = () => {
+      const collapsedOnDesktop = sidebarCollapsed
+        && window.matchMedia("(min-width: 821px)").matches;
+      document.documentElement.classList.toggle("sidebar-collapsed", collapsedOnDesktop);
+      collapseToggle?.setAttribute("aria-expanded", String(!collapsedOnDesktop));
+      if (collapseToggle) {
+        collapseToggle.title = collapsedOnDesktop ? "Expand sidebar" : "Minimize sidebar";
+        collapseToggle.setAttribute("aria-label", collapseToggle.title);
+      }
+      if (brand) {
+        brand.title = collapsedOnDesktop ? "Expand sidebar" : "Meet2Notes home";
+        brand.setAttribute("aria-label", brand.title);
+      }
+    };
+
+    const saveSidebarState = () => {
+      try {
+        window.localStorage.setItem(sidebarStorageKey, String(sidebarCollapsed));
+      } catch (_error) {
+        // Keep the state for this page when browser storage is unavailable.
+      }
+    };
+
+    collapseToggle?.addEventListener("click", () => {
+      sidebarCollapsed = true;
+      saveSidebarState();
+      applySidebarState();
+      brand?.focus();
+    });
+    brand?.addEventListener("click", (event) => {
+      if (!document.documentElement.classList.contains("sidebar-collapsed")) return;
+      event.preventDefault();
+      sidebarCollapsed = false;
+      saveSidebarState();
+      applySidebarState();
+    });
+    window.addEventListener("resize", applySidebarState);
+    applySidebarState();
     toggle?.addEventListener("click", () => {
       const isOpen = document.body.classList.toggle("menu-open");
       toggle.setAttribute("aria-expanded", String(isOpen));

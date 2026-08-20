@@ -127,6 +127,17 @@
   border-color: #252f40;
 }
 
+[data-theme="dark"] .sidebar-collapse-toggle {
+  color: #91a0b5;
+}
+
+[data-theme="dark"] .sidebar-collapse-toggle:hover,
+[data-theme="dark"] .sidebar-collapse-toggle:focus-visible {
+  color: #9fc2ff;
+  background: #192335;
+  border-color: #2a3950;
+}
+
 [data-theme="dark"] .brand strong,
 [data-theme="dark"] :is(.workspace-heading, .meeting-title-block) h1,
 [data-theme="dark"] .simple-page-header h1,
@@ -298,6 +309,29 @@
 [data-theme="dark"] .ai-report-editor {
   color: #d8deea;
   background: #111824;
+  border-color: #354156;
+}
+
+[data-theme="dark"] :is(.speaker-rebuild-choice label, #speaker-rebuild-count) {
+  color: #d8deea;
+  background: #111824;
+  border-color: #354156;
+}
+
+[data-theme="dark"] .speaker-rebuild-choice legend,
+[data-theme="dark"] :is(.ai-report-content h1, .ai-report-content h2, .ai-report-content h3, .ai-report-content h4) {
+  color: #f2f5fa;
+}
+
+[data-theme="dark"] :is(.ai-report-content code, .ai-report-content pre, .ai-report-content th) {
+  background: #151d29;
+}
+
+[data-theme="dark"] .ai-report-content pre code {
+  background: transparent;
+}
+
+[data-theme="dark"] :is(.ai-report-content th, .ai-report-content td) {
   border-color: #354156;
 }
 
