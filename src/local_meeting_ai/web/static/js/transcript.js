@@ -711,8 +711,8 @@
             <button type="button" class="text-button speaker-card-action" data-remember-speaker="${speaker.id}" title="Use this voice to recognize ${escapeHTML(speaker.display_name)} in future meetings">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0-9-9 9 9 0 0 0 9 9Z"/><path d="m8.5 12 2.3 2.3 4.8-5"/></svg> Remember this voice
             </button>
-            <a class="text-button" href="/api/transcriptions/${activeTranscriptionId}/speakers/${speaker.id}/audio?format=wav">Export WAV</a>
-            <a class="text-button" href="/api/transcriptions/${activeTranscriptionId}/speakers/${speaker.id}/audio?format=mp3">Export MP3</a>
+            <a class="text-button speaker-card-action" href="/api/transcriptions/${activeTranscriptionId}/speakers/${speaker.id}/audio?format=wav">Export WAV</a>
+            <a class="text-button speaker-card-action" href="/api/transcriptions/${activeTranscriptionId}/speakers/${speaker.id}/audio?format=mp3">Export MP3</a>
           </div>
         </article>`;
     }).join("");
