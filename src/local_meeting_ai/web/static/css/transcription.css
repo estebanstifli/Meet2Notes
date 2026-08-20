@@ -1626,6 +1626,13 @@
   border-radius: 50%;
 }
 
+.speaker-color-0 { --speaker-color: #176bff; }
+.speaker-color-1 { --speaker-color: #8b5cf6; }
+.speaker-color-2 { --speaker-color: #0e9f6e; }
+.speaker-color-3 { --speaker-color: #e07219; }
+.speaker-color-4 { --speaker-color: #d13f72; }
+.speaker-color-5 { --speaker-color: #168aa6; }
+
 .speaker-line {
   display: grid;
   grid-template-columns: auto 76px minmax(0, 1fr);

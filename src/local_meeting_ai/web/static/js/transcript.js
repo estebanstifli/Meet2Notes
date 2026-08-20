@@ -680,14 +680,14 @@
     const colorMap = new Map(speakers.map((speaker, index) => [Number(speaker.id), index]));
     status.textContent = `${speakers.length} speaker${speakers.length === 1 ? "" : "s"}`;
     status.classList.add("ready");
-    const colors = ["#176bff", "#8b5cf6", "#0e9f6e", "#e07219", "#d13f72", "#168aa6"];
+    const speakerColorCount = 6;
     const totalTalkTime = speakers.reduce((total, speaker) => total + speaker.talk_time_ms, 0);
     const cards = speakers.map((speaker, index) => {
       const share = totalTalkTime > 0
         ? Math.round((speaker.talk_time_ms / totalTalkTime) * 100)
         : 0;
       return `
-        <article class="speaker-card" style="--speaker-color:${colors[index % colors.length]}">
+        <article class="speaker-card speaker-color-${index % speakerColorCount}">
           <div class="speaker-card-name">
             <i></i>
             <input value="${escapeHTML(speaker.display_name)}" data-speaker-name="${speaker.id}" data-original-name="${escapeHTML(speaker.display_name)}" aria-label="Speaker name" title="Click to rename this speaker" maxlength="100">
@@ -735,7 +735,7 @@
       const transcriptText = transcriptTextForSpeakerTurn(turn, segments);
       const colorIndex = colorMap.get(Number(turn.speaker_id)) || 0;
       return `
-        <article class="speaker-line" style="--speaker-color:${colors[colorIndex % colors.length]}">
+        <article class="speaker-line speaker-color-${colorIndex % speakerColorCount}">
           <button class="speaker-fragment-play" data-play-range-start="${turn.start_ms}" data-play-range-end="${turn.end_ms}" title="Play this audio fragment" aria-label="Play this audio fragment" aria-pressed="false">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z"/></svg>
           </button>
