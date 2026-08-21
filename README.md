@@ -81,6 +81,16 @@ Whisper, Sherpa-ONNX, or a particular language model.
 - Optional preload at startup. Models remain resident after use until they are
   unloaded, replaced, or the application shuts down.
 
+## Demo
+
+<p align="center">
+  <a href="https://youtu.be/Z2wRrs9Q9pU">
+    <img src="https://img.youtube.com/vi/Z2wRrs9Q9pU/maxresdefault.jpg" alt="Meet2Notes presentation and demo" width="800">
+  </a>
+</p>
+
+<p align="center"><a href="https://youtu.be/Z2wRrs9Q9pU">Watch the Meet2Notes presentation and demo on YouTube</a></p>
+
 <a id="installation"></a>
 
 ## Easy installation
@@ -139,22 +149,6 @@ chmod +x install.sh
 Python 3.11 or newer must already be installed on macOS and Linux. For CUDA,
 custom model storage, and backend-specific setup, continue to the
 [advanced installation options](#advanced-installation-from-source).
-
-## Product tour
-
-Meet2Notes keeps the complete workflow in one local workspace, in light and
-dark themes.
-
-<p align="center">
-  <img src="capturas/choose_your_audio_source_diurno.png" alt="Choose microphone, system audio or a media file before recording" width="32%">
-  <img src="capturas/transcription_ai_notes_diurno.png" alt="AI Notes shown beside a completed meeting transcript" width="32%">
-  <img src="capturas/prompt_nocturno.png" alt="Dark-mode Prompt workspace using historical RAG" width="32%">
-</p>
-<p align="center">
-  <img src="capturas/settings_ai_engine_nocturno.png" alt="Dark-mode AI Engine model selection" width="32%">
-  <img src="capturas/settings_speakers_diurno.png" alt="Light-mode speaker recognition settings" width="32%">
-  <img src="capturas/speakers_nocturno.png" alt="Dark-mode saved voice directory" width="32%">
-</p>
 
 ## Modular processing pipeline
 
