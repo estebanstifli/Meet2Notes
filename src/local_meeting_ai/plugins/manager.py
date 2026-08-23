@@ -8,6 +8,7 @@ import json
 import logging
 import time
 from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
@@ -262,10 +263,21 @@ class HookBus:
             input_digest=input_digest,
         )
         try:
-            result = await asyncio.wait_for(
-                _call_plugin(registration.callback, payload, plugin_context),
-                timeout=registration.timeout_seconds,
+            plugin_task = asyncio.create_task(
+                _call_plugin(registration.callback, payload, plugin_context)
             )
+            try:
+                done, _pending = await asyncio.wait(
+                    {plugin_task},
+                    timeout=registration.timeout_seconds,
+                )
+                if plugin_task not in done:
+                    raise TimeoutError
+                result = plugin_task.result()
+            finally:
+                if not plugin_task.done():
+                    plugin_task.cancel()
+                    plugin_task.add_done_callback(_discard_task_result)
             if (
                 registration.kind == "filter"
                 and result is not None
@@ -604,6 +616,11 @@ async def _call_plugin(
     if inspect.isawaitable(result):
         return await cast(Awaitable[Any], result)
     return result
+
+
+def _discard_task_result(task: asyncio.Task[Any]) -> None:
+    with suppress(asyncio.CancelledError, Exception):
+        task.exception()
 
 
 def _validate_plugin_setting(field: PluginSettingField, value: Any) -> Any:
