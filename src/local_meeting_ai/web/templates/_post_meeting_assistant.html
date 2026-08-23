@@ -2,6 +2,7 @@
   class="post-meeting-assistant hidden"
   id="post-meeting-assistant"
   data-context="{{ post_assistant_context }}"
+  data-layout="{{ post_assistant_layout if post_assistant_layout is defined else 'floating' }}"
   data-default-meeting-id="{{ meeting.id if meeting is defined and meeting else (selected_meeting_id if selected_meeting_id is defined else '') }}"
   aria-label="Meeting Assistant"
 >

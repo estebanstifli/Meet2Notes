@@ -21,10 +21,10 @@
   const contextChips = document.querySelector("#post-meeting-assistant-context-chips");
   const contextBudget = document.querySelector("#post-meeting-assistant-context-budget");
   const defaultMeetingId = widget.dataset.defaultMeetingId || "";
-  const embedded = widget.dataset.context === "prompt";
+  const embedded = widget.dataset.layout === "embedded" && Boolean(widget.closest(".prompt-assistant"));
   const history = [];
   const selectedAttachments = new Map();
-  const storageKey = "meet2notes.postMeetingAssistant.v1";
+  const storageKey = "meet2notes.postMeetingAssistant.v2";
 
   function sourceTime(milliseconds) {
     const seconds = Math.max(0, Math.floor(Number(milliseconds || 0) / 1000));

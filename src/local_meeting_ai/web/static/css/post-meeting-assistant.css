@@ -21,7 +21,7 @@
 
 .post-meeting-assistant.hidden { display: none; }
 
-.post-meeting-assistant[data-context="prompt"] {
+.prompt-assistant > .post-meeting-assistant[data-layout="embedded"] {
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -34,13 +34,13 @@
   border-radius: 18px;
 }
 
-.post-meeting-assistant[data-context="prompt"] .post-meeting-assistant-header { cursor: default; }
-.post-meeting-assistant[data-context="prompt"] .post-meeting-assistant-toggle,
-.post-meeting-assistant[data-context="prompt"] .post-meeting-assistant-resize { display: none; }
-.post-meeting-assistant[data-context="prompt"] .post-meeting-assistant-messages { padding: clamp(18px, 3vw, 38px); }
-.post-meeting-assistant[data-context="prompt"] .post-meeting-assistant-message { max-width: min(82%, 900px); }
-.post-meeting-assistant[data-context="prompt"] .post-meeting-assistant-message-body { font-size: 14px; }
-.post-meeting-assistant[data-context="prompt"] .post-meeting-assistant-welcome { width: min(100%, 680px); margin: auto; }
+.prompt-assistant > .post-meeting-assistant[data-layout="embedded"] .post-meeting-assistant-header { cursor: default; }
+.prompt-assistant > .post-meeting-assistant[data-layout="embedded"] .post-meeting-assistant-toggle,
+.prompt-assistant > .post-meeting-assistant[data-layout="embedded"] .post-meeting-assistant-resize { display: none; }
+.prompt-assistant > .post-meeting-assistant[data-layout="embedded"] .post-meeting-assistant-messages { padding: clamp(18px, 3vw, 38px); }
+.prompt-assistant > .post-meeting-assistant[data-layout="embedded"] .post-meeting-assistant-message { max-width: min(82%, 900px); }
+.prompt-assistant > .post-meeting-assistant[data-layout="embedded"] .post-meeting-assistant-message-body { font-size: 14px; }
+.prompt-assistant > .post-meeting-assistant[data-layout="embedded"] .post-meeting-assistant-welcome { width: min(100%, 680px); margin: auto; }
 
 .post-meeting-assistant-header {
   display: grid;
@@ -359,5 +359,5 @@
   .post-meeting-assistant { right: 10px !important; bottom: 10px !important; left: 10px !important; top: auto !important; width: auto; min-width: 0; max-width: none; max-height: calc(100vh - 78px); }
   .post-meeting-assistant-rag { max-width: 82px; }
   .post-meeting-assistant[data-collapsed="true"] { right: 10px !important; bottom: 10px !important; left: auto !important; width: 60px !important; }
-  .post-meeting-assistant[data-context="prompt"] { inset: 0 !important; width: 100% !important; max-height: none; }
+  .prompt-assistant > .post-meeting-assistant[data-layout="embedded"] { inset: 0 !important; width: 100% !important; max-height: none; }
 }

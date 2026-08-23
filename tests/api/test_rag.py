@@ -174,9 +174,16 @@ def test_rag_settings_and_prompt_window_are_available(settings: AppSettings) -> 
         prompt_page = client.get("/prompt")
         assert prompt_page.status_code == 200
         assert 'data-context="prompt"' in prompt_page.text
+        assert 'data-layout="embedded"' in prompt_page.text
         assert 'id="post-meeting-assistant"' in prompt_page.text
         assert "What do you want to recover?" not in prompt_page.text
         assert "Ask about your meetings" in prompt_page.text
+
+        meetings_page = client.get("/meetings")
+        assert meetings_page.status_code == 200
+        assert 'data-context="library"' in meetings_page.text
+        assert 'data-layout="floating"' in meetings_page.text
+        assert 'data-layout="embedded"' not in meetings_page.text
 
         settings_page = client.get("/settings#rag")
         assert settings_page.status_code == 200
