@@ -163,6 +163,7 @@ async def prompt_meetings(
         meeting_id=payload.meeting_id,
         use_rag=payload.use_rag,
         history=[turn.model_dump() for turn in payload.history],
+        attachments=[attachment.model_dump() for attachment in payload.attachments],
     )
 
 
@@ -1829,13 +1830,23 @@ def get_meeting(meeting_id: int, container: ContainerDependency) -> MeetingRespo
 
 
 @router.patch("/meetings/{meeting_id}", response_model=MeetingResponse)
-def update_meeting(
+async def update_meeting(
     meeting_id: int,
     payload: MeetingUpdate,
     container: ContainerDependency,
 ) -> MeetingResponse:
     values = payload.model_dump(exclude_unset=True)
-    return MeetingResponse.model_validate(container.meeting_service.update(meeting_id, values))
+    meeting = container.meeting_service.update(meeting_id, values)
+    if (
+        {"title", "description"} & values.keys()
+        and container.rag_service.can_index_incrementally()
+        and (
+            (active := container.transcriptions.active_for_meeting(meeting_id))
+            and active.status == "completed"
+        )
+    ):
+        await container.rag_service.start_rebuild(meeting_id=meeting_id, force=False)
+    return MeetingResponse.model_validate(meeting)
 
 
 @router.delete("/meetings/{meeting_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -2146,12 +2157,17 @@ def update_transcription(
     "/transcript-segments/{segment_id}",
     response_model=TranscriptSegmentResponse,
 )
-def update_transcript_segment(
+async def update_transcript_segment(
     segment_id: int,
     payload: SegmentUpdate,
     container: ContainerDependency,
 ) -> TranscriptSegmentResponse:
     segment = container.transcription_service.update_segment(segment_id, payload.text)
+    transcription = container.transcriptions.get(segment.transcription_id)
+    if transcription and container.rag_service.can_index_incrementally():
+        await container.rag_service.start_rebuild(
+            meeting_id=transcription.meeting_id, force=False
+        )
     return TranscriptSegmentResponse.model_validate(segment)
 
 
@@ -2159,11 +2175,15 @@ def update_transcript_segment(
     "/transcriptions/{transcription_id}/activate",
     response_model=TranscriptionResponse,
 )
-def activate_transcription(
+async def activate_transcription(
     transcription_id: int,
     container: ContainerDependency,
 ) -> TranscriptionResponse:
     transcription = container.transcription_service.activate(transcription_id)
+    if container.rag_service.can_index_incrementally():
+        await container.rag_service.start_rebuild(
+            meeting_id=transcription.meeting_id, force=False
+        )
     return TranscriptionResponse.model_validate(transcription)
 
 
@@ -2171,7 +2191,7 @@ def activate_transcription(
     "/transcriptions/{transcription_id}/find-replace",
     response_model=FindReplaceResponse,
 )
-def find_replace(
+async def find_replace(
     transcription_id: int,
     payload: FindReplaceRequest,
     container: ContainerDependency,
@@ -2180,6 +2200,15 @@ def find_replace(
         transcription_id,
         **payload.model_dump(),
     )
+    transcription = container.transcriptions.get(transcription_id)
+    if (
+        replacements
+        and transcription
+        and container.rag_service.can_index_incrementally()
+    ):
+        await container.rag_service.start_rebuild(
+            meeting_id=transcription.meeting_id, force=False
+        )
     return FindReplaceResponse(replacements=replacements)
 
 

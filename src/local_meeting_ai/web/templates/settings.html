@@ -34,7 +34,7 @@
         <form id="settings-form" class="settings-form">
           <label class="setting-row">
             <span><strong>Interface language</strong><small>The interface is prepared for incremental translation.</small></span>
-            <select id="ui-language"><option value="en">English</option><option value="es">Español</option></select>
+            <select id="ui-language" data-ui-language><option value="en">English</option><option value="es">Español</option></select>
           </label>
           <label class="setting-row">
             <span><strong>Appearance</strong><small>Follow your operating system or choose a fixed theme.</small></span>
@@ -622,18 +622,26 @@
             </div>
           </div>
           <div class="engine-config-group">
-            <div class="engine-config-heading"><div><strong>Monitoring rules</strong><small>Transcript text is treated as untrusted meeting content, never as assistant instructions.</small></div></div>
+            <div class="engine-config-heading"><div><strong>Behavior mode</strong><small>Choose exactly when transcript text is sent to the assistant model.</small></div></div>
+            <div class="live-assistant-behavior-modes" role="radiogroup" aria-label="Live Assistant behavior mode">
+              <label class="live-assistant-behavior-option"><input type="radio" name="live-assistant-behavior-mode" value="questions"><span><strong>Answer detected questions</strong><small>Default. Calls the model only when new transcript text contains a question ending in “?”.</small></span></label>
+              <label class="live-assistant-behavior-option"><input type="radio" name="live-assistant-behavior-mode" value="triggers"><span><strong>Respond to trigger words</strong><small>Calls the model only when a configured literal word or phrase appears.</small></span></label>
+              <label class="live-assistant-behavior-option"><input type="radio" name="live-assistant-behavior-mode" value="continuous"><span><strong>Continuous monitoring</strong><small>Periodically evaluates recent speech and intervenes according to your instructions.</small></span></label>
+            </div>
+          </div>
+          <div class="engine-config-group">
+            <div class="engine-config-heading"><div><strong>Instructions and context</strong><small>The transcript is treated as meeting content, never as model instructions.</small></div></div>
             <div class="engine-field-grid">
-              <label class="engine-field wide"><span>Instructions</span><textarea id="live-assistant-system-prompt" rows="7" maxlength="8000" required placeholder="If somebody asks about Alexa, explain the topic and add concise useful information..."></textarea></label>
-              <label class="engine-field wide"><span>Literal trigger filter <small>optional</small></span><textarea id="live-assistant-triggers" rows="3" placeholder="Alexa&#10;Madrid"></textarea><small>Exact words or short phrases, one per line. Conditional rules such as “If a city is discussed...” belong in Instructions. Leave empty to let the model evaluate every interval.</small></label>
+              <label class="engine-field wide"><span>Instructions</span><textarea id="live-assistant-system-prompt" rows="6" maxlength="8000" required placeholder="Answer clearly and concisely using only the supplied meeting context."></textarea><small>These instructions are combined with the detected event and the configured recent context.</small></label>
+              <label class="engine-field wide" id="live-assistant-trigger-field" hidden><span>Trigger words or phrases</span><input id="live-assistant-triggers" type="text" placeholder='"Alexa", "Madrid", "Project Atlas"'><small>Enter a comma-separated list in double quotes. Matching is deterministic, literal and case-insensitive.</small></label>
             </div>
           </div>
           <details class="advanced-settings">
             <summary><span>Live behavior and runtime</span><small>Latency, context, rate limits and independent model resources</small></summary>
             <div class="engine-config-group"><div class="engine-field-grid">
-              <label class="engine-field compact"><span>Evaluation interval</span><input id="live-assistant-interval" type="number" min="1" max="60" step="0.5"><small>Seconds between model calls.</small></label>
+              <label class="engine-field compact" data-live-assistant-continuous-only><span>Evaluation interval</span><input id="live-assistant-interval" type="number" min="1" max="60" step="0.5"><small>Seconds between model calls in continuous mode.</small></label>
               <label class="engine-field compact"><span>Recent context</span><input id="live-assistant-context-seconds" type="number" min="15" max="1800"><small>Seconds of transcript supplied.</small></label>
-              <label class="engine-field compact"><span>Response cooldown</span><input id="live-assistant-cooldown" type="number" min="0" max="600" step="1"><small>Seconds after an insight.</small></label>
+              <label class="engine-field compact" data-live-assistant-continuous-only><span>Response cooldown</span><input id="live-assistant-cooldown" type="number" min="0" max="600" step="1"><small>Seconds after an intervention in continuous mode.</small></label>
               <label class="engine-field compact"><span>Calls per minute</span><input id="live-assistant-rate" type="number" min="1" max="60"></label>
               <label class="engine-field compact"><span>Context tokens</span><input id="live-assistant-context-length" type="number" min="2048" max="131072" step="1024"></label>
               <label class="engine-field compact"><span>Output tokens</span><input id="live-assistant-max-output" type="number" min="128" max="8192" step="64"></label>

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sqlite3
 from array import array
 from collections.abc import Sequence
@@ -96,9 +97,10 @@ class RagRepository:
         *,
         provider: str,
         model: str,
-        meeting_id: int | None = None,
+        meeting_ids: Sequence[int] | None = None,
         query_vector: Sequence[float] | None = None,
         sqlite_vec: bool = False,
+        limit: int | None = None,
     ) -> list[dict[str, Any]]:
         where = "WHERE rc.embedding_provider = ? AND rc.embedding_model = ?"
         parameters: list[Any] = [provider, model]
@@ -108,9 +110,15 @@ class RagRepository:
             parameters.insert(0, vector_blob(query_vector))
             where += " AND rc.embedding_dimensions = ?"
             parameters.append(len(query_vector))
-        if meeting_id is not None:
-            where += " AND rc.meeting_id = ?"
-            parameters.append(meeting_id)
+        if meeting_ids:
+            placeholders = ", ".join("?" for _ in meeting_ids)
+            where += f" AND rc.meeting_id IN ({placeholders})"
+            parameters.extend(int(value) for value in meeting_ids)
+        order_limit = "ORDER BY vector_score DESC LIMIT ?" if sqlite_vec and limit else (
+            "ORDER BY rc.meeting_id, rc.chunk_index"
+        )
+        if sqlite_vec and limit:
+            parameters.append(int(limit))
         with self.database.read() as connection:
             rows = connection.execute(
                 f"""
@@ -120,7 +128,7 @@ class RagRepository:
                 FROM rag_chunks rc
                 JOIN meetings m ON m.id = rc.meeting_id
                 {where}
-                ORDER BY rc.meeting_id, rc.chunk_index
+                {order_limit}
                 """,
                 parameters,
             ).fetchall()
@@ -132,6 +140,53 @@ class RagRepository:
                 item["embedding"] = blob_vector(item["embedding"])
         return result
 
+    def lexical_candidates(
+        self,
+        *,
+        query: str,
+        provider: str,
+        model: str,
+        meeting_ids: Sequence[int] | None = None,
+        limit: int = 40,
+    ) -> list[dict[str, Any]]:
+        terms = [
+            value
+            for value in re.findall(r"[^\W_]+", query, flags=re.UNICODE)
+            if len(value) > 1
+        ]
+        if not terms:
+            return []
+        match_query = " OR ".join(
+            f'"{value.replace(chr(34), chr(34) * 2)}"' for value in terms[:32]
+        )
+        where = "rc.embedding_provider = ? AND rc.embedding_model = ?"
+        parameters: list[Any] = [match_query, provider, model]
+        if meeting_ids:
+            placeholders = ", ".join("?" for _ in meeting_ids)
+            where += f" AND rc.meeting_id IN ({placeholders})"
+            parameters.extend(int(value) for value in meeting_ids)
+        parameters.append(max(1, int(limit)))
+        with self.database.read() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT rc.*, m.title AS meeting_title,
+                       m.description AS meeting_description,
+                       COALESCE(m.started_at, m.created_at) AS meeting_date,
+                       bm25(rag_chunks_fts, 1.0, 2.5, 1.5, 0.0, 0.0) AS bm25_score
+                FROM rag_chunks_fts
+                JOIN rag_chunks rc ON rc.id = rag_chunks_fts.chunk_id
+                JOIN meetings m ON m.id = rc.meeting_id
+                WHERE rag_chunks_fts MATCH ? AND {where}
+                ORDER BY bm25_score
+                LIMIT ?
+                """,
+                parameters,
+            ).fetchall()
+        result = [dict(row) for row in rows]
+        for item in result:
+            item.pop("embedding", None)
+        return result
+
     def counts(self) -> dict[str, int]:
         with self.database.read() as connection:
             row = connection.execute(
@@ -140,6 +195,19 @@ class RagRepository:
                        COUNT(DISTINCT transcription_id) AS transcriptions
                 FROM rag_chunks
                 """
+            ).fetchone()
+        return {key: int(row[key]) for key in ("chunks", "meetings", "transcriptions")}
+
+    def counts_for_index(self, *, provider: str, model: str) -> dict[str, int]:
+        with self.database.read() as connection:
+            row = connection.execute(
+                """
+                SELECT COUNT(*) AS chunks, COUNT(DISTINCT meeting_id) AS meetings,
+                       COUNT(DISTINCT transcription_id) AS transcriptions
+                FROM rag_chunks
+                WHERE embedding_provider = ? AND embedding_model = ?
+                """,
+                (provider, model),
             ).fetchone()
         return {key: int(row[key]) for key in ("chunks", "meetings", "transcriptions")}
 

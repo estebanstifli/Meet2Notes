@@ -10,6 +10,8 @@ import pytest
 from local_meeting_ai.application.live_assistant import (
     LIVE_ASSISTANT_DEFAULTS,
     LiveAssistantService,
+    _contains_trigger,
+    _detected_question,
     _parse_model_response,
 )
 from local_meeting_ai.domain.entities import (
@@ -19,6 +21,7 @@ from local_meeting_ai.domain.entities import (
     SummaryResult,
 )
 from local_meeting_ai.domain.enums import SourceType
+from local_meeting_ai.domain.errors import JobCancelledError
 from local_meeting_ai.infrastructure.database.connection import Database
 from local_meeting_ai.infrastructure.database.live_assistant import (
     LiveAssistantRepository,
@@ -38,6 +41,8 @@ class FakeAssistantEngine:
     def __init__(self) -> None:
         self.requests: list[tuple[str, dict[str, Any]]] = []
         self.stopped = False
+        self.block_automatic = False
+        self.automatic_started = asyncio.Event()
 
     def capability(self) -> dict[str, Any]:
         return {
@@ -67,6 +72,11 @@ class FakeAssistantEngine:
         del progress
         assert not is_cancelled()
         self.requests.append((transcript, config))
+        if self.block_automatic and "QUESTION FROM THE TRANSCRIPT" in transcript:
+            self.automatic_started.set()
+            while not is_cancelled():
+                await asyncio.sleep(0.01)
+            raise JobCancelledError()
         await asyncio.sleep(0)
         return SummaryResult(
             content_markdown=(
@@ -133,8 +143,10 @@ async def test_live_assistant_runs_outside_capture_and_persists_compact_insight(
         "profile_id": "litellm-custom",
         "model": "openai/test-model",
         "model_file": "not-managed.gguf",
+        "auto_start": False,
         "evaluation_interval_seconds": 0.01,
         "cooldown_seconds": 0,
+        "behavior_mode": "triggers",
         "trigger_phrases": ["Alexa"],
     }
     preferences.update({"live_assistant": config})
@@ -161,6 +173,9 @@ async def test_live_assistant_runs_outside_capture_and_persists_compact_insight(
     await service.start()
     session = _capture_session(meeting.id, transcription.id)
     service.session_started(session)
+    assert service.status(meeting.id)["active"] is False
+    assert service.ensure_session(session) is True
+    assert service.status(meeting.id)["active"] is True
 
     started = time.perf_counter()
     service.publish_segments(
@@ -201,6 +216,16 @@ async def test_live_assistant_runs_outside_capture_and_persists_compact_insight(
     assert runtime["evaluation_count"] == 1
     assert runtime["insight_count"] == 1
 
+    direct = await service.ask(meeting.id, "What did we say about Alexa?")
+    assert direct["question"]["kind"] == "user_question"
+    assert direct["answer"]["kind"] == "answer"
+    assert "QUESTION FROM USER" in engine.requests[1][0]
+    assert "What did we say about Alexa?" in engine.requests[1][0]
+    assert "Can someone explain Alexa?" in engine.requests[1][0]
+    await service.ask(meeting.id, "Can you repeat that?")
+    assert "USER: What did we say about Alexa?" in engine.requests[2][0]
+    assert "ASSISTANT: Alexa is Amazon's voice assistant." in engine.requests[2][0]
+
     service.publish_segments(
         session_id=session.session_id,
         meeting_id=meeting.id,
@@ -231,6 +256,97 @@ async def test_live_assistant_runs_outside_capture_and_persists_compact_insight(
     assert engine.stopped is True
 
 
+@pytest.mark.asyncio
+async def test_question_mode_calls_model_only_after_question_mark(tmp_path: Path) -> None:
+    database = Database(tmp_path / "assistant-questions.db")
+    MigrationRunner(database).apply()
+    meetings = MeetingRepository(database)
+    transcriptions = TranscriptionRepository(database)
+    preferences = SettingsRepository(database)
+    repository = LiveAssistantRepository(database)
+    engine = FakeAssistantEngine()
+    preferences.update(
+        {
+            "live_assistant": {
+                **LIVE_ASSISTANT_DEFAULTS,
+                "enabled": True,
+                "behavior_mode": "questions",
+                "provider": "local",
+                "cooldown_seconds": 0,
+            }
+        }
+    )
+    meeting = meetings.create(
+        title="Question detection",
+        description=None,
+        source_type=SourceType.MANUAL,
+        language="en",
+    )
+    transcription = transcriptions.create(
+        meeting_id=meeting.id,
+        title="Live",
+        engine="test",
+        model="test",
+        language="en",
+        settings={},
+    )
+    service = LiveAssistantService(
+        engine=engine,
+        repository=repository,
+        preferences=preferences,
+        credentials=MemoryLiveAssistantCredentialStore(),
+    )
+    await service.start()
+    session = _capture_session(meeting.id, transcription.id)
+    service.session_started(session)
+
+    service.publish_segments(
+        session_id=session.session_id,
+        meeting_id=meeting.id,
+        transcription_id=transcription.id,
+        meeting_title=meeting.title,
+        segments=[SegmentDraft(index=0, start_ms=0, end_ms=1000, text="A statement")],
+        sequence=1,
+    )
+    deadline = time.monotonic() + 2
+    while (
+        time.monotonic() < deadline
+        and service.status(meeting.id)["status"] != "waiting_question"
+    ):
+        await asyncio.sleep(0.02)
+    assert service.status(meeting.id)["status"] == "waiting_question"
+    assert engine.requests == []
+
+    engine.block_automatic = True
+    service.publish_segments(
+        session_id=session.session_id,
+        meeting_id=meeting.id,
+        transcription_id=transcription.id,
+        meeting_title=meeting.title,
+        segments=[
+            SegmentDraft(
+                index=1,
+                start_ms=1100,
+                end_ms=2200,
+                text="Can you explain the statement?",
+            )
+        ],
+        sequence=2,
+    )
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline and not engine.automatic_started.is_set():
+        await asyncio.sleep(0.02)
+    assert engine.automatic_started.is_set()
+    direct = await service.ask(meeting.id, "What is the answer?")
+    assert direct["answer"]["kind"] == "answer"
+    assert len(engine.requests) == 2
+    assert "QUESTION FROM THE TRANSCRIPT:\nCan you explain the statement?" in engine.requests[0][0]
+    assert "QUESTION FROM USER:\nWhat is the answer?" in engine.requests[1][0]
+
+    service.session_stopped(session)
+    await service.shutdown()
+
+
 def test_live_assistant_json_parser_accepts_fenced_json() -> None:
     parsed = _parse_model_response(
         '```json\n{"respond": false, "text": "", "memory_summary": "Project X"}\n```'
@@ -238,6 +354,18 @@ def test_live_assistant_json_parser_accepts_fenced_json() -> None:
 
     assert parsed["respond"] is False
     assert parsed["memory_summary"] == "Project X"
+
+
+def test_question_detection_is_deterministic_and_punctuation_based() -> None:
+    assert _detected_question("Context first. Can you explain this? trailing words") == (
+        "Can you explain this?"
+    )
+    assert _detected_question("This is only a statement") is None
+
+
+def test_trigger_matching_is_literal_case_insensitive_and_boundary_aware() -> None:
+    assert _contains_trigger("We should discuss MADRID today", "Madrid") is True
+    assert _contains_trigger("This is a madrigal", "Madrid") is False
 
 
 def test_live_assistant_json_parser_rejects_truthy_string_response() -> None:

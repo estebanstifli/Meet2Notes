@@ -341,10 +341,40 @@ Rebuilding the historical index requires explicit confirmation and runs as a
 persistent local job. Its progress dialog reports each meeting and embedding
 batch without blocking the Settings request.
 
-Prompt opens as a separate workspace with the same application header and theme
-controls as the other pages. It can ask the connected AI about one selected
-meeting or the complete history, optionally embedding the question first and
-returning ranked, timestamped source excerpts.
+The post-meeting Meeting Assistant is available from the meeting library and every
+completed meeting. It uses local RAG by default, combines dense retrieval with
+SQLite FTS5/BM25 through Reciprocal Rank Fusion, and narrows all-history searches to
+a relevant meeting shortlist before retrieving transcript evidence. For a selected
+meeting, completed transcript versions and AI-note versions can also be attached as
+raw context; the widget reports an estimated token budget and prevents oversized
+attachments from silently triggering expensive multi-pass processing. The legacy
+Prompt page remains available for compatibility.
+
+## Help translate Meet2Notes
+
+Meet2Notes welcomes community-maintained UI localizations. The source catalogue
+is [`src/local_meeting_ai/web/static/locales/en.json`](src/local_meeting_ai/web/static/locales/en.json);
+each language has a matching JSON catalogue in the same folder and is listed in
+[`index.json`](src/local_meeting_ai/web/static/locales/index.json).
+
+To add a language, copy `en.json` to its locale code (for example, `fr.json`),
+translate its values, add the language's native name to `index.json`, and open a
+pull request. If you would prefer to coordinate first, open a GitHub issue with
+the proposed locale and we can reserve or review it there.
+
+AI can be useful for a first draft, but it is not a substitute for native
+review. We deliberately rely on native-speaking contributors to make wording,
+tone, and product terminology feel right in their language. Pull requests from
+translators are very welcome.
+
+Before submitting a localization, run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\check_ui_i18n.py
+```
+
+The check verifies catalogue completeness and preserves product and technical
+terms such as Meet2Notes, RAG, Faster Whisper, Word, and Markdown.
 
 ## Community plugins
 

@@ -24,7 +24,19 @@ It cannot isolate physical hardware: loading another local GGUF consumes extra
 RAM or VRAM and simultaneous inference can reduce throughput on the same CPU or
 GPU.
 
-## Context and response policy
+## Behavior modes, context, and response policy
+
+The assistant has three mutually exclusive behavior modes:
+
+- **Detected questions (default):** a model call is made only when newly
+  committed transcript text contains a question ending in `?`. Detection is
+  deterministic and does not use a model.
+- **Trigger words:** a model call is made only when a configured literal word
+  or phrase appears. Matching is deterministic, case-insensitive, and uses
+  word boundaries. The Settings field accepts a comma-separated list of
+  double-quoted values, for example `"Alexa", "Project Atlas"`.
+- **Continuous monitoring:** recent speech is evaluated periodically and the
+  model decides whether to intervene according to the user's instructions.
 
 Each evaluation contains:
 
@@ -34,12 +46,16 @@ Each evaluation contains:
 - a short list of earlier assistant responses; and
 - the user's monitoring instructions.
 
-The full transcript is not resent on every evaluation. Optional trigger phrases
-are literal pre-filters: each entry should be an exact word or short phrase such
-as `Alexa` or `Madrid`. Conditional behavior belongs in Instructions. The model
-is not called until a new segment contains one of the configured literal
-phrases. Cooldown, calls-per-minute, context-length, output-token, and timeout
-limits provide additional cost and latency control.
+The full transcript is not resent on every evaluation. In detected-question
+and trigger modes, the instructions, detected event, recent context, and compact
+memory are sent only when the deterministic condition matches. Cooldown and
+evaluation interval apply to continuous mode; calls-per-minute, context-length,
+output-token, and timeout limits remain safety controls for every mode.
+
+The floating widget also accepts direct user questions while a live meeting is
+active. A direct question is sent with the same configured recent transcript
+window and compact conversation memory, and both the question and answer appear
+in the widget conversation.
 
 New installations start with a 16,384-token context window and a 1,024-token
 output ceiling. Output tokens are a maximum rather than a target; 512–1,024 is
@@ -91,6 +107,7 @@ The loopback UI uses these endpoints:
 | `PUT` | `/api/live-assistant/settings` | Validate and save independent settings |
 | `PUT` / `DELETE` | `/api/live-assistant/api-key` | Store or remove the scoped credential |
 | `GET` | `/api/live-assistant/meetings/{meeting_id}` | Runtime state and recent insights |
+| `POST` | `/api/live-assistant/meetings/{meeting_id}/questions` | Ask a direct question with configured recent context |
 
 These endpoints are application-internal loopback APIs, not public inbound
 webhooks. Existing outbound webhooks and remote-agent suggestions remain a

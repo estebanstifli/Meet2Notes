@@ -14,13 +14,29 @@ The historical index is deliberately split into three replaceable components:
    If the optional `sqlite-vec` package is present, its extension is loaded on each
    connection; the ordinary BLOB representation remains the portable source of truth.
 3. `RagService` owns segmentation, incremental invalidation, temporal filters and
-   hybrid ranking. It combines cosine similarity with transparent keyword overlap.
+   hybrid ranking. Dense candidates from the configured embedding provider and
+   SQLite FTS5/BM25 candidates are combined with weighted Reciprocal Rank Fusion.
 
 An active completed transcript is split only on segment boundaries. Each chunk
 contains meeting title, date, description, timestamps and speaker labels. Before a
-search, hashes are compared with the stored index; only changed transcripts or a
-changed embedding model are embedded again. Search responses expose provenance and
-the semantic, lexical and final scores.
+selected-meeting search, the active vector index identity is checked. Completed
+pipelines, transcript edits, activation changes, find/replace operations and meeting
+metadata edits enqueue deduplicated incremental refresh jobs. Changing the embedding
+profile changes the index fingerprint and causes a compatible rebuild without coupling
+the hybrid ranker to BGE-M3. Search responses expose provenance, retrieval methods and
+semantic, BM25 and final RRF scores.
+
+All-meetings queries first fuse a bounded global candidate set into a shortlist of at
+most five meetings, then perform the final chunk retrieval inside that shortlist. This
+keeps broad history queries efficient without changing single-meeting behavior.
+
+The post-meeting assistant can attach completed transcript versions and AI-note
+versions as raw, non-embedded context. Attachments are resolved by server-side IDs,
+validated against the selected scope and accounted for by a model-independent token
+budget. Raw attachments consume the budget first, recent conversation is bounded, and
+RAG fills the remaining evidence budget. A raw transcript replaces retrieved chunks
+from the same transcription to prevent duplicate context. Oversized selections fail
+explicitly instead of silently invoking hierarchical summarization.
 
 The API seams (`/api/rag/status`, `/api/rag/index`, `/api/rag/search`) are suitable
 for a future Chroma or remote vector database without changing the Prompt UI.
@@ -28,7 +44,8 @@ Plugins register those destinations by filtering `rag.vector_store.catalog` with
 `VectorStoreCatalog`, then handle `rag.vector_store.operation` commands using a
 `VectorStoreOperation`. Supported operations are `rows_for_transcription`,
 `replace_transcription`, `candidates`, `counts`, and `clear`. Candidate results must
-retain meeting/chunk provenance and return an embedding for the core hybrid ranker.
+retain meeting/chunk provenance. Plugin vector stores provide the dense branch; the
+local SQLite FTS5 branch is used when SQLite is the selected store.
 
 The default BGE-M3 profile is selected but never downloaded merely by opening the
 application. Its Install action downloads the official BAAI ONNX graph into the

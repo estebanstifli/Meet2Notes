@@ -741,7 +741,8 @@ class LlamaCppSummaryEngine:
                 "Answer the user's question in the same language as the question. "
                 "Use only the supplied meeting context for claims about meetings. "
                 "If the context does not contain the answer, say so clearly. "
-                "When R1/R2 source labels exist, cite them inline exactly as [R1]."
+                "When R1/R2 or A1/A2 source labels exist, cite them inline exactly "
+                "as [R1] or [A1]."
                 + (f"\n\nRECENT CONVERSATION:\n{history}" if history else "")
                 + f"\n\nQUESTION:\n{question}"
             )

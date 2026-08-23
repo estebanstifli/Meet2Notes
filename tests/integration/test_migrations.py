@@ -10,7 +10,7 @@ def test_initial_migration_is_complete_and_idempotent(tmp_path: Path) -> None:
     database = Database(tmp_path / "migration.db")
     runner = MigrationRunner(database)
 
-    assert runner.apply() == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    assert runner.apply() == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     assert runner.apply() == []
 
     with database.read() as connection:
@@ -40,6 +40,7 @@ def test_initial_migration_is_complete_and_idempotent(tmp_path: Path) -> None:
         "speaker_turns",
         "plugin_executions",
         "rag_chunks",
+        "rag_chunks_fts",
         "webhook_endpoints",
         "webhook_events",
         "webhook_deliveries",

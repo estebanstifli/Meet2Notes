@@ -6,11 +6,12 @@
   const search = document.querySelector("#meeting-search");
   const empty = document.querySelector("#meetings-search-empty");
   const count = document.querySelector("#visible-meeting-count");
+  const countLabel = document.querySelector("#visible-meeting-label");
 
   document.querySelectorAll("[data-local-date]").forEach((element) => {
     const date = new Date(element.dataset.localDate);
     if (!Number.isNaN(date.getTime())) {
-      element.textContent = date.toLocaleDateString([], {
+      element.textContent = date.toLocaleDateString(Meet2Notes.currentLanguage, {
         year: "numeric",
         month: "short",
         day: "numeric",
@@ -21,7 +22,7 @@
   document.querySelectorAll("[data-local-time]").forEach((element) => {
     const date = new Date(element.dataset.localTime);
     if (!Number.isNaN(date.getTime())) {
-      element.textContent = date.toLocaleTimeString([], {
+      element.textContent = date.toLocaleTimeString(Meet2Notes.currentLanguage, {
         hour: "2-digit",
         minute: "2-digit",
         hour12: false,
@@ -41,7 +42,7 @@
   });
 
   function applySearch() {
-    const query = search.value.trim().toLocaleLowerCase();
+    const query = search.value.trim().toLocaleLowerCase(Meet2Notes.currentLanguage);
     let visible = 0;
     rows.forEach((row) => {
       const match = !query || row.dataset.meetingSearch.includes(query);
@@ -49,10 +50,13 @@
       if (match) visible += 1;
     });
     count.textContent = String(visible);
+    countLabel.textContent = Meet2Notes.t("meetings.saved_count", { count: visible }, visible);
     empty.classList.toggle("hidden", visible > 0 || rows.length === 0);
   }
 
   search?.addEventListener("input", applySearch);
+  document.addEventListener("localmeet:languagechange", applySearch);
+  applySearch();
   document.querySelectorAll("[data-delete-meeting-id]").forEach((button) => {
     button.addEventListener("click", async () => {
       const title = button.dataset.deleteMeetingTitle || "this meeting";

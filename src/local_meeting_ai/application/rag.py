@@ -18,6 +18,7 @@ from local_meeting_ai.infrastructure.database.repositories import (
     JobRepository,
     MeetingRepository,
     SettingsRepository,
+    SummaryRepository,
     TranscriptionRepository,
 )
 from local_meeting_ai.infrastructure.jobs import JobContext, LocalJobQueue
@@ -88,6 +89,13 @@ class RagService:
 
     def config(self) -> dict[str, Any]:
         return configured_values(self.preferences, "rag", RAG_DEFAULTS)
+
+    def can_index_incrementally(self) -> bool:
+        config = self.config()
+        if not bool(config["enabled"]):
+            return False
+        capability = self.provider.capability(config)
+        return bool(capability.get("available")) and capability.get("installed") is not False
 
     async def status(self) -> dict[str, Any]:
         config = self.config()
@@ -256,6 +264,21 @@ class RagService:
         meeting_id: int | None = None,
         force: bool = True,
     ) -> Job:
+        if not bool(self.config()["enabled"]):
+            raise ValidationError("Historical RAG is disabled in Settings")
+        existing = next(
+            (
+                item for item in self.jobs.list(
+                    meeting_id=meeting_id, active_only=True, limit=100
+                )
+                if item.job_type == JobType.INDEX_SEARCH
+                and item.payload.get("action") == "rag_rebuild"
+                and item.payload.get("meeting_id") == meeting_id
+            ),
+            None,
+        )
+        if existing:
+            return existing
         job = self.jobs.create(
             meeting_id=meeting_id,
             job_type=JobType.INDEX_SEARCH,
@@ -299,10 +322,11 @@ class RagService:
             raise ValidationError("Historical RAG is disabled in Settings")
         store_id = str(config["vector_store"])
         await self.vector_stores.require(store_id)
-        if ensure_index:
-            indexing = await self.index(meeting_id=meeting_id, _release_model=False)
-        else:
-            indexing = {"indexed_meetings": 0, "indexed_chunks": 0}
+        indexing = (
+            await self._ensure_search_index(meeting_id)
+            if ensure_index
+            else {"indexed_meetings": 0, "indexed_chunks": 0, "skipped_meetings": 0}
+        )
         query_vectors = await self.provider.embed([clean_query], config)
         self._validate_vectors(query_vectors)
         acceleration = str(config["vector_acceleration"])
@@ -312,66 +336,58 @@ class RagService:
                 "sqlite-vec acceleration is required but the optional package is not installed"
             )
         use_sqlite_vec = acceleration != "python" and extension_available
-        candidates = await self.vector_stores.candidates(
-            store_id,
-            provider=str(config["embedding_provider"]),
-            model=self._embedding_index_id(config),
-            meeting_id=meeting_id,
-            query_vector=query_vectors[0],
+        provider = str(config["embedding_provider"])
+        model = self._embedding_index_id(config)
+        candidate_limit = int(config["candidate_k"])
+        selected_meeting_ids = [meeting_id] if meeting_id is not None else None
+        if selected_meeting_ids is None:
+            initial_dense, initial_lexical = await self._candidate_pools(
+                clean_query,
+                query_vectors[0],
+                store_id=store_id,
+                provider=provider,
+                model=model,
+                meeting_ids=None,
+                candidate_limit=candidate_limit,
+                sqlite_vec=use_sqlite_vec,
+                config=config,
+            )
+            selected_meeting_ids = self._meeting_shortlist(
+                initial_dense,
+                initial_lexical,
+                maximum=5,
+                semantic_weight=float(config["semantic_weight"]),
+                keyword_weight=float(config["keyword_weight"]),
+            )
+        dense_candidates, lexical_candidates = await self._candidate_pools(
+            clean_query,
+            query_vectors[0],
+            store_id=store_id,
+            provider=provider,
+            model=model,
+            meeting_ids=selected_meeting_ids or None,
+            candidate_limit=candidate_limit,
             sqlite_vec=use_sqlite_vec,
+            config=config,
         )
         await self._release_model_if_configured(config)
         temporal_date = _requested_date(clean_query)
         if temporal_date is not None:
-            candidates = [
-                item for item in candidates
+            dense_candidates = [
+                item for item in dense_candidates
                 if _iso_date(item.get("meeting_date")) == temporal_date
             ]
-        query_tokens = _tokens(clean_query)
+            lexical_candidates = [
+                item for item in lexical_candidates
+                if _iso_date(item.get("meeting_date")) == temporal_date
+            ]
         semantic_weight = float(config["semantic_weight"])
         keyword_weight = float(config["keyword_weight"])
-        scored: list[dict[str, Any]] = []
-        for item in candidates:
-            semantic = (
-                float(item.pop("vector_score"))
-                if use_sqlite_vec
-                else _cosine(query_vectors[0], item.pop("embedding"))
-            )
-            text_tokens = _tokens(str(item["text"]))
-            keyword = (
-                len(query_tokens & text_tokens) / len(query_tokens)
-                if query_tokens else 0.0
-            )
-            score = semantic_weight * max(0.0, semantic) + keyword_weight * keyword
-            if score < float(config["min_score"]):
-                continue
-            scored.append(
-                {
-                    "chunk_id": item["id"],
-                    "meeting_id": item["meeting_id"],
-                    "transcription_id": item["transcription_id"],
-                    "meeting_title": item["meeting_title"],
-                    "meeting_date": item["meeting_date"],
-                    "start_ms": item["start_ms"],
-                    "end_ms": item["end_ms"],
-                    "text": item["text"],
-                    "score": round(score, 6),
-                    "semantic_score": round(semantic, 6),
-                    "keyword_score": round(keyword, 6),
-                }
-            )
-        candidate_limit = int(config["candidate_k"])
-        semantic_pool = sorted(
-            scored, key=lambda item: item["semantic_score"], reverse=True
-        )[:candidate_limit]
-        keyword_pool = sorted(
-            scored, key=lambda item: item["keyword_score"], reverse=True
-        )[:candidate_limit]
-        rerank_pool = {
-            item["chunk_id"]: item for item in [*semantic_pool, *keyword_pool]
-        }
-        scored = sorted(
-            rerank_pool.values(), key=lambda item: item["score"], reverse=True
+        scored = self._rrf_fuse(
+            dense_candidates,
+            lexical_candidates,
+            semantic_weight=semantic_weight,
+            keyword_weight=keyword_weight,
         )
         limit = top_k or int(config["top_k"])
         limit = max(1, min(limit, 50, candidate_limit))
@@ -382,11 +398,14 @@ class RagService:
             "query": clean_query,
             "meeting_id": meeting_id,
             "results": results,
-            "candidate_count": len(candidates),
-            "reranked_candidate_count": len(rerank_pool),
+            "candidate_count": len({
+                item["id"] for item in [*dense_candidates, *lexical_candidates]
+            }),
+            "reranked_candidate_count": len(scored),
+            "shortlisted_meeting_ids": selected_meeting_ids or [],
             "temporal_filter": temporal_date.isoformat() if temporal_date else None,
             "ranking": {
-                "method": "hybrid-cosine-keyword",
+                "method": "hybrid-dense-bm25-rrf",
                 "semantic_weight": semantic_weight,
                 "keyword_weight": keyword_weight,
                 "min_score": float(config["min_score"]),
@@ -396,6 +415,152 @@ class RagService:
             },
             "indexing": indexing,
         }
+
+    async def _ensure_search_index(self, meeting_id: int | None) -> dict[str, Any]:
+        config = self.config()
+        store_id = str(config["vector_store"])
+        if meeting_id is not None:
+            transcription = self.transcriptions.active_for_meeting(meeting_id)
+            if transcription and transcription.status == "completed":
+                rows = await self.vector_stores.rows_for_transcription(
+                    store_id, transcription.id
+                )
+                expected_model = self._embedding_index_id(config)
+                if rows and all(
+                    row.get("embedding_provider") == config["embedding_provider"]
+                    and row.get("embedding_model") == expected_model
+                    for row in rows
+                ):
+                    return {
+                        "indexed_meetings": 0,
+                        "indexed_chunks": 0,
+                        "skipped_meetings": 1,
+                    }
+            return await self.index(meeting_id=meeting_id, _release_model=False)
+        counts = await self.vector_stores.counts_for_index(
+            store_id,
+            provider=str(config["embedding_provider"]),
+            model=self._embedding_index_id(config),
+        )
+        if counts["chunks"]:
+            return {
+                "indexed_meetings": 0,
+                "indexed_chunks": 0,
+                "skipped_meetings": counts["meetings"],
+            }
+        return await self.index(_release_model=False)
+
+    async def _candidate_pools(
+        self,
+        query: str,
+        query_vector: list[float],
+        *,
+        store_id: str,
+        provider: str,
+        model: str,
+        meeting_ids: list[int] | None,
+        candidate_limit: int,
+        sqlite_vec: bool,
+        config: dict[str, Any],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        dense = await self.vector_stores.candidates(
+            store_id,
+            provider=provider,
+            model=model,
+            meeting_ids=meeting_ids,
+            query_vector=query_vector,
+            sqlite_vec=sqlite_vec,
+            limit=candidate_limit,
+        )
+        dense_scored: list[dict[str, Any]] = []
+        for item in dense:
+            semantic = (
+                float(item.pop("vector_score"))
+                if sqlite_vec
+                else _cosine(query_vector, item.pop("embedding"))
+            )
+            if semantic < float(config["min_score"]):
+                continue
+            item["semantic_score"] = round(semantic, 6)
+            dense_scored.append(item)
+        dense_scored = sorted(
+            dense_scored, key=lambda item: item["semantic_score"], reverse=True
+        )[:candidate_limit]
+        lexical = await self.vector_stores.lexical_candidates(
+            store_id,
+            query=query,
+            provider=provider,
+            model=model,
+            meeting_ids=meeting_ids,
+            limit=candidate_limit,
+        )
+        for item in lexical:
+            item["keyword_score"] = round(max(0.0, -float(item["bm25_score"])), 6)
+        return dense_scored, lexical
+
+    @staticmethod
+    def _meeting_shortlist(
+        dense: list[dict[str, Any]],
+        lexical: list[dict[str, Any]],
+        *,
+        maximum: int,
+        semantic_weight: float,
+        keyword_weight: float,
+    ) -> list[int]:
+        scores: dict[int, float] = {}
+        for pool, weight in ((dense, semantic_weight), (lexical, keyword_weight)):
+            for rank, item in enumerate(pool, 1):
+                meeting_id = int(item["meeting_id"])
+                scores[meeting_id] = scores.get(meeting_id, 0.0) + weight / (60 + rank)
+        return [
+            meeting_id
+            for meeting_id, _score in sorted(
+                scores.items(), key=lambda item: item[1], reverse=True
+            )[:maximum]
+        ]
+
+    @staticmethod
+    def _rrf_fuse(
+        dense: list[dict[str, Any]],
+        lexical: list[dict[str, Any]],
+        *,
+        semantic_weight: float,
+        keyword_weight: float,
+    ) -> list[dict[str, Any]]:
+        fused: dict[int, dict[str, Any]] = {}
+        for pool, method, weight in (
+            (dense, "dense", semantic_weight),
+            (lexical, "bm25", keyword_weight),
+        ):
+            for rank, source in enumerate(pool, 1):
+                chunk_id = int(source["id"])
+                item = fused.setdefault(
+                    chunk_id,
+                    {
+                        "chunk_id": chunk_id,
+                        "meeting_id": source["meeting_id"],
+                        "transcription_id": source["transcription_id"],
+                        "meeting_title": source["meeting_title"],
+                        "meeting_date": source["meeting_date"],
+                        "start_ms": source["start_ms"],
+                        "end_ms": source["end_ms"],
+                        "text": source["text"],
+                        "score": 0.0,
+                        "semantic_score": 0.0,
+                        "keyword_score": 0.0,
+                        "retrieval_methods": [],
+                    },
+                )
+                item["score"] += weight / (60 + rank)
+                item["retrieval_methods"].append(method)
+                if method == "dense":
+                    item["semantic_score"] = source.get("semantic_score", 0.0)
+                else:
+                    item["keyword_score"] = source.get("keyword_score", 0.0)
+        normalizer = max(semantic_weight + keyword_weight, 0.0001)
+        for item in fused.values():
+            item["score"] = round(item["score"] * 61 / normalizer, 6)
+        return sorted(fused.values(), key=lambda item: item["score"], reverse=True)
 
     def meeting_context(self, meeting_id: int, maximum_chars: int) -> str:
         meeting = self.meetings.get(meeting_id)
@@ -540,10 +705,12 @@ class PromptService:
         rag: RagService,
         summary_engine: SummaryEngine,
         preferences: SettingsRepository,
+        summaries: SummaryRepository,
     ) -> None:
         self.rag = rag
         self.summary_engine = summary_engine
         self.preferences = preferences
+        self.summaries = summaries
 
     async def ask(
         self,
@@ -552,26 +719,67 @@ class PromptService:
         meeting_id: int | None,
         use_rag: bool,
         history: list[dict[str, str]],
+        attachments: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         rag_config = self.rag.config()
-        sources: list[dict[str, Any]] = []
-        retrieval: dict[str, Any] | None = None
-        if use_rag:
-            retrieval = await self.rag.search(question, meeting_id=meeting_id)
-            sources = retrieval["results"]
-            context = self._rag_context(sources, int(rag_config["max_context_chars"]))
-        elif meeting_id is not None:
-            context = self.rag.meeting_context(
-                meeting_id, int(rag_config["max_context_chars"])
-            )
-        else:
-            context = "No meeting context was selected."
-        conversation = "\n".join(
-            f"{turn['role'].upper()}: {turn['content']}" for turn in history[-8:]
-        )
         config = configured_values(
             self.preferences, "summary_engine", SUMMARY_DEFAULTS
         )
+        context_length = int(config.get("context_length", 16384))
+        output_tokens = min(
+            int(config.get("max_output_tokens", 1024)), context_length // 2
+        )
+        reserve_tokens = max(256, context_length // 20)
+        instruction_tokens = _estimated_tokens(
+            str(config.get("system_prompt") or "") + question
+        ) + 220
+        input_budget = max(
+            512,
+            context_length - output_tokens - reserve_tokens - instruction_tokens,
+        )
+        history_budget = max(256, min(context_length // 6, input_budget // 4))
+        conversation, history_tokens = self._bounded_history(history, history_budget)
+        evidence_budget = max(256, input_budget - history_tokens)
+        attachment_blocks, attached, attachment_tokens = self._attachment_context(
+            attachments or [], meeting_id=meeting_id
+        )
+        if attachment_tokens > evidence_budget - 128:
+            raise ValidationError(
+                "The selected raw documents do not fit in the AI context window. "
+                "Remove a document or use RAG excerpts instead."
+            )
+        retrieval_budget = max(0, evidence_budget - attachment_tokens)
+        sources: list[dict[str, Any]] = []
+        retrieval: dict[str, Any] | None = None
+        attached_transcriptions = {
+            item["id"] for item in attached if item["kind"] == "transcription"
+        }
+        if use_rag and retrieval_budget >= 200:
+            retrieval = await self.rag.search(question, meeting_id=meeting_id)
+            sources = [
+                source for source in retrieval["results"]
+                if int(source["transcription_id"]) not in attached_transcriptions
+            ]
+            rag_chars = min(
+                int(rag_config["max_context_chars"]), retrieval_budget * 3
+            )
+            rag_context = self._rag_context(sources, rag_chars)
+        else:
+            rag_context = ""
+        if attachment_blocks:
+            sections = ["## ATTACHED DOCUMENTS", *attachment_blocks]
+            if rag_context:
+                sections.extend(["## RETRIEVED EVIDENCE", rag_context])
+            context = "\n\n".join(sections)
+        elif rag_context:
+            context = rag_context
+        elif meeting_id is not None and not use_rag:
+            context = self.rag.meeting_context(
+                meeting_id,
+                min(int(rag_config["max_context_chars"]), retrieval_budget * 3),
+            )
+        else:
+            context = "No meeting context was selected."
         config.update(
             {
                 "prompt_mode": True,
@@ -592,7 +800,106 @@ class PromptService:
             "sources": sources,
             "retrieval": retrieval,
             "scope": "rag" if use_rag else ("meeting" if meeting_id else "model"),
+            "attachments": attached,
+            "context_usage": {
+                "context_window_tokens": context_length,
+                "input_budget_tokens": input_budget,
+                "history_tokens": history_tokens,
+                "attachment_tokens": attachment_tokens,
+                "retrieval_tokens": _estimated_tokens(rag_context),
+                "estimated_total_input_tokens": (
+                    instruction_tokens
+                    + history_tokens
+                    + attachment_tokens
+                    + _estimated_tokens(rag_context)
+                ),
+                "reserved_output_tokens": output_tokens,
+            },
         }
+
+    def _attachment_context(
+        self,
+        attachments: list[dict[str, Any]],
+        *,
+        meeting_id: int | None,
+    ) -> tuple[list[str], list[dict[str, Any]], int]:
+        blocks: list[str] = []
+        metadata: list[dict[str, Any]] = []
+        seen: set[tuple[str, int]] = set()
+        for attachment in attachments:
+            kind = str(attachment.get("kind") or "")
+            attachment_id = int(attachment.get("id") or 0)
+            key = (kind, attachment_id)
+            if attachment_id < 1 or key in seen:
+                continue
+            seen.add(key)
+            if kind == "transcription":
+                transcription = self.rag.transcriptions.get(attachment_id)
+                if not transcription or transcription.status != "completed":
+                    raise ValidationError("The selected transcript is not available")
+                if meeting_id is not None and transcription.meeting_id != meeting_id:
+                    raise ValidationError("The selected transcript is outside the meeting scope")
+                meeting = self.rag.meetings.get(transcription.meeting_id)
+                segments = self.rag.transcriptions.segments(transcription.id)
+                speakers = {
+                    speaker.id: speaker.display_name
+                    for speaker in self.rag.transcriptions.speakers_for_transcription(
+                        transcription.id
+                    )
+                }
+                content = "\n".join(
+                    f"[{_clock(segment.start_ms)}] "
+                    f"{_speaker_label(speakers, segment.speaker_id)}: {segment.text.strip()}"
+                    for segment in segments
+                )
+                label = transcription.title
+                meeting_title = meeting.title if meeting else f"Meeting {transcription.meeting_id}"
+            elif kind == "summary":
+                summary = self.summaries.get(attachment_id)
+                if not summary or summary.status != "completed" or not summary.content_markdown:
+                    raise ValidationError("The selected AI notes are not available")
+                if meeting_id is not None and summary.meeting_id != meeting_id:
+                    raise ValidationError("The selected AI notes are outside the meeting scope")
+                meeting = self.rag.meetings.get(summary.meeting_id)
+                content = summary.content_markdown
+                label = f"AI notes {summary.id}"
+                meeting_title = meeting.title if meeting else f"Meeting {summary.meeting_id}"
+            else:
+                raise ValidationError("Unsupported prompt attachment")
+            index = len(blocks) + 1
+            blocks.append(
+                f"[A{index}] {kind.title()}: {label}\n"
+                f"Meeting: {meeting_title}\n{content}"
+            )
+            metadata.append(
+                {
+                    "kind": kind,
+                    "id": attachment_id,
+                    "label": label,
+                    "meeting_id": (
+                        transcription.meeting_id if kind == "transcription" else summary.meeting_id
+                    ),
+                    "estimated_tokens": _estimated_tokens(content),
+                }
+            )
+        return blocks, metadata, sum(_estimated_tokens(block) for block in blocks)
+
+    @staticmethod
+    def _bounded_history(
+        history: list[dict[str, str]], maximum_tokens: int
+    ) -> tuple[str, int]:
+        selected: list[str] = []
+        used = 0
+        for turn in reversed(history[-20:]):
+            line = f"{turn['role'].upper()}: {turn['content']}"
+            tokens = _estimated_tokens(line)
+            if selected and used + tokens > maximum_tokens:
+                break
+            if tokens > maximum_tokens:
+                continue
+            selected.append(line)
+            used += tokens
+        return "\n".join(reversed(selected)), used
 
     @staticmethod
     def _rag_context(sources: list[dict[str, Any]], maximum_chars: int) -> str:
@@ -624,6 +931,11 @@ def _tokens(text: str) -> set[str]:
         for token in _WORD.findall(normalized)
         if len(token) > 1 and token not in _STOPWORDS
     }
+
+
+def _estimated_tokens(text: str) -> int:
+    """Conservative model-independent estimate for multilingual prompt budgeting."""
+    return max(1, math.ceil(len(text) / 3)) if text else 0
 
 
 class _NoopProgress:

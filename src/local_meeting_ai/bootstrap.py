@@ -32,7 +32,7 @@ from local_meeting_ai.application.transcription_profiles import (
 from local_meeting_ai.application.transcription_service import TranscriptionService
 from local_meeting_ai.application.webhooks import WebhookService
 from local_meeting_ai.config import AppSettings
-from local_meeting_ai.domain.enums import JobType
+from local_meeting_ai.domain.enums import JobStatus, JobType
 from local_meeting_ai.domain.protocols import (
     AudioCaptureBackend,
     AudioNormalizer,
@@ -378,10 +378,37 @@ def build_container(
         queue=queue,
     )
     queue.register(JobType.INDEX_SEARCH, rag_service.process_rebuild)
+
+    async def refresh_rag_after_pipeline(job: Any, status: JobStatus) -> None:
+        if status != JobStatus.COMPLETED or not job.meeting_id:
+            return
+        options = job.payload.get("postprocess_options")
+        pipeline_options = options if isinstance(options, dict) else {}
+        summary_enabled = bool(pipeline_options.get("summary", True))
+        diarization_enabled = bool(pipeline_options.get("diarization", True))
+        should_index = (
+            (
+                job.job_type == JobType.TRANSCRIBE
+                and (
+                    not bool(job.payload.get("postprocess"))
+                    or (not diarization_enabled and not summary_enabled)
+                )
+            )
+            or (job.job_type == JobType.DIARIZE and not summary_enabled)
+            or (
+                job.job_type == JobType.SUMMARIZE
+                and not isinstance(job.payload.get("speaker_id"), int)
+            )
+        )
+        if should_index and rag_service.can_index_incrementally():
+            await rag_service.start_rebuild(meeting_id=job.meeting_id, force=False)
+
+    queue.register_terminal_handler(refresh_rag_after_pipeline)
     prompt_service = PromptService(
         rag=rag_service,
         summary_engine=resolved_summary,
         preferences=preferences,
+        summaries=summaries,
     )
 
     return Container(

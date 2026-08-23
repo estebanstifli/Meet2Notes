@@ -111,17 +111,19 @@ class RagVectorStoreGateway:
         *,
         provider: str,
         model: str,
-        meeting_id: int | None,
+        meeting_ids: Sequence[int] | None,
         query_vector: Sequence[float],
         sqlite_vec: bool,
+        limit: int | None = None,
     ) -> list[dict[str, Any]]:
         if store_id == "sqlite":
             return self.repository.candidates(
                 provider=provider,
                 model=model,
-                meeting_id=meeting_id,
+                meeting_ids=meeting_ids,
                 query_vector=query_vector,
                 sqlite_vec=sqlite_vec,
+                limit=limit,
             )
         result = await self._plugin_operation(
             store_id,
@@ -129,11 +131,33 @@ class RagVectorStoreGateway:
             {
                 "provider": provider,
                 "model": model,
-                "meeting_id": meeting_id,
+                "meeting_id": meeting_ids[0] if meeting_ids and len(meeting_ids) == 1 else None,
+                "meeting_ids": list(meeting_ids or []),
                 "query_vector": list(query_vector),
+                "limit": limit,
             },
         )
         return cast(list[dict[str, Any]], result.get("candidates", []))
+
+    async def lexical_candidates(
+        self,
+        store_id: str,
+        *,
+        query: str,
+        provider: str,
+        model: str,
+        meeting_ids: Sequence[int] | None,
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        if store_id != "sqlite":
+            return []
+        return self.repository.lexical_candidates(
+            query=query,
+            provider=provider,
+            model=model,
+            meeting_ids=meeting_ids,
+            limit=limit,
+        )
 
     async def counts(self, store_id: str) -> dict[str, int]:
         if store_id == "sqlite":
@@ -143,6 +167,13 @@ class RagVectorStoreGateway:
             key: int(result.get(key, 0))
             for key in ("chunks", "meetings", "transcriptions")
         }
+
+    async def counts_for_index(
+        self, store_id: str, *, provider: str, model: str
+    ) -> dict[str, int]:
+        if store_id == "sqlite":
+            return self.repository.counts_for_index(provider=provider, model=model)
+        return await self.counts(store_id)
 
     async def clear(self, store_id: str, meeting_id: int | None = None) -> int:
         if store_id == "sqlite":

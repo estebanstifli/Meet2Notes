@@ -207,7 +207,7 @@
   function appendInstallLog(message) {
     const log = $("#model-install-log");
     if (!log) return;
-    const timestamp = new Date().toLocaleTimeString();
+    const timestamp = new Date().toLocaleTimeString(Meet2Notes.currentLanguage);
     log.value += `${log.value ? "\n" : ""}[${timestamp}] ${message}`;
     log.scrollTop = log.scrollHeight;
   }
@@ -271,7 +271,7 @@
   function appendRagReindexLog(message) {
     const log = $("#rag-reindex-log");
     if (!log || !message) return;
-    const timestamp = new Date().toLocaleTimeString();
+    const timestamp = new Date().toLocaleTimeString(Meet2Notes.currentLanguage);
     log.value += `${log.value ? "\n" : ""}[${timestamp}] ${message}`;
     log.scrollTop = log.scrollHeight;
   }
@@ -819,11 +819,16 @@
     select.value = config.provider === "litellm" ? "litellm-custom" : config.profile_id;
     $("#live-assistant-enabled").checked = Boolean(config.enabled);
     $("#live-assistant-auto-start").checked = config.auto_start ?? true;
+    const behaviorMode = config.behavior_mode || "questions";
+    document.querySelectorAll('[name="live-assistant-behavior-mode"]').forEach((input) => {
+      input.checked = input.value === behaviorMode;
+    });
     $("#live-assistant-preload").checked = Boolean(config.preload_on_start);
     $("#live-assistant-model").value = config.provider === "litellm" ? (config.model || "") : "";
     $("#live-assistant-base-url").value = config.base_url || "";
     $("#live-assistant-system-prompt").value = config.system_prompt || "";
-    $("#live-assistant-triggers").value = (config.trigger_phrases || []).join("\n");
+    $("#live-assistant-triggers").value = (config.trigger_phrases || [])
+      .map((item) => JSON.stringify(item)).join(", ");
     $("#live-assistant-interval").value = config.evaluation_interval_seconds ?? 8;
     $("#live-assistant-context-seconds").value = config.recent_context_seconds ?? 180;
     $("#live-assistant-cooldown").value = config.cooldown_seconds ?? 30;
@@ -845,6 +850,11 @@
     const remote = selectedId === "litellm-custom";
     $("#live-assistant-litellm").hidden = !remote;
     $("#live-assistant-preload").disabled = remote;
+    const behaviorMode = document.querySelector('[name="live-assistant-behavior-mode"]:checked')?.value || "questions";
+    $("#live-assistant-trigger-field").hidden = behaviorMode !== "triggers";
+    document.querySelectorAll("[data-live-assistant-continuous-only]").forEach((field) => {
+      field.hidden = behaviorMode !== "continuous";
+    });
     const profile = (liveAssistantCatalog.models || []).find((item) => item.id === selectedId);
     const note = $("#live-assistant-model-note");
     if (note && profile) {
@@ -1586,6 +1596,9 @@
   $("#ai-provider")?.addEventListener("change", updateAiFields);
   $("#live-assistant-profile")?.addEventListener("change", updateLiveAssistantFields);
   $("#live-assistant-enabled")?.addEventListener("change", updateLiveAssistantFields);
+  document.querySelectorAll('[name="live-assistant-behavior-mode"]').forEach((input) => {
+    input.addEventListener("change", updateLiveAssistantFields);
+  });
   $("#rag-enabled")?.addEventListener("change", updateRagFields);
   $("#rag-vector-store")?.addEventListener("change", updateRagVectorStoreFields);
 
@@ -1621,7 +1634,6 @@
       await api("/api/settings", {
         method: "PUT",
         body: JSON.stringify({
-          ui_language: $("#ui-language").value,
           ui_theme: uiTheme,
           http_port: Number($("#http-port").value),
           retention_days: retention ? Number(retention) : null,
@@ -1982,6 +1994,7 @@
       if (!selected) throw new Error("The selected Live Assistant model is unavailable.");
       const remote = profileId === "litellm-custom";
       const enabled = $("#live-assistant-enabled").checked;
+      const behaviorMode = document.querySelector('[name="live-assistant-behavior-mode"]:checked')?.value || "questions";
       if (enabled && !remote && (!selected.installed || selected.runtime_available === false)) {
         throw new Error("Install this local model from AI Engine before enabling Live Assistant.");
       }
@@ -2001,10 +2014,23 @@
         ? $("#live-assistant-model").value.trim()
         : selected.repository;
       if (!model) throw new Error("Enter a LiteLLM model identifier.");
+      let triggerPhrases = [];
+      const triggerInput = $("#live-assistant-triggers").value.trim();
+      if (behaviorMode === "triggers") {
+        try {
+          triggerPhrases = JSON.parse(`[${triggerInput}]`);
+        } catch {
+          throw new Error('Enter trigger words separated by commas and enclosed in double quotes.');
+        }
+        if (!triggerPhrases.length || !triggerPhrases.every((item) => typeof item === "string" && item.trim())) {
+          throw new Error("Add at least one quoted trigger word or phrase.");
+        }
+      }
       const payload = {
         ...current,
         enabled,
         auto_start: $("#live-assistant-auto-start").checked,
+        behavior_mode: behaviorMode,
         engine: "llama-cpp",
         provider: remote ? "litellm" : "local",
         profile_id: profileId,
@@ -2021,8 +2047,7 @@
         preload_on_start: remote ? false : $("#live-assistant-preload").checked,
         keep_model_loaded: true,
         system_prompt: $("#live-assistant-system-prompt").value.trim(),
-        trigger_phrases: $("#live-assistant-triggers").value
-          .split(/\r?\n/).map((item) => item.trim()).filter(Boolean),
+        trigger_phrases: triggerPhrases,
         evaluation_interval_seconds: Number($("#live-assistant-interval").value),
         recent_context_seconds: Number($("#live-assistant-context-seconds").value),
         cooldown_seconds: Number($("#live-assistant-cooldown").value),

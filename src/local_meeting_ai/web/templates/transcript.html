@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Transcription · Meet2Notes{% endblock %}
-{% block head %}<link rel="stylesheet" href="/static/css/transcription.css?v={{ asset_version }}">{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/transcription.css?v={{ asset_version }}">
+<link rel="stylesheet" href="/static/css/post-meeting-assistant.css?v={{ asset_version }}">
+{% endblock %}
 {% block content %}
 <div
   class="page minimal-transcript-page"
@@ -100,10 +103,11 @@
 
     <section class="live-ai-assistant-widget hidden" id="live-ai-assistant" aria-label="Live AI Assistant" data-collapsed="false">
       <header class="live-ai-assistant-widget-header" id="live-ai-assistant-drag-handle">
-        <span class="live-ai-assistant-widget-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12h3l2-5 4 10 2-5h5"/><circle cx="12" cy="12" r="9"/></svg></span>
+        <span class="live-ai-assistant-widget-icon" aria-hidden="true"><img src="/static/assets/images/live-assistant-avatar.png" alt=""></span>
         <div class="live-ai-assistant-widget-title"><span class="eyebrow">Native copilot</span><strong>Live AI Assistant</strong></div>
         <span class="live-ai-assistant-widget-status"><i></i><span id="live-ai-assistant-status">Idle</span></span>
         <button class="live-ai-assistant-widget-toggle" id="live-ai-assistant-toggle" type="button" aria-label="Minimize Live AI Assistant" aria-expanded="true">
+          <img class="live-ai-assistant-collapsed-avatar" src="/static/assets/images/live-assistant-avatar.png" alt="" aria-hidden="true">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
         </button>
       </header>
@@ -111,6 +115,12 @@
         <p class="live-ai-assistant-empty" id="live-ai-assistant-empty">Listening for a useful moment in the meeting...</p>
         <div id="live-ai-assistant-insight-list" aria-live="polite"></div>
       </div>
+      <form class="live-ai-assistant-composer" id="live-ai-assistant-question-form">
+        <textarea id="live-ai-assistant-question" rows="1" maxlength="4000" placeholder="Ask the Live Assistant..." aria-label="Question for the Live Assistant"></textarea>
+        <button id="live-ai-assistant-send" type="submit" aria-label="Send question">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 4 17 8-17 8 3-8-3-8Zm3 8h14"/></svg>
+        </button>
+      </form>
       <span class="live-ai-assistant-resize-hint" id="live-ai-assistant-resize-handle" role="separator" aria-label="Resize Live AI Assistant" tabindex="0"></span>
     </section>
 
@@ -616,5 +626,10 @@
     </div>
   </div>
 </dialog>
+{% set post_assistant_context = 'meeting' %}
+{% include "_post_meeting_assistant.html" %}
 {% endblock %}
-{% block scripts %}<script src="/static/js/transcript.js?v={{ asset_version }}" defer></script>{% endblock %}
+{% block scripts %}
+<script src="/static/js/transcript.js?v={{ asset_version }}" defer></script>
+<script src="/static/js/post-meeting-assistant.js?v={{ asset_version }}" defer></script>
+{% endblock %}

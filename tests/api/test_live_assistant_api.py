@@ -10,6 +10,7 @@ def test_live_assistant_settings_and_separate_credential(client: TestClient) -> 
     assert catalog.status_code == 200
     body = catalog.json()
     assert body["settings"]["enabled"] is False
+    assert body["settings"]["behavior_mode"] == "questions"
     assert body["capability"]["dedicated_worker"] is True
     assert body["credential"] == {"available": True, "configured": False}
 
@@ -29,6 +30,7 @@ def test_live_assistant_settings_and_separate_credential(client: TestClient) -> 
             "model": "openai/test-model",
             "model_file": "not-managed.gguf",
             "base_url": "https://api.example.test/v1",
+            "behavior_mode": "triggers",
             "trigger_phrases": ["Alexa"],
             "max_output_tokens": 5092,
         }
@@ -37,6 +39,7 @@ def test_live_assistant_settings_and_separate_credential(client: TestClient) -> 
     assert saved.status_code == 200
     assert saved.json()["settings"]["model"] == "openai/test-model"
     assert saved.json()["settings"]["max_output_tokens"] == 5092
+    assert saved.json()["settings"]["behavior_mode"] == "triggers"
     assert "live-secret" not in saved.text
     assert "api_key" not in saved.json()["settings"]
 

@@ -16,40 +16,40 @@
 <body data-page="{{ page }}">
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
-      <a class="brand" id="sidebar-brand" href="/" aria-label="Meet2Notes home">
+      <a class="brand" id="sidebar-brand" href="/" aria-label="Meet2Notes home" data-i18n-aria-label="brand.home">
         <img class="brand-mark" src="/static/icons/mark.svg" alt="">
         <span>
           <strong>Meet2Notes</strong>
           <small data-i18n="brand.subtitle">Private meeting workspace</small>
         </span>
       </a>
-      <button class="sidebar-collapse-toggle" id="sidebar-collapse-toggle" type="button" aria-label="Minimize sidebar" aria-expanded="true" title="Minimize sidebar">
+      <button class="sidebar-collapse-toggle" id="sidebar-collapse-toggle" type="button" aria-label="Minimize sidebar" aria-expanded="true" title="Minimize sidebar" data-i18n-aria-label="nav.minimize_sidebar" data-i18n-title="nav.minimize_sidebar">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>
       </button>
 
-      <nav class="primary-nav" aria-label="Main navigation">
-        <a href="/?new=1" class="sidebar-new-meeting" title="New meeting">
+      <nav class="primary-nav" aria-label="Main navigation" data-i18n-aria-label="nav.main">
+        <a href="/?new=1" class="sidebar-new-meeting" title="New meeting" data-i18n-title="nav.new_meeting">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           <span data-i18n="nav.new_meeting">New meeting</span>
         </a>
-        <a href="/meetings" class="{{ 'active' if page == 'meetings' else '' }}" title="Meetings">
+        <a href="/meetings" class="{{ 'active' if page == 'meetings' else '' }}" title="Meetings" data-i18n-title="nav.meetings">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>
           <span data-i18n="nav.meetings">Meetings</span>
         </a>
-        <a href="/speakers" class="{{ 'active' if page == 'speakers' else '' }}" title="Speakers">
+        <a href="/speakers" class="{{ 'active' if page == 'speakers' else '' }}" title="Speakers" data-i18n-title="nav.speakers">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M14 19.5a4 4 0 0 1 6.5-3.1"/></svg>
-          <span>Speakers</span>
+          <span data-i18n="nav.speakers">Speakers</span>
         </a>
-        <a href="/prompt" target="_blank" rel="noopener" class="{{ 'active' if page == 'prompt' else '' }}" title="Prompt">
+        <a href="/prompt" target="_blank" rel="noopener" class="{{ 'active' if page == 'prompt' else '' }}" title="Prompt" data-i18n-title="nav.prompt">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z"/><path d="M18 16v5M15.5 18.5h5"/></svg>
-          <span>Prompt</span>
+          <span data-i18n="nav.prompt">Prompt</span>
         </a>
       </nav>
 
       <div class="sidebar-bottom">
         <div class="engine-card system-engine-card" id="global-engine-card">
           <div class="engine-card-header">
-            <a class="engine-card-settings-link" href="/settings" aria-label="Settings" title="Settings">
+            <a class="engine-card-settings-link" href="/settings" aria-label="Settings" title="Settings" data-i18n-aria-label="nav.settings" data-i18n-title="nav.settings">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19.4 15 .1.1-1.8 3.1-.2-.1a2 2 0 0 0-2.4.3l-.6.4a2 2 0 0 0-.9 2.2v.2H10V21a2 2 0 0 0-.9-2.2l-.6-.4a2 2 0 0 0-2.4-.3l-.2.1-1.8-3.1.1-.1a2 2 0 0 0 1-2v-.8a2 2 0 0 0-1-2l-.1-.1L5.9 7l.2.1a2 2 0 0 0 2.4-.3l.6-.4A2 2 0 0 0 10 4.2V4h3.6v.2a2 2 0 0 0 .9 2.2l.6.4a2 2 0 0 0 2.4.3l.2-.1 1.8 3.1-.1.1a2 2 0 0 0-1 2v.8a2 2 0 0 0 1 2Z"/></svg>
             </a>
             <span>
@@ -80,7 +80,7 @@
         <img src="/static/icons/mark.svg" alt="">
         <strong>Meet2Notes</strong>
       </a>
-      <button class="icon-button" id="menu-toggle" aria-label="Open navigation" aria-expanded="false">
+      <button class="icon-button" id="menu-toggle" aria-label="Open navigation" aria-expanded="false" data-i18n-aria-label="nav.open">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
       </button>
     </div>
@@ -98,7 +98,7 @@
           <h2 data-i18n="import.title">Import a recording</h2>
           <p data-i18n="import.description">Audio and video are copied to private local storage.</p>
         </div>
-        <button type="button" class="icon-button close-button" data-close-dialog aria-label="Close">
+        <button type="button" class="icon-button close-button" data-close-dialog aria-label="Close" data-i18n-aria-label="common.close">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
         </button>
       </div>
@@ -109,10 +109,10 @@
         </span>
         <strong id="drop-title" data-i18n="import.drop">Drop a recording here</strong>
         <span id="drop-help" data-i18n="import.choose">or choose an audio or video file</span>
-        <small>WAV, MP3, M4A, FLAC, OGG, AAC, MP4, MKV, WebM, MOV</small>
+        <small data-i18n="import.supported_formats">WAV, MP3, M4A, FLAC, OGG, AAC, MP4, MKV, WebM, MOV</small>
       </label>
       <label class="field">
-        <span data-i18n="import.meeting_title">Meeting title <small>optional</small></span>
+        <span data-i18n="import.meeting_title">Meeting title · optional</span>
         <input id="import-title" type="text" maxlength="200" data-i18n-placeholder="import.title_placeholder" placeholder="Uses the filename if left empty">
       </label>
       <div class="upload-progress hidden" id="upload-progress" aria-live="polite">

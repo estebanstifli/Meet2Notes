@@ -35,8 +35,11 @@
   const liveAssistantToggle = document.querySelector("#live-ai-assistant-toggle");
   const liveAssistantWidgetBody = document.querySelector("#live-ai-assistant-widget-body");
   const liveAssistantEmpty = document.querySelector("#live-ai-assistant-empty");
+  const liveAssistantQuestionForm = document.querySelector("#live-ai-assistant-question-form");
+  const liveAssistantQuestionInput = document.querySelector("#live-ai-assistant-question");
+  const liveAssistantSend = document.querySelector("#live-ai-assistant-send");
   const newMeetingRequested = new URL(window.location.href).searchParams.get("new") === "1";
-  const liveAssistantWidgetStorageKey = "meet2notes.liveAssistantWidget.v1";
+  const liveAssistantWidgetStorageKey = "meet2notes.liveAssistantWidget.v3";
 
   let meetingId = page.dataset.meetingId || null;
   let draftTitle = page.dataset.defaultTitle || "New Transcription";
@@ -99,14 +102,14 @@
   }
 
   function appendWorkflowMessage(source, message) {
-    const time = new Date().toLocaleTimeString([], { hour12: false });
-    appendPostprocessLog(`[${time}] INFO    ${source} Â· ${message}`);
+    const time = new Date().toLocaleTimeString(Meet2Notes.currentLanguage, { hour12: false });
+    appendPostprocessLog(`[${time}] INFO    ${source} · ${message}`);
   }
 
   function resetPostprocessLog(message) {
     postprocessLogLines.length = 0;
     postprocessJobSnapshots.clear();
-    const time = new Date().toLocaleTimeString([], { hour12: false });
+    const time = new Date().toLocaleTimeString(Meet2Notes.currentLanguage, { hour12: false });
     appendPostprocessLog(`[${time}] INFO    workflow · ${message}`);
   }
 
@@ -118,7 +121,7 @@
       const timestamp = new Date(entry.timestamp);
       const time = Number.isNaN(timestamp.getTime())
         ? "--:--:--"
-        : timestamp.toLocaleTimeString([], { hour12: false });
+        : timestamp.toLocaleTimeString(Meet2Notes.currentLanguage, { hour12: false });
       const source = String(entry.source || "meet2notes").split(".").pop();
       const line = `[${time}] ${String(entry.level || "info").toUpperCase().padEnd(7)} ${source} · ${entry.message}`;
       activityLines.push(line);
@@ -273,7 +276,11 @@
         renderEmpty();
       }
 
-      if (currentCapture) {
+      const captureBelongsToPage = Boolean(
+        currentCapture
+        && (!meetingId || String(currentCapture.meeting_id) === String(meetingId)),
+      );
+      if (captureBelongsToPage) {
         meetingId = String(currentCapture.meeting_id);
         page.dataset.meetingId = meetingId;
         activeTranscriptionId = Number(currentCapture.transcription_id);
@@ -289,7 +296,7 @@
       if (capabilities.features.transcription !== "available") {
         document.querySelector("#start-transcription").dataset.engineUnavailable = "true";
       }
-      if (meetingId && !currentCapture) {
+      if (meetingId && !captureBelongsToPage) {
         await refreshWebhookInsights(true);
         await refreshLiveAssistant(true);
       }
@@ -591,7 +598,7 @@
     setTitle(transcription.title);
     renderMeetingResults(detail);
     document.querySelector("#editor-meta").textContent =
-      `${transcription.model} · ${transcription.language || "detecting language"} · ${segments.length} shown / ${detail.segments.length} segments${captureSession ? " · Live" : ""}`;
+      `${transcription.model} · ${transcription.language || Meet2Notes.t("transcript.detecting_language")} · ${segments.length} ${Meet2Notes.t("transcript.shown")} / ${detail.segments.length} ${Meet2Notes.t("transcript.segments")}${captureSession ? ` · ${Meet2Notes.t("transcript.live")}` : ""}`;
     if (!detail.segments.length) {
       if (["running", "queued"].includes(transcription.status)) {
         segmentContainer.innerHTML = `
@@ -1515,8 +1522,8 @@
     const inputBudget = Math.max(256, contextTokens - outputTokens - Math.max(128, Math.floor(contextTokens / 20)));
     const blocks = Math.max(1, Math.ceil(estimatedTokens / inputBudget));
     output.textContent = blocks > 1
-      ? `Estimated ${estimatedTokens.toLocaleString()} input tokens · AI notes will use approximately ${blocks} evidence blocks.`
-      : `Estimated ${estimatedTokens.toLocaleString()} input tokens · fits in one AI pass.`;
+      ? Meet2Notes.t("postprocess.estimated_chunked", { tokens: estimatedTokens.toLocaleString(Meet2Notes.currentLanguage), blocks })
+      : Meet2Notes.t("postprocess.estimated_single", { tokens: estimatedTokens.toLocaleString(Meet2Notes.currentLanguage) });
   }
 
   function populatePostprocessNoteFormats() {
@@ -1595,7 +1602,7 @@
     const snapshot = `${job.status}:${progressPercent}:${job.message || ""}:${job.error_text || ""}`;
     if (postprocessJobSnapshots.get(job.uuid) !== snapshot) {
       postprocessJobSnapshots.set(job.uuid, snapshot);
-      const time = new Date().toLocaleTimeString([], { hour12: false });
+      const time = new Date().toLocaleTimeString(Meet2Notes.currentLanguage, { hour12: false });
       const detail = job.error_text || job.message || job.status;
       appendPostprocessLog(
         `[${time}] ${job.status === "failed" ? "ERROR  " : "INFO   "} ${name} · ${progressPercent}% · ${detail}`,
@@ -1620,7 +1627,7 @@
   async function finishWorkflow(hasWarnings) {
     if (workflowCompleted) return;
     workflowCompleted = true;
-    const time = new Date().toLocaleTimeString([], { hour12: false });
+    const time = new Date().toLocaleTimeString(Meet2Notes.currentLanguage, { hour12: false });
     appendPostprocessLog(
       `[${time}] ${hasWarnings ? "WARNING" : "INFO   "} workflow · ${hasWarnings ? "Finished with warnings" : "All processing completed"}`,
     );
@@ -1861,6 +1868,7 @@
     document.querySelector("#live-actions").classList.remove("hidden");
     document.querySelector("#live-capture-strip").classList.remove("hidden");
     updateLiveState(session);
+    void refreshLiveAssistant(true);
     if (capturePollTimer) window.clearInterval(capturePollTimer);
     capturePollTimer = window.setInterval(pollCapture, 500);
   }
@@ -1947,7 +1955,7 @@
       : "";
     target.innerHTML = visible.map((item) => `
       <article class="live-agent-insight" data-status="${escapeHTML(item.status)}">
-        <div><p>${escapeHTML(item.text)}</p><small>${escapeHTML(item.endpoint_name)} · ${escapeHTML(item.kind)}${item.confidence == null ? "" : ` · ${Math.round(Number(item.confidence) * 100)}% confidence`}</small></div>
+        <div><p>${escapeHTML(item.text)}</p><small>${escapeHTML(item.endpoint_name)} · ${escapeHTML(item.kind)}</small></div>
         <div class="live-agent-insight-actions">${item.status === "new" ? `<button class="text-button" type="button" data-insight-status="accepted" data-insight-id="${escapeHTML(item.id)}">Accept</button>` : ""}<button class="text-button" type="button" data-insight-status="dismissed" data-insight-id="${escapeHTML(item.id)}">Dismiss</button></div>
       </article>`).join("");
   }
@@ -1967,8 +1975,6 @@
     const collapsed = liveAssistantWidget.dataset.collapsed === "true";
     const state = {
       collapsed,
-      left: liveAssistantWidget.style.left ? Math.round(rect.left) : null,
-      top: liveAssistantWidget.style.top ? Math.round(rect.top) : null,
       width: collapsed ? null : Math.round(rect.width),
       height: collapsed ? null : Math.round(rect.height),
     };
@@ -1990,6 +1996,12 @@
 
   function setLiveAssistantWidgetCollapsed(collapsed, { persist = true } = {}) {
     if (!liveAssistantWidget || !liveAssistantToggle) return;
+    if (collapsed) {
+      liveAssistantWidget.style.left = "auto";
+      liveAssistantWidget.style.top = "auto";
+      liveAssistantWidget.style.right = "24px";
+      liveAssistantWidget.style.bottom = "24px";
+    }
     liveAssistantWidget.dataset.collapsed = String(collapsed);
     liveAssistantToggle.setAttribute("aria-expanded", String(!collapsed));
     liveAssistantToggle.setAttribute(
@@ -2003,9 +2015,9 @@
   function resizeLiveAssistantWidget(width, height) {
     if (!liveAssistantWidget) return;
     const rect = liveAssistantWidget.getBoundingClientRect();
-    const maximumWidth = Math.max(310, window.innerWidth - rect.left - 8);
+    const maximumWidth = Math.max(300, window.innerWidth - rect.left - 8);
     const maximumHeight = Math.max(210, window.innerHeight - rect.top - 8);
-    liveAssistantWidget.style.width = `${Math.round(Math.max(310, Math.min(width, maximumWidth)))}px`;
+    liveAssistantWidget.style.width = `${Math.round(Math.max(300, Math.min(width, maximumWidth)))}px`;
     liveAssistantWidget.style.height = `${Math.round(Math.max(210, Math.min(height, maximumHeight)))}px`;
   }
 
@@ -2013,18 +2025,47 @@
     if (!liveAssistantWidget || !liveAssistantDragHandle ||
         !liveAssistantResizeHandle || !liveAssistantToggle) return;
     const state = savedLiveAssistantWidgetState();
-    if (Number.isFinite(state.width)) liveAssistantWidget.style.width = `${Math.max(310, state.width)}px`;
+    if (Number.isFinite(state.width)) liveAssistantWidget.style.width = `${Math.max(300, state.width)}px`;
     if (Number.isFinite(state.height)) liveAssistantWidget.style.height = `${Math.max(210, state.height)}px`;
-    if (window.innerWidth > 600 && Number.isFinite(state.left) && Number.isFinite(state.top)) {
-      liveAssistantWidget.style.right = "auto";
-      liveAssistantWidget.style.bottom = "auto";
-      liveAssistantWidget.style.left = `${state.left}px`;
-      liveAssistantWidget.style.top = `${state.top}px`;
-    }
     setLiveAssistantWidgetCollapsed(Boolean(state.collapsed), { persist: false });
 
     liveAssistantToggle.addEventListener("click", () => {
       setLiveAssistantWidgetCollapsed(liveAssistantWidget.dataset.collapsed !== "true");
+    });
+
+    liveAssistantQuestionInput?.addEventListener("input", () => {
+      if (liveAssistantSend) {
+        liveAssistantSend.disabled = liveAssistantQuestionInput.disabled ||
+          !liveAssistantQuestionInput.value.trim();
+      }
+    });
+    liveAssistantQuestionInput?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.shiftKey) return;
+      event.preventDefault();
+      liveAssistantQuestionForm?.requestSubmit();
+    });
+    liveAssistantQuestionForm?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const question = liveAssistantQuestionInput?.value.trim();
+      if (!meetingId || !question || liveAssistantQuestionInput.disabled) return;
+      liveAssistantQuestionInput.disabled = true;
+      if (liveAssistantSend) liveAssistantSend.disabled = true;
+      liveAssistantWidget.dataset.runtimeStatus = "thinking";
+      const status = document.querySelector("#live-ai-assistant-status");
+      if (status) status.textContent = "Thinking...";
+      try {
+        await api(`/api/live-assistant/meetings/${meetingId}/questions`, {
+          method: "POST",
+          body: JSON.stringify({ question }),
+        });
+        liveAssistantQuestionInput.value = "";
+        await refreshLiveAssistant(true);
+      } catch (error) {
+        toast(error.message, "error");
+        liveAssistantQuestionInput.disabled = false;
+        if (liveAssistantSend) liveAssistantSend.disabled = !liveAssistantQuestionInput.value.trim();
+        liveAssistantQuestionInput.focus();
+      }
     });
 
     liveAssistantDragHandle.addEventListener("pointerdown", (event) => {
@@ -2125,35 +2166,59 @@
     if (!liveAssistantWidget || !target) return;
     const insights = (payload?.insights || []).slice().reverse();
     const runtime = payload?.runtime || {};
-    liveAssistantWidget.classList.toggle("hidden", !payload?.enabled && !insights.length);
+    const meetingIsFinished = Boolean(
+      currentMeeting?.status === "ready" || currentMeeting?.ended_at,
+    );
+    const captureMatchesMeeting = Boolean(
+      captureSession && String(captureSession.meeting_id) === String(meetingId),
+    );
+    const isLiveMeeting = Boolean(
+      !meetingIsFinished && payload?.enabled && (runtime.active || captureMatchesMeeting),
+    );
+    liveAssistantWidget.classList.toggle("hidden", !isLiveMeeting);
     const statusLabels = {
       active: "Listening",
       listening: "Listening",
-      thinking: "Thinking…",
+      thinking: "Thinking...",
+      waiting_question: "Waiting for a question",
       waiting_trigger: "Waiting for trigger",
       rate_limited: "Rate limited",
-      error: runtime.last_error ? `Error · ${runtime.last_error}` : "Error",
+      error: runtime.last_error ? `Error: ${runtime.last_error}` : "Error",
       stopped: "Meeting stopped",
       interrupted: "Interrupted",
       idle: "Idle",
     };
     const status = statusLabels[runtime.status] || (runtime.active ? "Listening" : "Idle");
-    const latency = runtime.last_latency_ms ? ` · ${runtime.last_latency_ms} ms` : "";
+    const latency = runtime.last_latency_ms ? ` - ${runtime.last_latency_ms} ms` : "";
     liveAssistantWidget.dataset.runtimeStatus = runtime.status || "idle";
     document.querySelector("#live-ai-assistant-status").textContent = `${status}${latency}`;
+    const canAsk = Boolean(payload?.enabled && (runtime.active || captureSession));
+    if (liveAssistantQuestionInput) {
+      liveAssistantQuestionInput.disabled = !canAsk;
+      liveAssistantQuestionInput.placeholder = canAsk
+        ? "Ask the Live Assistant..."
+        : "Start a live meeting to ask a question";
+    }
+    if (liveAssistantSend) {
+      liveAssistantSend.disabled = !canAsk || !liveAssistantQuestionInput?.value.trim();
+    }
     if (liveAssistantEmpty) {
       liveAssistantEmpty.hidden = Boolean(insights.length);
-      liveAssistantEmpty.textContent = runtime.status === "waiting_trigger"
-        ? "No literal trigger has appeared yet. Trigger phrases are exact words or short phrases; put conditional behavior in Instructions."
-        : runtime.status === "thinking"
-          ? "The assistant is evaluating the latest meeting context..."
-          : runtime.status === "error"
-            ? runtime.last_error || "The latest assistant evaluation failed."
-            : "Listening for a useful moment in the meeting. Responses will appear here automatically.";
+      if (runtime.status === "waiting_question") {
+        liveAssistantEmpty.textContent = "Waiting for a transcript question ending in a question mark (?).";
+      } else if (runtime.status === "waiting_trigger") {
+        liveAssistantEmpty.textContent = "No literal trigger has appeared yet. Trigger phrases are exact words or short phrases; put conditional behavior in Instructions.";
+      } else if (runtime.status === "thinking") {
+        liveAssistantEmpty.textContent = "The assistant is evaluating the latest meeting context...";
+      } else if (runtime.status === "error") {
+        liveAssistantEmpty.textContent = runtime.last_error || "The latest assistant evaluation failed.";
+      } else {
+        liveAssistantEmpty.textContent = "Listening for a useful moment in the meeting. Responses will appear here automatically.";
+      }
     }
     target.innerHTML = insights.map((item) => `
-      <article class="live-agent-insight" data-status="${escapeHTML(item.status)}">
-        <div><p>${escapeHTML(item.text)}</p><small>${escapeHTML(item.kind)} · ${escapeHTML(item.model)}${item.start_ms == null ? "" : ` · ${formatTimestamp(item.start_ms)}`}${item.confidence == null ? "" : ` · ${Math.round(Number(item.confidence) * 100)}% confidence`}</small></div>
+      <article class="live-agent-insight" data-status="${escapeHTML(item.status)}" data-kind="${escapeHTML(item.kind)}">
+        <div><p>${escapeHTML(item.text)}</p></div>
       </article>`).join("");
     const latestInsight = insights.at(-1);
     if (latestInsight?.id && latestInsight.id !== lastAssistantInsightId) {

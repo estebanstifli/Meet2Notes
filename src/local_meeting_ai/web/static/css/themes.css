@@ -469,11 +469,15 @@
 [data-theme="dark"] .live-ai-assistant-widget-status { color: #a9b8cc; }
 [data-theme="dark"] .live-ai-assistant-widget-toggle { color: #b2c4df; background: #1a2940; border-color: #3a506f; }
 [data-theme="dark"] .live-ai-assistant-widget-toggle:hover { color: #fff; background: #243957; }
+[data-theme="dark"] .live-ai-assistant-composer { background: #111b2a; border-color: #2c3d55; }
+[data-theme="dark"] .live-ai-assistant-composer textarea { color: #e4eaf3; background: #162235; border-color: #3a4d68; }
 [data-theme="dark"] .live-ai-assistant-empty { color: #9baabd; background: #111824; border-color: #34465f; }
 [data-theme="dark"] #live-ai-assistant-insight-list .live-agent-insight { background: #131c2a; border-color: #2d3c52; }
 [data-theme="dark"] #live-ai-assistant-insight-list .live-agent-insight:first-child { border-color: #40679d; box-shadow: 0 4px 16px rgba(0, 0, 0, .22); }
 [data-theme="dark"] #live-ai-assistant-insight-list .live-agent-insight p { color: #dce4f0; }
 [data-theme="dark"] #live-ai-assistant-insight-list .live-agent-insight small { color: #93a3b9; }
+[data-theme="dark"] #live-ai-assistant-insight-list .live-agent-insight[data-kind="user_question"] { background: #176bff; border-color: #4b8cff; }
+[data-theme="dark"] #live-ai-assistant-insight-list .live-agent-insight[data-kind="user_question"] p { color: #fff; }
 
 [data-theme="dark"] .model-directory-note.restart-required {
   color: #e8c77c;
@@ -609,6 +613,11 @@
 [data-theme="dark"] :is(.settings-form, .engine-config-group, .transcription-canvas-header) {
   border-color: var(--line);
 }
+
+[data-theme="dark"] .live-assistant-behavior-option { background: #121b29; border-color: #334157; }
+[data-theme="dark"] .live-assistant-behavior-option:has(input:checked) { background: #172740; border-color: #4d82db; }
+[data-theme="dark"] .live-assistant-behavior-option strong { color: #dce5f2; }
+[data-theme="dark"] .live-assistant-behavior-option small { color: #99a7ba; }
 
 [data-theme="dark"] :is(.setting-row, .system-list > div) {
   border-color: #293345;

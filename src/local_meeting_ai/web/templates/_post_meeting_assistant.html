@@ -1,0 +1,56 @@
+<aside
+  class="post-meeting-assistant hidden"
+  id="post-meeting-assistant"
+  data-context="{{ post_assistant_context }}"
+  data-default-meeting-id="{{ meeting.id if meeting is defined and meeting else (selected_meeting_id if selected_meeting_id is defined else '') }}"
+  aria-label="Meeting Assistant"
+>
+  <header class="post-meeting-assistant-header" id="post-meeting-assistant-drag-handle">
+    <span class="post-meeting-assistant-avatar" aria-hidden="true">
+      <img src="/static/assets/images/post-meeting-assistant-avatar.png" alt="">
+    </span>
+    <span class="post-meeting-assistant-title">
+      <small>Post-meeting AI</small>
+      <strong>Meeting Assistant</strong>
+    </span>
+    <span class="post-meeting-assistant-rag" id="post-meeting-assistant-rag"><i></i><span>Local RAG</span></span>
+    <button class="post-meeting-assistant-toggle" id="post-meeting-assistant-toggle" type="button" aria-label="Minimize Meeting Assistant" title="Minimize Meeting Assistant">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+      <img src="/static/assets/images/post-meeting-assistant-avatar.png" alt="" aria-hidden="true">
+    </button>
+  </header>
+  <div class="post-meeting-assistant-scope">
+    <label for="post-meeting-assistant-meeting">Scope</label>
+    <select id="post-meeting-assistant-meeting" aria-label="Meeting scope">
+      <option value="">All meetings</option>
+    </select>
+  </div>
+  <div class="post-meeting-assistant-messages" id="post-meeting-assistant-messages" aria-live="polite">
+    <div class="post-meeting-assistant-welcome" id="post-meeting-assistant-welcome">
+      <strong>Ask about your meetings</strong>
+      <span>Find decisions, topics, commitments or details in the completed transcripts.</span>
+    </div>
+  </div>
+  <div class="post-meeting-assistant-context" id="post-meeting-assistant-context">
+    <div class="post-meeting-assistant-context-row">
+      <button id="post-meeting-assistant-context-toggle" type="button" aria-expanded="false" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Context</span>
+      </button>
+      <div class="post-meeting-assistant-context-chips" id="post-meeting-assistant-context-chips"></div>
+      <span class="post-meeting-assistant-context-budget" id="post-meeting-assistant-context-budget">RAG only</span>
+    </div>
+    <div class="post-meeting-assistant-context-panel hidden" id="post-meeting-assistant-context-panel">
+      <header><strong>Attach raw meeting context</strong><button type="button" id="post-meeting-assistant-context-close" aria-label="Close">×</button></header>
+      <p>Select a completed transcript or AI notes. Raw documents are sent without embeddings.</p>
+      <div id="post-meeting-assistant-context-documents"><span>Select one meeting as scope first.</span></div>
+    </div>
+  </div>
+  <form class="post-meeting-assistant-composer" id="post-meeting-assistant-form">
+    <textarea id="post-meeting-assistant-question" rows="1" maxlength="4000" placeholder="Ask about the meeting..." aria-label="Question for Meeting Assistant"></textarea>
+    <button id="post-meeting-assistant-send" type="submit" aria-label="Send question" title="Send question" disabled>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 4 17 8-17 8 3-8-3-8Z"/><path d="M7 12h14"/></svg>
+    </button>
+  </form>
+  <span class="post-meeting-assistant-resize" id="post-meeting-assistant-resize" role="separator" tabindex="0" aria-label="Resize Meeting Assistant"></span>
+</aside>

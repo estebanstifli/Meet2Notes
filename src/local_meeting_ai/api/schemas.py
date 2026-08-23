@@ -198,15 +198,15 @@ class LiveAssistantPreference(SummaryEnginePreference):
 
     enabled: bool = False
     auto_start: bool = True
+    behavior_mode: Literal["questions", "triggers", "continuous"] = "questions"
     provider: Literal["local", "litellm"] = "local"
     context_length: int = Field(default=16384, ge=2048, le=131072)
     max_output_tokens: int = Field(default=1024, ge=128, le=8192)
     preload_on_start: bool = False
     system_prompt: str = Field(
         default=(
-            "You observe a meeting in real time. Follow the user's monitoring rules. "
-            "Intervene only when the rules make your contribution useful, keep answers "
-            "concise, and never repeat information already provided."
+            "Answer clearly and concisely using only the supplied meeting context. "
+            "If the context does not contain enough information, say so."
         ),
         min_length=1,
         max_length=8000,
@@ -222,7 +222,11 @@ class LiveAssistantPreference(SummaryEnginePreference):
     @field_validator("trigger_phrases")
     @classmethod
     def validate_trigger_phrases(cls, value: list[str]) -> list[str]:
-        cleaned = [item.strip() for item in value if item.strip()]
+        cleaned = [
+            item.strip().strip('"\'').strip()
+            for item in value
+            if item.strip().strip('"\'').strip()
+        ]
         if any(len(item) > 120 for item in cleaned):
             raise ValueError("Live Assistant trigger phrases cannot exceed 120 characters")
         deduplicated: list[str] = []
@@ -335,7 +339,7 @@ class RagPreference(BaseModel):
 class PreferenceUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    ui_language: Literal["en", "es"] | None = None
+    ui_language: str | None = Field(default=None, pattern=r"^[a-z]{2,3}(?:-[A-Z]{2})?$")
     ui_theme: Literal["system", "light", "dark"] | None = None
     models_directory: str | None = Field(default=None, max_length=2048)
     http_port: int | None = Field(default=None, ge=1024, le=65535)
@@ -355,7 +359,7 @@ class PreferenceUpdate(BaseModel):
 
 
 class PreferenceResponse(BaseModel):
-    ui_language: Literal["en", "es"] = "en"
+    ui_language: str = Field(default="en", pattern=r"^[a-z]{2,3}(?:-[A-Z]{2})?$")
     ui_theme: Literal["system", "light", "dark"] = "system"
     models_directory: str
     active_models_directory: str
@@ -400,6 +404,13 @@ class PromptTurn(BaseModel):
     content: str = Field(min_length=1, max_length=12000)
 
 
+class PromptAttachment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["transcription", "summary"]
+    id: int = Field(ge=1)
+
+
 class PromptRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -407,6 +418,7 @@ class PromptRequest(BaseModel):
     meeting_id: int | None = Field(default=None, ge=1)
     use_rag: bool = True
     history: list[PromptTurn] = Field(default_factory=list, max_length=20)
+    attachments: list[PromptAttachment] = Field(default_factory=list, max_length=10)
 
 
 class ModelDirectoryMoveRequest(BaseModel):

@@ -27,260 +27,108 @@
   window.addEventListener("load", () => {
     timingLog("page fully loaded", { elapsed_ms: Math.round(performance.now()) });
   }, { once: true });
-  const translations = {
-    en: {
-      "menu.file": "File",
-      "menu.import": "Import audio or video…",
-      "menu.transcription": "Transcription workspace",
-      "menu.settings": "Settings",
-      "menu.edit": "Edit",
-      "menu.find": "Find in transcript",
-      "menu.replace": "Find and replace…",
-      "menu.view": "View",
-      "menu.help": "Help",
-      "menu.about": "About Meet2Notes",
-      "menu.api": "Local API documentation",
-      "brand.subtitle": "Private meeting workspace",
-      "nav.new_meeting": "New meeting",
-      "nav.transcribe": "Transcribe",
-      "nav.meetings": "Meetings",
-      "nav.action_items": "Action items",
-      "nav.speakers": "Speakers",
-      "nav.summaries": "Summaries",
-      "nav.exports": "Exports",
-      "nav.settings": "Settings",
-      "common.soon": "Soon",
-      "common.cancel": "Cancel",
-      "common.close": "Close",
-      "common.optional": "optional",
-      "common.installed": "installed",
-      "status.ready": "Ready",
-      "engine.title": "Transcription engine",
-      "engine.checking": "Checking…",
-      "engine.ready_cuda": "Ready · CUDA",
-      "engine.ready_cpu": "Ready · CPU",
-      "engine.install": "Optional install required",
-      "engine.local": "Private local processing",
-      "engine.system_title": "Local AI status",
-      "engine.process": "Python PID {pid} · in-process workers",
-      "engine.role.live_transcription": "Live transcript",
-      "engine.role.final_transcription": "Final transcript",
-      "engine.role.diarization": "Diarization",
-      "engine.role.summary": "AI notes",
-      "engine.state.ready": "Ready",
-      "engine.state.running": "Working",
-      "engine.state.idle": "Idle",
-      "engine.state.error": "Error",
-      "engine.state.unavailable": "Unavailable",
-      "engine.state.not_installed": "Not installed",
-      "engine.state.disabled": "Disabled",
-      "engine.in_memory": "In memory",
-      "engine.thread_hint": "Runs as a thread inside Python PID {pid}",
-      "engine.shutdown": "Shut down",
-      "engine.shutdown_title": "Shut down Meet2Notes?",
-      "engine.shutdown_description": "Active local work will stop, the loaded models will be released from RAM and VRAM, and the Python server will close.",
-      "engine.shutdown_confirm": "Shut down",
-      "engine.shutdown_requested": "Meet2Notes is shutting down safely…",
-      "hardware.ram": "RAM",
-      "hardware.vram": "VRAM",
-      "hardware.free": "{free} free of {total}",
-      "hardware.app_memory": "App {used}",
-      "hardware.no_gpu": "No NVIDIA GPU detected",
-      "workspace.title": "Transcription",
-      "workspace.subtitle": "Import a conversation and turn it into clear, editable text.",
-      "workspace.meeting": "Meeting",
-      "workspace.local": "Local transcription workspace",
-      "workspace.edit_hint": "Edit every segment while preserving timestamps and the original recording.",
-      "workspace.import": "Import MP3, WAV or video",
-      "workspace.import_short": "Import media",
-      "workspace.find_replace": "Find & replace",
-      "workspace.start": "Start transcription",
-      "workspace.overview": "Overview",
-      "workspace.transcript": "Transcript",
-      "workspace.speakers": "Speakers",
-      "workspace.summary": "Summary",
-      "workspace.chat": "Chat",
-      "workspace.exports": "Exports",
-      "workspace.original": "Original source · stored locally",
-      "workspace.saved": "All changes saved",
-      "workspace.versions": "Versions",
-      "workspace.transcriptions": "Transcriptions",
-      "workspace.private": "Private inference",
-      "workspace.private_description": "Audio is processed on this computer.",
-      "workspace.search": "Search this transcript",
-      "workspace.ready": "Ready when you are",
-      "workspace.create_first": "Create the first local transcript",
-      "workspace.create_first_description": "Choose a quality profile and language. No recording leaves this computer.",
-      "workspace.configure": "Configure transcription",
-      "workspace.editor": "Transcript editor",
-      "workspace.no_recording": "No recording selected",
-      "workspace.empty_title": "Your transcript will appear here",
-      "workspace.empty_description": "Import an audio or video file. You will choose the language and local model before processing begins.",
-      "workspace.choose_file": "Choose a recording",
-      "workspace.formats": "Audio: MP3, WAV, M4A, FLAC · Video: MP4, MKV, WebM",
-      "import.eyebrow": "New source",
-      "import.title": "Import a recording",
-      "import.description": "Audio and video are copied to private local storage.",
-      "import.drop": "Drop a recording here",
-      "import.choose": "or choose an audio or video file",
-      "import.meeting_title": "Meeting title · optional",
-      "import.title_placeholder": "Uses the filename if left empty",
-      "import.uploading": "Uploading securely…",
-      "import.action": "Import recording",
-      "transcription.local_model": "Local model",
-      "transcription.new": "New transcription",
-      "transcription.description": "Choose the balance between speed, memory, and accuracy.",
-      "transcription.quality": "Quality profile",
-      "transcription.language": "Language",
-      "transcription.auto": "Automatic detection",
-      "transcription.task": "Task",
-      "transcription.transcribe": "Transcribe",
-      "transcription.translate": "Translate to English",
-      "transcription.allow_download": "Allow model download if needed",
-      "transcription.model_installed": "Model already installed",
-      "transcription.download_description": "The selected model is downloaded only after this explicit confirmation.",
-      "transcription.local_note": "Audio stays local. A network connection is used only for a confirmed model download.",
-      "transcription.start": "Start local transcription",
-      "profile.fast": "Fast",
-      "profile.balanced": "Balanced",
-      "profile.accurate": "Accurate",
-      "profile.very_accurate": "Very accurate",
-      "about.local": "Local-first software",
-      "about.description": "Private transcription and meeting intelligence on your own computer.",
-      "speaker": "Speaker {number}",
-    },
-    es: {
-      "menu.file": "Archivo",
-      "menu.import": "Importar audio o vídeo…",
-      "menu.transcription": "Espacio de transcripción",
-      "menu.settings": "Configuración",
-      "menu.edit": "Editar",
-      "menu.find": "Buscar en la transcripción",
-      "menu.replace": "Buscar y reemplazar…",
-      "menu.view": "Ver",
-      "menu.help": "Ayuda",
-      "menu.about": "Acerca de Meet2Notes",
-      "menu.api": "Documentación de la API local",
-      "brand.subtitle": "Espacio privado para reuniones",
-      "nav.new_meeting": "Nueva reunión",
-      "nav.transcribe": "Transcribir",
-      "nav.meetings": "Reuniones",
-      "nav.action_items": "Tareas",
-      "nav.speakers": "Hablantes",
-      "nav.summaries": "Resúmenes",
-      "nav.exports": "Exportaciones",
-      "nav.settings": "Configuración",
-      "common.soon": "Pronto",
-      "common.cancel": "Cancelar",
-      "common.close": "Cerrar",
-      "common.optional": "opcional",
-      "common.installed": "instalado",
-      "status.ready": "Listo",
-      "engine.title": "Motor de transcripción",
-      "engine.checking": "Comprobando…",
-      "engine.ready_cuda": "Listo · CUDA",
-      "engine.ready_cpu": "Listo · CPU",
-      "engine.install": "Requiere instalación opcional",
-      "engine.local": "Procesamiento local y privado",
-      "engine.system_title": "Estado de IA local",
-      "engine.process": "Python PID {pid} · motores internos",
-      "engine.role.live_transcription": "Transcripción en vivo",
-      "engine.role.final_transcription": "Transcripción final",
-      "engine.role.diarization": "Diarización",
-      "engine.role.summary": "Notas con IA",
-      "engine.state.ready": "Listo",
-      "engine.state.running": "Trabajando",
-      "engine.state.idle": "En espera",
-      "engine.state.error": "Error",
-      "engine.state.unavailable": "No disponible",
-      "engine.state.not_installed": "No instalado",
-      "engine.state.disabled": "Desactivado",
-      "engine.in_memory": "En memoria",
-      "engine.thread_hint": "Se ejecuta como hilo dentro del Python PID {pid}",
-      "engine.shutdown": "Apagar",
-      "engine.shutdown_title": "¿Apagar Meet2Notes?",
-      "engine.shutdown_description": "Se detendrá el trabajo local activo, se liberarán los modelos cargados de la RAM y la VRAM y se cerrará el servidor Python.",
-      "engine.shutdown_confirm": "Apagar",
-      "engine.shutdown_requested": "Meet2Notes se está apagando de forma segura…",
-      "hardware.ram": "RAM",
-      "hardware.vram": "VRAM",
-      "hardware.free": "{free} libres de {total}",
-      "hardware.app_memory": "App {used}",
-      "hardware.no_gpu": "No se detectó una GPU NVIDIA",
-      "workspace.title": "Transcripción",
-      "workspace.subtitle": "Importa una conversación y conviértela en texto claro y editable.",
-      "workspace.meeting": "Reunión",
-      "workspace.local": "Espacio de transcripción local",
-      "workspace.edit_hint": "Edita cada intervención conservando sus marcas de tiempo y el audio original.",
-      "workspace.import": "Importar MP3, WAV o vídeo",
-      "workspace.import_short": "Importar archivo",
-      "workspace.find_replace": "Buscar y reemplazar",
-      "workspace.start": "Empezar a transcribir",
-      "workspace.overview": "Vista general",
-      "workspace.transcript": "Transcripción",
-      "workspace.speakers": "Hablantes",
-      "workspace.summary": "Resumen",
-      "workspace.chat": "Chat",
-      "workspace.exports": "Exportaciones",
-      "workspace.original": "Fuente original · guardada localmente",
-      "workspace.saved": "Todos los cambios guardados",
-      "workspace.versions": "Versiones",
-      "workspace.transcriptions": "Transcripciones",
-      "workspace.private": "Procesamiento privado",
-      "workspace.private_description": "El audio se procesa en este equipo.",
-      "workspace.search": "Buscar en esta transcripción",
-      "workspace.ready": "Todo listo",
-      "workspace.create_first": "Crea la primera transcripción local",
-      "workspace.create_first_description": "Elige el perfil de calidad y el idioma. La grabación nunca sale de este equipo.",
-      "workspace.configure": "Configurar transcripción",
-      "workspace.editor": "Editor de transcripción",
-      "workspace.no_recording": "Ninguna grabación seleccionada",
-      "workspace.empty_title": "La transcripción aparecerá aquí",
-      "workspace.empty_description": "Importa un archivo de audio o vídeo. Antes de procesarlo podrás elegir el idioma y el modelo local.",
-      "workspace.choose_file": "Elegir una grabación",
-      "workspace.formats": "Audio: MP3, WAV, M4A, FLAC · Vídeo: MP4, MKV, WebM",
-      "import.eyebrow": "Nueva fuente",
-      "import.title": "Importar una grabación",
-      "import.description": "El audio o vídeo se copia al almacenamiento privado local.",
-      "import.drop": "Suelta aquí una grabación",
-      "import.choose": "o elige un archivo de audio o vídeo",
-      "import.meeting_title": "Título de la reunión · opcional",
-      "import.title_placeholder": "Si se deja vacío se utilizará el nombre del archivo",
-      "import.uploading": "Importando de forma segura…",
-      "import.action": "Importar grabación",
-      "transcription.local_model": "Modelo local",
-      "transcription.new": "Nueva transcripción",
-      "transcription.description": "Elige el equilibrio entre velocidad, memoria y precisión.",
-      "transcription.quality": "Perfil de calidad",
-      "transcription.language": "Idioma",
-      "transcription.auto": "Detección automática",
-      "transcription.task": "Tarea",
-      "transcription.transcribe": "Transcribir",
-      "transcription.translate": "Traducir al inglés",
-      "transcription.allow_download": "Permitir la descarga del modelo si hace falta",
-      "transcription.model_installed": "El modelo ya está instalado",
-      "transcription.download_description": "El modelo seleccionado solo se descarga después de esta confirmación explícita.",
-      "transcription.local_note": "El audio permanece local. La red solo se utiliza para una descarga de modelo confirmada.",
-      "transcription.start": "Iniciar transcripción local",
-      "profile.fast": "Rápido",
-      "profile.balanced": "Equilibrado",
-      "profile.accurate": "Preciso",
-      "profile.very_accurate": "Muy preciso",
-      "about.local": "Software local por diseño",
-      "about.description": "Transcripción privada e inteligencia de reuniones en tu propio equipo.",
-      "speaker": "Hablante {number}",
-    },
-  };
+  const defaultLanguage = "en";
+  const loadedLanguages = new Set();
+  const originalText = new WeakMap();
+  const originalAttributes = new WeakMap();
+  const originalDocumentTitle = document.title;
+  const immutableUiTerms = new Set(["RAG", "Webhook", "Webhooks", "Plugin", "Plugins", "Prompt", "Faster Whisper", "Word", "Markdown"]);
+  const immutableTranslationKeys = new Set(["nav.prompt"]);
+  const languageNames = loadStaticJson("index") || { en: "English" };
+  let translations = {};
 
-  function t(key, replacements = {}) {
+  function loadStaticJson(name) {
+    try {
+      const request = new XMLHttpRequest();
+      request.open("GET", `/static/locales/${encodeURIComponent(name)}.json`, false);
+      request.send();
+      if (request.status < 200 || request.status >= 300) return false;
+      const catalog = JSON.parse(request.responseText);
+      if (!catalog || typeof catalog !== "object") return false;
+      return catalog;
+    } catch {
+      return false;
+    }
+  }
+
+  function loadCatalog(language) {
+    if (loadedLanguages.has(language)) return true;
+    const catalog = loadStaticJson(language);
+    if (!catalog) return false;
+      translations[language] = catalog;
+      loadedLanguages.add(language);
+      return true;
+  }
+
+  function t(key, replacements = {}, count) {
+    if (immutableTranslationKeys.has(key)) return "Prompt";
     const template = translations[currentLanguage]?.[key]
-      || translations.en[key]
+      || translations[defaultLanguage]?.[key]
       || key;
+    const selected = typeof template === "object"
+      ? template[new Intl.PluralRules(currentLanguage).select(Number(count ?? replacements.count ?? 0))]
+        || template.other
+      : template;
     return Object.entries(replacements).reduce(
       (value, [name, replacement]) => value.replaceAll(`{${name}}`, String(replacement)),
-      template,
+      selected,
     );
   }
+
+  function formatLocaleDate(value, options = {}) {
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(date.getTime()) ? "" : date.toLocaleString(currentLanguage, options);
+  }
+
+  function translateLiteral(value) {
+    if (immutableUiTerms.has(value)) return value;
+    const translated = translations[currentLanguage]?.literal?.[value] || value;
+    if (value.includes("Faster Whisper") && !translated.includes("Faster Whisper")) return value;
+    if (value === "Export Word" && !translated.includes("Word")) return value;
+    if (value === "Export Markdown" && !translated.includes("Markdown")) return value;
+    return translated;
+  }
+
+  function translateNodeTree(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent || parent.closest("[data-i18n]") || ["SCRIPT", "STYLE", "SVG"].includes(parent.tagName)) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return node.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      },
+    });
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach((node) => {
+      const source = originalText.get(node) || node.nodeValue;
+      originalText.set(node, source);
+      node.nodeValue = source.replace(source.trim(), translateLiteral(source.trim()));
+    });
+    root.querySelectorAll?.("[title], [aria-label], [placeholder]").forEach((element) => {
+      const sources = originalAttributes.get(element) || {};
+      ["title", "aria-label", "placeholder"].forEach((attribute) => {
+        if (!element.hasAttribute(attribute)) return;
+        const source = sources[attribute] || element.getAttribute(attribute);
+        sources[attribute] = source;
+        element.setAttribute(attribute, translateLiteral(source));
+      });
+      originalAttributes.set(element, sources);
+    });
+  }
+
+  function observeLiteralTranslations() {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) translateNodeTree(node);
+        if (node.nodeType === Node.TEXT_NODE && node.parentElement) translateNodeTree(node.parentElement);
+      }));
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  loadCatalog(defaultLanguage);
 
   async function api(path, options = {}) {
     const startedAt = performance.now();
@@ -502,7 +350,8 @@
   }
 
   function applyLanguage(language) {
-    currentLanguage = translations[language] ? language : "en";
+    const requestedLanguage = loadCatalog(language) ? language : defaultLanguage;
+    currentLanguage = requestedLanguage;
     document.documentElement.lang = currentLanguage;
     document.querySelectorAll("[data-ui-language]").forEach((select) => {
       select.value = currentLanguage;
@@ -513,12 +362,35 @@
     document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
       element.placeholder = t(element.dataset.i18nPlaceholder);
     });
+    document.querySelectorAll("[data-i18n-title]").forEach((element) => {
+      element.title = t(element.dataset.i18nTitle);
+    });
+    document.querySelectorAll("[data-i18n-aria-label]").forEach((element) => {
+      element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
+    });
+    document.querySelectorAll("[data-i18n-value]").forEach((element) => {
+      element.value = t(element.dataset.i18nValue);
+    });
+    translateNodeTree(document.body);
+    document.title = translateLiteral(originalDocumentTitle);
     document.dispatchEvent(new CustomEvent("localmeet:languagechange", {
       detail: { language: currentLanguage },
     }));
   }
 
+  function populateLanguageControls() {
+    const options = Object.entries(languageNames)
+      .map(([code, name]) => `<option value="${escapeHTML(code)}">${escapeHTML(name)}</option>`)
+      .join("");
+    document.querySelectorAll("[data-ui-language]").forEach((select) => {
+      if (select.dataset.languagesLoaded) return;
+      select.innerHTML = options;
+      select.dataset.languagesLoaded = "true";
+    });
+  }
+
   function bindLanguageControls() {
+    populateLanguageControls();
     const controls = document.querySelectorAll("[data-ui-language]");
     controls.forEach((control) => {
       control.addEventListener("change", async () => {
@@ -536,11 +408,11 @@
     });
     api("/api/settings")
       .then((preferences) => {
-        applyLanguage(preferences.ui_language || "en");
+        applyLanguage(preferences.ui_language || defaultLanguage);
         applyTheme(preferences.ui_theme || "system");
       })
       .catch(() => {
-        applyLanguage("en");
+        applyLanguage(defaultLanguage);
         applyTheme(document.documentElement.dataset.themePreference || "system");
       });
   }
@@ -868,6 +740,7 @@
   }
 
   bindNavigation();
+  observeLiteralTranslations();
   document.addEventListener("click", (event) => {
     const link = event.target.closest("a[href]");
     if (link && link.origin === window.location.origin && !link.target) {
@@ -890,6 +763,9 @@
     api,
     escapeHTML,
     formatDate,
+    formatLocaleDate,
+    t,
+    applyLanguage,
     formatDuration,
     formatBytes,
     renderJobCard,
