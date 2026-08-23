@@ -104,17 +104,18 @@ Whisper, Sherpa-ONNX, or a particular language model.
 4. Open `http://127.0.0.1:8765` in your browser.
 
 The bootstrap installer checks for Git and Python 3.11 or newer, installs
-missing prerequisites for the current Windows user, clones or updates
-Meet2Notes, and runs the normal isolated-environment installer. It does not
-install Python packages globally.
+missing prerequisites for the current Windows user, clones Meet2Notes, and
+runs the normal isolated-environment installer. On an existing installation it
+delegates to the safe stable-Release updater. It does not install Python
+packages globally.
 
 The installation folder is deterministic: the installer creates a
 `Meet2Notes` folder beside the downloaded `.bat`. For example, a file saved as
 `C:\Users\Name\Downloads\install-update.bat` installs the application in
 `C:\Users\Name\Downloads\Meet2Notes`. Move the `.bat` to another writable
 folder before running it if you want the application installed elsewhere.
-Re-running the same file updates that installation and repairs its Python
-environment when necessary.
+Re-running the same file checks for a newer stable Release. `update.bat` can be
+run directly for the same purpose.
 
 > Windows may show a SmartScreen warning because this open-source batch file is
 > not code-signed. Review its contents before running it and download it only
@@ -518,6 +519,20 @@ Meet2Notes binds to `127.0.0.1` by default and is not exposed to the network
 unless the host setting is changed explicitly. A single-instance lock prevents
 accidentally starting two servers against the same data directory.
 
+### Safe stable updates
+
+Before starting the server, `start.bat` checks at most once every 24 hours for
+a newer stable GitHub Release. If one exists, the user can accept it or defer
+the notification. `update.bat` provides the same check manually.
+
+The updater never follows arbitrary commits from `main`. It accepts only
+`vX.Y.Z` tags from the official repository, requires a clean Git checkout and
+a stopped application, and creates a consistent SQLite backup before changing
+the source. Settings, meetings, recordings, summaries, RAG data, models, and
+custom storage locations are preserved. New settings parameters receive their
+new defaults without overwriting stored values. See [Safe updates](docs/updating.md)
+for the complete transaction and recovery model.
+
 ## Model installation and storage
 
 The default installer downloads Faster Whisper Small, Sherpa-ONNX diarization,
@@ -566,8 +581,9 @@ reported without coupling the remaining engines to that implementation.
 - There is no telemetry and no automatic cloud upload.
 - Local engines do not require an Internet connection after their packages and
   weights are installed.
-- Network access occurs only for an explicit model download or when the user
-  selects a remote LiteLLM provider.
+- Network access occurs for the short cached GitHub Release check, an explicit
+  update or model download, or when the user selects a remote LiteLLM provider.
+  The update check sends no meeting data or telemetry.
 - Provider secrets use the OS keyring; the Pyannote download token is read from
   `.env` or the process environment.
 - `.env`, databases, recordings, model weights, logs, benchmarks, local path

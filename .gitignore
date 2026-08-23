@@ -40,6 +40,8 @@ landing/
 *.mov
 .tmp-*/
 .meet2notes-data-location.json
+.meet2notes-update-cache.json
+.meet2notes-update-request.json
 .meet2notes.instance.lock*
 .DS_Store
 Thumbs.db

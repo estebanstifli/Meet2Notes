@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, cast
 
@@ -101,7 +102,19 @@ def configured_values(
     defaults: dict[str, Any],
 ) -> dict[str, Any]:
     configured = preferences.get_all().get(key, {})
-    return {**defaults, **(configured if isinstance(configured, dict) else {})}
+    return merge_defaults(defaults, configured if isinstance(configured, dict) else {})
+
+
+def merge_defaults(defaults: dict[str, Any], configured: dict[str, Any]) -> dict[str, Any]:
+    """Add new defaults recursively without changing previously stored values."""
+    merged = deepcopy(defaults)
+    for key, value in configured.items():
+        default = merged.get(key)
+        if isinstance(default, dict) and isinstance(value, dict):
+            merged[key] = merge_defaults(default, value)
+        else:
+            merged[key] = deepcopy(value)
+    return merged
 
 
 class DiarizationService:

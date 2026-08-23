@@ -23,6 +23,7 @@ echo.
 REM When this file is already inside the repository, update in place.
 if exist "%~dp0.git" if exist "%~dp0install.ps1" (
     set "REPOSITORY_PATH=%~dp0"
+    set "EXISTING_INSTALLATION=1"
     goto :repository_ready
 )
 
@@ -41,6 +42,7 @@ if exist "%REPOSITORY_PATH%" (
         echo   %REPOSITORY_PATH%
         goto :failed
     )
+    set "EXISTING_INSTALLATION=1"
 ) else (
     echo Cloning Meet2Notes...
     git clone "%REPO_URL%" "%REPOSITORY_PATH%"
@@ -53,6 +55,13 @@ if exist "%REPOSITORY_PATH%" (
 :repository_ready
 call :ensure_git
 if errorlevel 1 goto :failed
+
+if "%EXISTING_INSTALLATION%"=="1" if exist "%REPOSITORY_PATH%\update.bat" (
+    echo Existing Meet2Notes installation detected.
+    echo Handing off to the safe release updater...
+    call "%REPOSITORY_PATH%\update.bat"
+    exit /b !ERRORLEVEL!
+)
 
 pushd "%REPOSITORY_PATH%"
 if errorlevel 1 (
@@ -99,13 +108,13 @@ pause
 exit /b 0
 
 :help
-echo Meet2Notes Windows installer and updater
+echo Meet2Notes Windows installer
 echo.
 echo Usage: install-update.bat
 echo.
 echo When downloaded separately, this file installs Meet2Notes in a
 echo "Meet2Notes" folder beside the installer. When run from inside an
-echo existing Meet2Notes repository, it updates that installation in place.
+echo existing Meet2Notes repository, it delegates to the safe update.bat updater.
 exit /b 0
 
 :ensure_git
