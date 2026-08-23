@@ -7,7 +7,7 @@ import re
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
-
+from typing import ClassVar
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCALES = ROOT / "src" / "local_meeting_ai" / "web" / "static" / "locales"
@@ -15,12 +15,29 @@ SCRIPTS = ROOT / "src" / "local_meeting_ai" / "web" / "static" / "js"
 TEMPLATES = ROOT / "src" / "local_meeting_ai" / "web" / "templates"
 KEY_USE = re.compile(r'(?:Meet2Notes\.)?\bt\("([^"]+)"')
 TECHNICAL_LITERALS = {
-    ".venv", "0%", "00:00", "404", "English", "Meet2Notes", "×", "—", "✓",
-    "http://127.0.0.1:11434", "http://127.0.0.1:8080/v1",
+    ".venv",
+    "0%",
+    "00:00",
+    "404",
+    "English",
+    "Meet2Notes",
+    "\N{MULTIPLICATION SIGN}",
+    "\N{EM DASH}",
+    "\N{CHECK MARK}",
+    "http://127.0.0.1:11434",
+    "http://127.0.0.1:8080/v1",
     "https://automation.example.com/meet2notes",
 }
 IMMUTABLE_UI_TERMS = {
-    "RAG", "Webhook", "Webhooks", "Plugin", "Plugins", "Prompt", "Faster Whisper", "Word", "Markdown",
+    "RAG",
+    "Webhook",
+    "Webhooks",
+    "Plugin",
+    "Plugins",
+    "Prompt",
+    "Faster Whisper",
+    "Word",
+    "Markdown",
 }
 
 
@@ -36,8 +53,10 @@ def load_catalogs() -> dict[str, dict[str, object]]:
 
 
 class VisibleTemplateLiterals(HTMLParser):
-    ignored = {"script", "style", "svg", "path"}
-    attributes = {"title", "aria-label", "placeholder"}
+    ignored: ClassVar[frozenset[str]] = frozenset({"script", "style", "svg", "path"})
+    attributes: ClassVar[frozenset[str]] = frozenset(
+        {"title", "aria-label", "placeholder"}
+    )
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -47,7 +66,11 @@ class VisibleTemplateLiterals(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self.stack.append(tag)
         if not any(item in self.ignored for item in self.stack):
-            self.values.update(value.strip() for name, value in attrs if name in self.attributes and value and "{{" not in value)
+            self.values.update(
+                value.strip()
+                for name, value in attrs
+                if name in self.attributes and value and "{{" not in value
+            )
 
     def handle_endtag(self, tag: str) -> None:
         if self.stack:
@@ -55,7 +78,8 @@ class VisibleTemplateLiterals(HTMLParser):
 
     def handle_data(self, data: str) -> None:
         value = " ".join(data.split())
-        if value and "{{" not in value and "{%" not in value and not any(item in self.ignored for item in self.stack):
+        ignored = any(item in self.ignored for item in self.stack)
+        if value and "{{" not in value and "{%" not in value and not ignored:
             self.values.add(value)
 
 
@@ -82,7 +106,9 @@ def main() -> int:
             term for term in IMMUTABLE_UI_TERMS if catalog.get("literal", {}).get(term) != term
         )
         if immutable_mismatches:
-            errors.append(f"{locale}: immutable UI terms changed: {', '.join(immutable_mismatches)}")
+            errors.append(
+                f"{locale}: immutable UI terms changed: {', '.join(immutable_mismatches)}"
+            )
         if catalog.get("nav.prompt") != "Prompt":
             errors.append(f"{locale}: nav.prompt must remain Prompt")
 
@@ -93,20 +119,30 @@ def main() -> int:
     }
     absent = sorted(used_keys - source_keys)
     if absent:
-        errors.append(f"translation keys used by JavaScript but absent from en.json: {', '.join(absent)}")
+        errors.append(
+            "translation keys used by JavaScript but absent from en.json: "
+            + ", ".join(absent)
+        )
 
     collector = VisibleTemplateLiterals()
     for template in TEMPLATES.glob("*.html"):
         collector.feed(template.read_text(encoding="utf-8"))
     literals = set(catalogs["en"].get("literal", {}))
-    untranslated = sorted(value for value in collector.values if value not in literals and value not in TECHNICAL_LITERALS)
+    untranslated = sorted(
+        value
+        for value in collector.values
+        if value not in literals and value not in TECHNICAL_LITERALS
+    )
     if untranslated:
         errors.append(f"visible template literals absent from en.json: {', '.join(untranslated)}")
 
     if errors:
         print("UI internationalization check failed:", *errors, sep="\n- ")
         return 1
-    print(f"UI internationalization check passed ({len(catalogs)} locales, {len(source_keys)} keys).")
+    print(
+        "UI internationalization check passed "
+        f"({len(catalogs)} locales, {len(source_keys)} keys)."
+    )
     return 0
 
 

@@ -833,6 +833,7 @@ class PromptService:
             if attachment_id < 1 or key in seen:
                 continue
             seen.add(key)
+            attachment_meeting_id: int
             if kind == "transcription":
                 transcription = self.rag.transcriptions.get(attachment_id)
                 if not transcription or transcription.status != "completed":
@@ -853,6 +854,7 @@ class PromptService:
                     for segment in segments
                 )
                 label = transcription.title
+                attachment_meeting_id = transcription.meeting_id
                 meeting_title = meeting.title if meeting else f"Meeting {transcription.meeting_id}"
             elif kind == "summary":
                 summary = self.summaries.get(attachment_id)
@@ -863,6 +865,7 @@ class PromptService:
                 meeting = self.rag.meetings.get(summary.meeting_id)
                 content = summary.content_markdown
                 label = f"AI notes {summary.id}"
+                attachment_meeting_id = summary.meeting_id
                 meeting_title = meeting.title if meeting else f"Meeting {summary.meeting_id}"
             else:
                 raise ValidationError("Unsupported prompt attachment")
@@ -876,9 +879,7 @@ class PromptService:
                     "kind": kind,
                     "id": attachment_id,
                     "label": label,
-                    "meeting_id": (
-                        transcription.meeting_id if kind == "transcription" else summary.meeting_id
-                    ),
+                    "meeting_id": attachment_meeting_id,
                     "estimated_tokens": _estimated_tokens(content),
                 }
             )
