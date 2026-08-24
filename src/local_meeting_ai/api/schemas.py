@@ -336,6 +336,12 @@ class RagPreference(BaseModel):
         return self
 
 
+class McpPreference(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+
+
 class PreferenceUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -356,6 +362,7 @@ class PreferenceUpdate(BaseModel):
     summary_engine: SummaryEnginePreference = Field(default_factory=SummaryEnginePreference)
     diarization: DiarizationPreference = Field(default_factory=DiarizationPreference)
     rag: RagPreference = Field(default_factory=RagPreference)
+    mcp: McpPreference = Field(default_factory=McpPreference)
 
 
 class PreferenceResponse(BaseModel):
@@ -379,6 +386,22 @@ class PreferenceResponse(BaseModel):
     summary_engine: SummaryEnginePreference = Field(default_factory=SummaryEnginePreference)
     diarization: DiarizationPreference = Field(default_factory=DiarizationPreference)
     rag: RagPreference = Field(default_factory=RagPreference)
+    mcp: McpPreference = Field(default_factory=McpPreference)
+
+
+class McpClientConfigurationResponse(BaseModel):
+    client_id: str
+    name: str
+    format: Literal["JSON", "TOML"]
+    path: str
+    content: str
+
+
+class McpConfigurationResponse(BaseModel):
+    enabled: bool
+    server_name: str
+    claude_desktop: McpClientConfigurationResponse
+    codex_chatgpt: McpClientConfigurationResponse
 
 
 class RagIndexRequest(BaseModel):
@@ -590,6 +613,33 @@ class TranscriptionDetailResponse(BaseModel):
     segments: list[TranscriptSegmentResponse]
     speakers: list[SpeakerResponse] = []
     speaker_turns: list[SpeakerTurnResponse] = []
+
+
+class ActiveTranscriptPageResponse(BaseModel):
+    transcription: TranscriptionResponse
+    segments: list[TranscriptSegmentResponse]
+    speakers: list[SpeakerResponse] = []
+    has_more: bool
+    next_cursor: int | None = None
+
+
+class TranscriptSearchResult(BaseModel):
+    meeting_id: int
+    meeting_title: str
+    meeting_date: str
+    transcription_id: int
+    segment_index: int
+    start_ms: int
+    end_ms: int
+    speaker: str
+    text: str
+    keyword_score: float
+
+
+class TranscriptSearchResponse(BaseModel):
+    query: str
+    meeting_id: int | None
+    results: list[TranscriptSearchResult]
 
 
 class TranscriptionStartResponse(BaseModel):

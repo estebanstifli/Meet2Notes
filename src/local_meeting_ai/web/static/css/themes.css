@@ -614,6 +614,13 @@
   border-color: var(--line);
 }
 
+[data-theme="dark"] .mcp-enabled-row,
+[data-theme="dark"] .mcp-client-section + .mcp-client-section { border-color:#344055; }
+[data-theme="dark"] :is(.mcp-enabled-row strong, .mcp-client-heading strong) { color:#e7edf7; }
+[data-theme="dark"] :is(.mcp-enabled-row small, .mcp-status, .mcp-client-heading small, .mcp-client-note, .mcp-config-path) { color:#91a0b5; }
+[data-theme="dark"] .mcp-code { color:#d7e0ec; background:#111824; border-color:#344055; }
+[data-theme="dark"] .mcp-config-path code { color:#9fc2ff; }
+
 [data-theme="dark"] .live-assistant-behavior-option { background: #121b29; border-color: #334157; }
 [data-theme="dark"] .live-assistant-behavior-option:has(input:checked) { background: #172740; border-color: #4d82db; }
 [data-theme="dark"] .live-assistant-behavior-option strong { color: #dce5f2; }

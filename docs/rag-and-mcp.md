@@ -53,38 +53,40 @@ Meet2Notes model directory. The dedicated FastEmbed worker uses ONNX Runtime on 
 without PyTorch or an external Ollama service. The upstream FP32 ONNX files occupy
 about 2.3 GB; bulk indexing is still expected to be slower than small-model inference.
 
-## MCP: recommendation (analysis only)
+## MCP: implemented read-only boundary
 
 Do not start with an MCP server for the complete transcription system. That surface
 would immediately mix safe reads with recording control, deletion, model downloads,
 long-running jobs and filesystem access. Each of those needs separate permission,
 confirmation and progress semantics.
 
-The useful first MCP should be a **read-only historical-meetings MCP** implemented as
-a thin client of the application API, never as a second process that opens the
-SQLite file directly. Direct database access would bypass migrations, transcript
+The first MCP is a **read-only historical-meetings MCP** implemented as a thin
+client of the application API, never as a second process that opens the SQLite
+file directly. Direct database access would bypass migrations, transcript
 selection rules, chunk invalidation, embedding configuration and job coordination.
 
-Recommended first tool surface:
+Implemented tool surface:
 
-- `meetings.list(search?, date_from?, date_to?)`
-- `meetings.get_transcript(meeting_id, start_ms?, end_ms?)`
-- `meetings.search(query, meeting_id?, top_k?)`
-- `meetings.ask(question, meeting_id?, use_rag=true)`
-- `meetings.rag_status()`
+- `meet2notes_status()`
+- `list_meetings(query?, date_from?, date_to?, limit?)`
+- `get_meeting(meeting_id)`
+- `get_transcript(meeting_id, start_ms?, end_ms?, cursor?, segment_limit?)`
+- `get_summary(meeting_id, summary_id?, cursor?, max_chars?)`
+- `find_in_transcripts(query, meeting_id?, limit?)`
+- `search_meetings(query, meeting_id?, top_k?)`
 
-Useful MCP resources could expose stable read-only URIs such as
+Future MCP resources could expose stable read-only URIs such as
 `meet2notes://meetings/{id}` and `meet2notes://meetings/{id}/transcript`. Search
 results should preserve the same meeting/chunk/timestamp provenance returned by the
 HTTP API so clients can cite evidence.
 
-Security and lifecycle requirements before implementing it:
+Security and lifecycle boundary:
 
-- Bind to loopback by default and require an installation-specific bearer token,
-  even locally. Browser origin protections do not protect an MCP transport.
+- The MCP transport is `stdio` and opens no port. Its API gateway accepts only
+  loopback URLs unless the user explicitly opts into a remote backend.
 - Declare that transcript text and retrieved excerpts are sensitive local data.
-- Keep indexing explicit or query-driven. Never download BGE-M3 merely because an
-  MCP client connected.
+- Keep indexing explicit. MCP search sends `ensure_index=false` and never downloads
+  BGE-M3 merely because a client connected.
 - Return structured errors for a missing embedding runtime/model, incomplete transcripts and a
   disabled RAG; do not silently fall back to ungrounded answers.
 - Put response size and `top_k` caps on transcript/search tools.

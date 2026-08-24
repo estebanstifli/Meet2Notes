@@ -47,6 +47,29 @@ jobs:
       - run: ruff check .
       - run: mypy src
       - run: pytest
+      - name: Prepare release notes from changelog
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          version = re.escape(os.environ["RELEASE_VERSION"])
+          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          match = re.search(
+              rf"^## {version}[^\n]*\n\n(?P<body>.*?)(?=^## |\Z)",
+              changelog,
+              flags=re.MULTILINE | re.DOTALL,
+          )
+          if not match or not match.group("body").strip():
+              raise SystemExit(f"CHANGELOG.md has no notes for {os.environ['RELEASE_VERSION']}")
+          Path("release-notes.md").write_text(
+              match.group("body").strip() + "\n",
+              encoding="utf-8",
+          )
+          PY
       - name: Publish stable GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -59,4 +82,4 @@ jobs:
           gh release create "v${RELEASE_VERSION}" \
             --target "${GITHUB_SHA}" \
             --title "Meet2Notes ${RELEASE_VERSION}" \
-            --generate-notes
+            --notes-file release-notes.md

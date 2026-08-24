@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const { api, toast, applyTheme, escapeHTML } = window.Meet2Notes;
+  const { api, toast, applyTheme, escapeHTML, t } = window.Meet2Notes;
   const $ = (selector) => document.querySelector(selector);
 
   const computeTypes = [
@@ -45,6 +45,7 @@
   let noteFormats = [];
   let pluginCatalog = [];
   let webhookCatalog = { settings: {}, endpoints: [], event_catalog: [], deliveries: [] };
+  let mcpConfiguration = null;
   let activeTranscriptionPurpose = "live";
   let installActivityCursor = 0;
   let installActivityTimer = null;
@@ -1534,7 +1535,7 @@
 
   async function loadSettings() {
     try {
-      const [preferences, info, capabilities, models, credential, formats, plugins, embeddings, webhooks, liveAssistant] = await Promise.all([
+      const [preferences, info, capabilities, models, credential, formats, plugins, embeddings, webhooks, liveAssistant, mcp] = await Promise.all([
         api("/api/settings"),
         api("/api/info"),
         api("/api/capabilities"),
@@ -1545,6 +1546,7 @@
         api("/api/models/embeddings"),
         api("/api/webhooks"),
         api("/api/live-assistant"),
+        api("/api/mcp/configuration"),
       ]);
       $("#ui-language").value = preferences.ui_language;
       $("#ui-theme").value = preferences.ui_theme || "system";
@@ -1566,6 +1568,7 @@
       renderEmbeddingCatalog(embeddings, preferences);
       renderAuxiliaryCapabilities(capabilities);
       renderSystem(info, capabilities);
+      renderMcpConfiguration(mcp);
       defaultModelsDirectory = info.default_models_directory || "";
       const profiles = await api("/api/models/transcription");
       renderTranscriptionCatalog(profiles, preferences);
@@ -1573,6 +1576,39 @@
     } catch (error) {
       toast(error.message, "error");
     }
+  }
+
+  function renderMcpConfiguration(configuration) {
+    mcpConfiguration = configuration;
+    $("#mcp-enabled").checked = configuration.enabled !== false;
+    $("#mcp-claude-config").textContent = configuration.claude_desktop.content;
+    $("#mcp-codex-config").textContent = configuration.codex_chatgpt.content;
+    $("#mcp-claude-path").textContent = configuration.claude_desktop.path;
+    $("#mcp-codex-path").textContent = configuration.codex_chatgpt.path;
+    $("#mcp-status").textContent = configuration.enabled !== false
+      ? t("mcp.status_enabled")
+      : t("mcp.status_disabled");
+  }
+
+  async function copyMcpConfiguration(client) {
+    const configuration = client === "claude"
+      ? mcpConfiguration?.claude_desktop
+      : mcpConfiguration?.codex_chatgpt;
+    if (!configuration) throw new Error(t("mcp.configuration_loading"));
+    try {
+      await navigator.clipboard.writeText(configuration.content);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = configuration.content;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.append(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      textarea.remove();
+    }
+    toast(t("mcp.configuration_copied", { format: configuration.format }));
   }
 
   async function refreshEngineCapability() {
@@ -1601,6 +1637,50 @@
   });
   $("#rag-enabled")?.addEventListener("change", updateRagFields);
   $("#rag-vector-store")?.addEventListener("change", updateRagVectorStoreFields);
+  $("#mcp-enabled")?.addEventListener("change", async (event) => {
+    const control = event.currentTarget;
+    control.disabled = true;
+    try {
+      const preferences = await api("/api/settings", {
+        method: "PUT",
+        body: JSON.stringify({ mcp: { enabled: control.checked } }),
+      });
+      if (mcpConfiguration) {
+        renderMcpConfiguration({ ...mcpConfiguration, enabled: preferences.mcp.enabled });
+      }
+      toast(control.checked ? t("mcp.access_enabled") : t("mcp.access_disabled"));
+      setSavedState(t("mcp.preference_saved"));
+    } catch (error) {
+      control.checked = !control.checked;
+      toast(error.message, "error");
+    } finally {
+      control.disabled = false;
+    }
+  });
+  document.querySelectorAll("[data-mcp-copy]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      try {
+        await copyMcpConfiguration(button.dataset.mcpCopy);
+      } catch (error) {
+        toast(error.message, "error");
+      }
+    });
+  });
+  document.querySelectorAll("[data-mcp-open]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        await api(`/api/mcp/configuration/${encodeURIComponent(button.dataset.mcpOpen)}/open`, {
+          method: "POST",
+        });
+        toast(t("mcp.configuration_opened"));
+      } catch (error) {
+        toast(error.message, "error");
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
 
   document.querySelectorAll("[data-settings-tab]").forEach((tab) => {
     tab.addEventListener("click", () => {

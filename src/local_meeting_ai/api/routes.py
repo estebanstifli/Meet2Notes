@@ -12,7 +12,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -37,6 +37,7 @@ from local_meeting_ai.adapters.summary.credentials import (
 )
 from local_meeting_ai.api.dependencies import get_container
 from local_meeting_ai.api.schemas import (
+    ActiveTranscriptPageResponse,
     AudioCaptureSourceResponse,
     AudioSourcesResponse,
     DiarizationStartRequest,
@@ -48,6 +49,7 @@ from local_meeting_ai.api.schemas import (
     LiveCaptureStart,
     LiveCaptureStop,
     LiveCaptureStopResponse,
+    McpConfigurationResponse,
     MeetingCreate,
     MeetingResponse,
     MeetingUpdate,
@@ -80,6 +82,8 @@ from local_meeting_ai.api.schemas import (
     TranscriptionResponse,
     TranscriptionStartResponse,
     TranscriptionTitleUpdate,
+    TranscriptSearchResponse,
+    TranscriptSearchResult,
     TranscriptSegmentResponse,
 )
 from local_meeting_ai.application.ai_services import (
@@ -95,11 +99,56 @@ from local_meeting_ai.domain.errors import (
     NotFoundError,
     ValidationError,
 )
+from local_meeting_ai.mcp.configuration import (
+    MCP_SERVER_NAME,
+    desktop_client_configurations,
+    is_mcp_enabled,
+    open_desktop_client_config,
+)
 from local_meeting_ai.paths import default_models_directory, schedule_data_directory_move
 
 router = APIRouter(prefix="/api")
 ContainerDependency = Annotated[Container, Depends(get_container)]
 logger = logging.getLogger(__name__)
+
+
+@router.get("/mcp/status")
+def mcp_status(container: ContainerDependency) -> dict[str, bool]:
+    return {"enabled": is_mcp_enabled(container.preferences.get_all())}
+
+
+@router.get("/mcp/configuration", response_model=McpConfigurationResponse)
+def mcp_configuration(container: ContainerDependency) -> McpConfigurationResponse:
+    configurations = desktop_client_configurations()
+    claude = configurations["claude-desktop"]
+    codex = configurations["codex-chatgpt"]
+    return McpConfigurationResponse(
+        enabled=is_mcp_enabled(container.preferences.get_all()),
+        server_name=MCP_SERVER_NAME,
+        claude_desktop={
+            "client_id": claude.client_id,
+            "name": claude.name,
+            "format": claude.format,
+            "path": str(claude.path),
+            "content": claude.content,
+        },
+        codex_chatgpt={
+            "client_id": codex.client_id,
+            "name": codex.name,
+            "format": codex.format,
+            "path": str(codex.path),
+            "content": codex.content,
+        },
+    )
+
+
+@router.post("/mcp/configuration/{client_id}/open")
+def open_mcp_configuration(client_id: str) -> dict[str, str]:
+    try:
+        configuration = open_desktop_client_config(client_id)
+    except (OSError, ValueError) as error:
+        raise ValidationError(f"Could not open the MCP configuration file: {error}") from error
+    return {"path": str(configuration.path)}
 
 
 @router.get("/rag/status")
@@ -1305,13 +1354,28 @@ async def start_summary(
 def list_summaries(
     meeting_id: int,
     container: ContainerDependency,
+    include_content: bool = True,
 ) -> list[SummaryResponse]:
     if not container.meetings.get(meeting_id):
         raise NotFoundError("Meeting not found")
-    return [
+    summaries = [
         SummaryResponse.model_validate(summary)
         for summary in container.summaries.list_for_meeting(meeting_id)
     ]
+    if include_content:
+        return summaries
+    return [
+        summary.model_copy(update={"content_markdown": None, "structured": None})
+        for summary in summaries
+    ]
+
+
+@router.get("/summaries/{summary_id}", response_model=SummaryResponse)
+def get_summary(summary_id: int, container: ContainerDependency) -> SummaryResponse:
+    summary = container.summaries.get(summary_id)
+    if not summary:
+        raise NotFoundError("AI notes not found")
+    return SummaryResponse.model_validate(summary)
 
 
 @router.patch("/summaries/{summary_id}", response_model=SummaryResponse)
@@ -1810,11 +1874,20 @@ def _finish_background_task(
 def list_meetings(
     container: ContainerDependency,
     search: str | None = Query(default=None, max_length=200),
+    date_from: date | None = None,
+    date_to: date | None = None,
     limit: int = Query(default=100, ge=1, le=500),
 ) -> list[MeetingResponse]:
+    if date_from and date_to and date_from > date_to:
+        raise ValidationError("date_from cannot be after date_to")
     return [
         MeetingResponse.model_validate(item)
-        for item in container.meeting_service.list(search=search, limit=limit)
+        for item in container.meeting_service.list(
+            search=search,
+            date_from=date_from.isoformat() if date_from else None,
+            date_to=date_to.isoformat() if date_to else None,
+            limit=limit,
+        )
     ]
 
 
@@ -1958,6 +2031,72 @@ def list_transcriptions(
         TranscriptionResponse.model_validate(item)
         for item in container.transcription_service.list(meeting_id)
     ]
+
+
+@router.get(
+    "/meetings/{meeting_id}/transcript",
+    response_model=ActiveTranscriptPageResponse,
+)
+def active_transcript_page(
+    meeting_id: int,
+    container: ContainerDependency,
+    cursor: int = Query(default=-1, ge=-1),
+    start_ms: int | None = Query(default=None, ge=0),
+    end_ms: int | None = Query(default=None, ge=0),
+    limit: int = Query(default=100, ge=1, le=200),
+) -> ActiveTranscriptPageResponse:
+    if start_ms is not None and end_ms is not None and start_ms > end_ms:
+        raise ValidationError("start_ms cannot be after end_ms")
+    if not container.meetings.get(meeting_id):
+        raise NotFoundError("Meeting not found")
+    transcription = container.transcriptions.active_for_meeting(meeting_id)
+    if not transcription or transcription.status != "completed":
+        raise NotFoundError("A completed active transcript is not available")
+    segments, has_more = container.transcriptions.segment_page(
+        transcription.id,
+        after_segment_index=cursor,
+        start_ms=start_ms,
+        end_ms=end_ms,
+        limit=limit,
+    )
+    speakers = container.transcriptions.speakers_for_transcription(transcription.id)
+    return ActiveTranscriptPageResponse(
+        transcription=TranscriptionResponse.model_validate(transcription),
+        segments=[TranscriptSegmentResponse.model_validate(item) for item in segments],
+        speakers=[SpeakerResponse.model_validate(item) for item in speakers],
+        has_more=has_more,
+        next_cursor=segments[-1].segment_index if has_more and segments else None,
+    )
+
+
+@router.get("/transcriptions/search", response_model=TranscriptSearchResponse)
+def search_transcripts(
+    container: ContainerDependency,
+    query: str = Query(min_length=1, max_length=1000),
+    meeting_id: int | None = Query(default=None, ge=1),
+    limit: int = Query(default=20, ge=1, le=50),
+) -> TranscriptSearchResponse:
+    clean_query = query.strip()
+    if not clean_query:
+        raise ValidationError("A transcript search query is required")
+    if meeting_id is not None and not container.meetings.get(meeting_id):
+        raise NotFoundError("Meeting not found")
+    rows = container.transcriptions.search_active_segments(
+        clean_query,
+        meeting_id=meeting_id,
+        limit=limit,
+    )
+    return TranscriptSearchResponse(
+        query=clean_query,
+        meeting_id=meeting_id,
+        results=[
+            TranscriptSearchResult(
+                **{key: value for key, value in row.items() if key != "bm25_score"},
+                keyword_score=round(max(0.0, -float(row["bm25_score"])), 6),
+            )
+            for row in rows
+        ],
+    )
 
 
 @router.get(

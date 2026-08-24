@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## 0.6.0 - 2026-08-24
+
+- Added a local read-only MCP server for Claude Desktop, ChatGPT Desktop,
+  Codex, and compatible `stdio` clients, turning the private meeting archive
+  into a directly queryable AI knowledge source.
+- Added bounded MCP tools for meeting discovery, metadata, transcript pages,
+  completed AI notes, exact FTS5 keyword search, and existing hybrid RAG
+  evidence with meeting, speaker, timestamp, and source provenance.
+- Added generated Claude Desktop JSON and Codex/ChatGPT Desktop TOML
+  configuration in Settings, an explicit MCP access switch, local endpoint
+  discovery, loopback enforcement, and a read-only security boundary.
+- Added the post-meeting Meeting Assistant with meeting/all-history scope,
+  hybrid dense and BM25 retrieval, raw transcript and AI-note attachments,
+  context budgeting, and the dedicated assistant avatar.
+- Added the configurable Live AI Assistant behavior modes, priority direct
+  questions, deterministic question/trigger detection, conversation context,
+  and the redesigned movable, resizable, and minimizable widget.
+- Added safe stable updates from official GitHub Releases, including user
+  confirmation, SQLite backups, migration dry-runs, clean fast-forward checks,
+  dependency validation, rollback, and preservation of existing settings and
+  data directories.
 - Added compact rebuild, copy, Markdown edit, and save controls to meeting AI
   Notes, including Note Format selection, version preservation, manual-edit
   provenance, and navigation protection for unsaved changes.

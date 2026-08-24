@@ -2457,6 +2457,27 @@ svg {
   margin-top: 20px;
 }
 
+.mcp-clients-card { max-width: 980px; }
+.mcp-enabled-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 0 14px; border-bottom:1px solid #e4eae3; }
+.mcp-enabled-row strong,.mcp-enabled-row small { display:block; }
+.mcp-enabled-row strong { color:#33443c; font-size:10px; }
+.mcp-enabled-row small,.mcp-status,.mcp-client-heading small,.mcp-client-note { color:#82908a; font-size:8px; line-height:1.5; }
+.mcp-enabled-row small { margin-top:3px; max-width:660px; }
+.mcp-enabled-row .switch { flex:0 0 auto; justify-self:auto; }
+.mcp-status { margin:10px 0 0; }
+.mcp-client-section { padding-top:16px; }
+.mcp-client-section + .mcp-client-section { margin-top:16px; border-top:1px solid #e4eae3; }
+.mcp-client-heading { display:flex; gap:8px; align-items:flex-start; }
+.mcp-client-heading > svg { flex:0 0 auto; width:17px; height:17px; stroke:#557060; fill:none; stroke-width:1.7; }
+.mcp-client-heading strong,.mcp-client-heading small { display:block; }
+.mcp-client-heading strong { color:#33443c; font-size:9px; }
+.mcp-client-heading small { margin-top:3px; }
+.mcp-code { box-sizing:border-box; min-height:100px; max-height:250px; margin:11px 0; padding:12px; overflow:auto; background:#f4f7f5; border:1px solid #dce5de; border-radius:8px; color:#30413a; font:8px/1.65 ui-monospace,Consolas,monospace; white-space:pre; }
+.mcp-client-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.mcp-config-path { margin:10px 0 0; color:#82908a; font-size:8px; }
+.mcp-config-path code { color:#516a8c; font:inherit; overflow-wrap:anywhere; }
+.mcp-client-note { margin:6px 0 0; }
+
 .system-card .system-list {
   margin: 0;
 }

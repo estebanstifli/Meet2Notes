@@ -52,8 +52,20 @@ class MeetingService:
         self.storage.ensure_meeting(meeting.uuid)
         return meeting
 
-    def list(self, *, search: str | None = None, limit: int = 100) -> list[Meeting]:
-        return self.meetings.list(search=_clean_optional(search), limit=limit)
+    def list(
+        self,
+        *,
+        search: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        limit: int = 100,
+    ) -> list[Meeting]:
+        return self.meetings.list(
+            search=_clean_optional(search),
+            date_from=date_from,
+            date_to=date_to,
+            limit=limit,
+        )
 
     def get(self, meeting_id: int) -> Meeting:
         meeting = self.meetings.get(meeting_id)

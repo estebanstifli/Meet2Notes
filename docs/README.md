@@ -19,12 +19,14 @@ and future plans do not become mixed together.
   signatures, Live agents, security, and rules for future changes.
 - [Live AI Assistant](live-ai-assistant.md): native real-time assistant,
   independent worker, settings, persistence, API, and resource limits.
+- [Local MCP server](mcp.md): read-only desktop-client integration, lifecycle,
+  tools, configuration, and security boundary.
 
 ## Product direction and research
 
 - [Roadmap](roadmap.md): completed foundations and planned work.
-- [RAG and MCP analysis](rag-and-mcp.md): design research; not all options are
-  implemented.
+- [RAG and MCP analysis](rag-and-mcp.md): historical design research behind the
+  implemented retrieval and MCP boundaries.
 - [AI engine research](ai-engine-research.md): model/runtime evaluation notes;
   not a user guide or stable API.
 

@@ -75,6 +75,31 @@
           </section>
           <div class="settings-actions"><button class="button primary" type="submit">Save general settings</button></div>
         </form>
+        <section class="general-card mcp-clients-card" aria-labelledby="mcp-clients-title">
+          <div class="general-card-heading">
+            <span class="settings-icon engine-blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/><circle cx="12" cy="12" r="9"/></svg></span>
+            <div><strong id="mcp-clients-title" data-i18n="mcp.title">MCP desktop clients</strong><small data-i18n="mcp.description">Use the generated local stdio configuration to let Claude Desktop, Codex or ChatGPT Desktop read your meetings, transcripts, AI notes and RAG results.</small></div>
+          </div>
+          <label class="mcp-enabled-row">
+            <span><strong data-i18n="mcp.enable">Enable desktop MCP access</strong><small data-i18n="mcp.enable_help">When disabled, configured desktop clients cannot read Meet2Notes data. Their configuration files are kept unchanged.</small></span>
+            <span class="switch"><input id="mcp-enabled" type="checkbox"><i></i></span>
+          </label>
+          <p class="mcp-status" id="mcp-status" aria-live="polite" data-i18n="mcp.loading">Loading MCP configuration…</p>
+          <section class="mcp-client-section" aria-labelledby="mcp-claude-title">
+            <div class="mcp-client-heading"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="7" width="16" height="11" rx="2"/><path d="M8 7V5h8v2M9 12h6M12 9v6"/></svg><div><strong id="mcp-claude-title" data-i18n="mcp.claude_title">Claude Desktop</strong><small data-i18n="mcp.claude_help">Add or merge this JSON server entry into Claude Desktop’s configuration file.</small></div></div>
+            <pre class="mcp-code"><code id="mcp-claude-config">Loading…</code></pre>
+            <div class="mcp-client-actions"><button class="button secondary" type="button" data-mcp-copy="claude" data-i18n="mcp.copy_json">Copy JSON</button><button class="button secondary" type="button" data-mcp-open="claude-desktop" data-i18n="mcp.open_claude">Open Claude config</button></div>
+            <p class="mcp-config-path"><span data-i18n="mcp.configuration_file">Configuration file:</span> <code id="mcp-claude-path">Loading…</code></p>
+            <p class="mcp-client-note" data-i18n="mcp.claude_restart">After saving, fully restart Claude Desktop to reload the local server.</p>
+          </section>
+          <section class="mcp-client-section" aria-labelledby="mcp-codex-title">
+            <div class="mcp-client-heading"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="m8 10 3 2-3 2M13 15h3"/></svg><div><strong id="mcp-codex-title" data-i18n="mcp.codex_title">Codex / ChatGPT Desktop</strong><small data-i18n="mcp.codex_help">Codex and the ChatGPT desktop app share this TOML MCP configuration.</small></div></div>
+            <pre class="mcp-code"><code id="mcp-codex-config">Loading…</code></pre>
+            <div class="mcp-client-actions"><button class="button secondary" type="button" data-mcp-copy="codex" data-i18n="mcp.copy_toml">Copy TOML</button><button class="button secondary" type="button" data-mcp-open="codex-chatgpt" data-i18n="mcp.open_codex">Open Codex config</button></div>
+            <p class="mcp-config-path"><span data-i18n="mcp.configuration_file">Configuration file:</span> <code id="mcp-codex-path">Loading…</code></p>
+            <p class="mcp-client-note" data-i18n="mcp.codex_restart">After saving, restart Codex or ChatGPT Desktop so it reloads the shared configuration.</p>
+          </section>
+        </section>
         <section class="general-card system-card">
           <div class="general-card-heading diagnostic-heading"><span class="settings-icon dark"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><div><strong>System &amp; Diagnostic</strong><small>Runtime, hardware and media capabilities detected on this computer.</small></div><button class="button primary" id="run-diagnostics" type="button">Run diagnostics</button></div>
           <dl class="system-list">

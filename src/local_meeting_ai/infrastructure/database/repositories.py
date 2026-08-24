@@ -239,17 +239,33 @@ class MeetingRepository:
         assert meeting is not None
         return meeting
 
-    def list(self, *, search: str | None = None, limit: int = 100) -> list[Meeting]:
+    def list(
+        self,
+        *,
+        search: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        limit: int = 100,
+    ) -> list[Meeting]:
         query = """
             SELECT m.*, COUNT(r.id) AS recording_count
             FROM meetings m
             LEFT JOIN recordings r ON r.meeting_id = m.id
         """
         parameters: list[Any] = []
+        conditions: list[str] = []
         if search:
-            query += " WHERE m.title LIKE ? OR COALESCE(m.description, '') LIKE ?"
+            conditions.append("(m.title LIKE ? OR COALESCE(m.description, '') LIKE ?)")
             term = f"%{search}%"
             parameters.extend((term, term))
+        if date_from:
+            conditions.append("date(COALESCE(m.started_at, m.created_at)) >= date(?)")
+            parameters.append(date_from)
+        if date_to:
+            conditions.append("date(COALESCE(m.started_at, m.created_at)) <= date(?)")
+            parameters.append(date_to)
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
         query += " GROUP BY m.id ORDER BY m.created_at DESC LIMIT ?"
         parameters.append(limit)
         with self.database.read() as connection:
@@ -780,6 +796,84 @@ class TranscriptionRepository:
                 (transcription_id,),
             ).fetchall()
         return [_segment_from_row(row) for row in rows]
+
+    def segment_page(
+        self,
+        transcription_id: int,
+        *,
+        after_segment_index: int = -1,
+        start_ms: int | None = None,
+        end_ms: int | None = None,
+        limit: int = 100,
+    ) -> tuple[list[TranscriptSegment], bool]:
+        conditions = ["transcription_id = ?", "segment_index > ?"]
+        parameters: list[Any] = [transcription_id, after_segment_index]
+        if start_ms is not None:
+            conditions.append("end_ms >= ?")
+            parameters.append(start_ms)
+        if end_ms is not None:
+            conditions.append("start_ms <= ?")
+            parameters.append(end_ms)
+        bounded_limit = max(1, min(int(limit), 200))
+        parameters.append(bounded_limit + 1)
+        with self.database.read() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT * FROM transcript_segments
+                WHERE {" AND ".join(conditions)}
+                ORDER BY segment_index
+                LIMIT ?
+                """,
+                parameters,
+            ).fetchall()
+        has_more = len(rows) > bounded_limit
+        return (
+            [_segment_from_row(row) for row in rows[:bounded_limit]],
+            has_more,
+        )
+
+    def search_active_segments(
+        self,
+        query: str,
+        *,
+        meeting_id: int | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        terms = [
+            value for value in re.findall(r"[^\W_]+", query, flags=re.UNICODE) if len(value) > 1
+        ]
+        if not terms:
+            return []
+        match_query = " OR ".join(
+            f'"{value.replace(chr(34), chr(34) * 2)}"' for value in terms[:32]
+        )
+        conditions = ["t.is_active = 1", "t.status = 'completed'"]
+        parameters: list[Any] = [match_query]
+        if meeting_id is not None:
+            conditions.append("t.meeting_id = ?")
+            parameters.append(meeting_id)
+        parameters.append(max(1, min(int(limit), 50)))
+        with self.database.read() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT m.id AS meeting_id, m.title AS meeting_title,
+                       COALESCE(m.started_at, m.created_at) AS meeting_date,
+                       t.id AS transcription_id, ts.segment_index,
+                       ts.start_ms, ts.end_ms, ts.text,
+                       COALESCE(s.display_name, 'Speaker') AS speaker,
+                       bm25(transcript_search, 0.0, 0.5, 2.0) AS bm25_score
+                FROM transcript_search
+                JOIN transcript_segments ts ON ts.id = transcript_search.segment_id
+                JOIN transcriptions t ON t.id = ts.transcription_id
+                JOIN meetings m ON m.id = t.meeting_id
+                LEFT JOIN speakers s ON s.id = ts.speaker_id
+                WHERE transcript_search MATCH ? AND {" AND ".join(conditions)}
+                ORDER BY bm25_score
+                LIMIT ?
+                """,
+                parameters,
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def get_segment(self, segment_id: int) -> TranscriptSegment | None:
         with self.database.read() as connection:

@@ -43,6 +43,41 @@ Whisper, Sherpa-ONNX, or a particular language model.
 > Meet2Notes is in active alpha development. Back up important recordings and
 > obtain every consent required before recording a conversation.
 
+## Meet2Notes 0.6.0: your meeting memory, available to your AI
+
+Version 0.6.0 turns Meet2Notes into a private knowledge source for the desktop
+AI tools people already use. Its new local **Model Context Protocol (MCP)**
+server connects **Claude Desktop, ChatGPT Desktop, Codex**, and compatible MCP
+clients to completed meetings without copying the Meet2Notes database or
+introducing another cloud service.
+
+Instead of manually finding and pasting old transcripts, users can ask their AI
+client to locate a meeting, inspect its metadata, read the relevant transcript
+or AI notes, and retrieve grounded evidence across the meeting library. This
+makes previous conversations useful in the next proposal, status report,
+decision review, customer follow-up, or project handover while the source data
+remains under the user's control.
+
+| What the user can do | Why it matters |
+|---|---|
+| Ask which meeting discussed a person, project, decision, date, or identifier | Turns a growing archive into useful organizational memory |
+| Read a transcript or AI notes from Claude Desktop, ChatGPT Desktop, or Codex | Removes the repeated search-and-copy workflow |
+| Search exact terms with local FTS5 or concepts with hybrid RAG | Covers both precise facts and meaning-based discovery |
+| Follow meeting IDs, timestamps, speakers, and source excerpts | Keeps answers traceable to the original conversation |
+| Disable MCP access at any time from Settings | Gives the user an explicit local privacy control |
+
+Technically, every desktop client starts a lightweight `stdio` MCP process from
+the existing Meet2Notes virtual environment. That process talks only to the
+running application's bounded read API; it does not open `app.db`, load a second
+copy of the AI models, rebuild the RAG index, or expose recording, editing,
+deletion, settings, audio, or filesystem tools. Loopback is enforced by default,
+and multiple clients can safely use the same running Meet2Notes instance.
+
+Configuration snippets and their destination paths are generated in
+**Settings -> General -> MCP desktop clients**, ready to copy for Claude Desktop
+or for Codex/ChatGPT Desktop. See the [Local MCP server guide](docs/mcp.md) for
+setup, tools, lifecycle, and security details.
+
 ## Current features
 
 - Live recording from microphones, audio interfaces, Windows WASAPI loopback,
@@ -58,6 +93,9 @@ Whisper, Sherpa-ONNX, or a particular language model.
 - Historical RAG over one meeting or the full library, with BGE-M3 embeddings,
   persisted SQLite vectors, optional sqlite-vec acceleration, hybrid ranking,
   temporal queries, and timestamped source provenance.
+- A read-only local MCP server that lets Claude Desktop, ChatGPT Desktop, Codex,
+  and compatible clients query meetings, transcripts, AI notes, exact keyword
+  matches, and existing hybrid RAG evidence with source provenance.
 - A separate Prompt window that can use a complete selected transcript or embed
   each question and retrieve grounded context from every meeting.
 - A native Live AI Assistant that watches provisional transcript segments,
@@ -350,6 +388,24 @@ meeting, completed transcript versions and AI-note versions can also be attached
 raw context; the widget reports an estimated token budget and prevents oversized
 attachments from silently triggering expensive multi-pass processing. The legacy
 Prompt page remains available for compatibility.
+
+## Desktop AI clients through MCP
+
+Meet2Notes includes a read-only local MCP server for Claude Desktop, ChatGPT
+Desktop, Codex, VS Code, Cursor, and other clients that support `stdio`. Each
+client launches the Python module from the existing Meet2Notes virtual
+environment; no separate executable is distributed. The lightweight MCP
+processes all connect to the one running Meet2Notes instance, which remains the
+owner of the database, RAG index, and AI models.
+
+Available tools list meetings, read bounded transcript pages and completed AI
+notes, perform fast keyword search, and retrieve existing hybrid RAG evidence.
+Every result remains tied to its meeting and source context. The MCP integration
+never starts indexing or exposes capture, audio, settings, edits, or deletion
+operations. Meet2Notes also generates the exact Claude Desktop JSON and
+Codex/ChatGPT Desktop TOML snippets from Settings, including the correct local
+Python path. See [Local MCP server](docs/mcp.md) for Windows, Linux, and macOS
+configuration examples.
 
 ## Help translate Meet2Notes
 
