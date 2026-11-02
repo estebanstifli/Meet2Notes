@@ -131,7 +131,7 @@ svg {
 .brand small {
   margin-top: 2px;
   color: #9fb3ac;
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: .01em;
 }
 
@@ -218,20 +218,20 @@ svg {
 
 .privacy-card strong {
   color: #ecf3ef;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .privacy-card div > span {
   margin-top: 2px;
   color: #8fa69e;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .version-row {
   display: flex;
   justify-content: space-between;
   color: #718b82;
-  font-size: 9px;
+  font-size: 12px;
   letter-spacing: .02em;
 }
 
@@ -280,7 +280,7 @@ svg {
   align-items: center;
   gap: 8px;
   color: #718078;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 750;
   letter-spacing: .13em;
   text-transform: uppercase;
@@ -388,7 +388,7 @@ svg {
   color: #7d7b70;
   background: #ecece5;
   border-radius: 4px;
-  font-size: 7px;
+  font-size: 11px;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -429,7 +429,7 @@ svg {
 .metric-card > small {
   grid-column: 1 / -1;
   color: #909993;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .metric-card div:nth-child(2) strong,
@@ -448,7 +448,7 @@ svg {
 .metric-card div:nth-child(2) span {
   margin-top: 4px;
   color: #67736e;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -544,7 +544,7 @@ svg {
   background: transparent;
   border: 0;
   outline: 0;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .text-button {
@@ -552,7 +552,7 @@ svg {
   color: var(--green);
   background: none;
   border: 0;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 750;
 }
 
@@ -630,14 +630,14 @@ svg {
 
 .meeting-name strong {
   color: #2a3934;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .meeting-name span,
 .meeting-meta span {
   margin-top: 3px;
   color: #8a938f;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .meeting-meta strong,
@@ -647,7 +647,7 @@ svg {
 
 .meeting-meta strong {
   color: #52605b;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -680,7 +680,7 @@ svg {
   gap: 6px;
   padding: 4px 8px;
   border-radius: 20px;
-  font-size: 8px;
+  font-size: 11.5px;
   font-weight: 750;
   letter-spacing: .04em;
   text-transform: capitalize;
@@ -715,7 +715,7 @@ svg {
   align-items: center;
   gap: 6px;
   color: #7b8983;
-  font-size: 8px;
+  font-size: 11.5px;
   font-weight: 700;
 }
 
@@ -751,7 +751,7 @@ svg {
   max-width: 200px;
   margin: 5px auto 0;
   color: #8c9691;
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
@@ -797,13 +797,13 @@ svg {
 
 .job-card strong {
   color: #35443f;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .job-card p {
   margin: 5px 0 8px;
   color: #87918c;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .job-card .progress-track {
@@ -826,7 +826,7 @@ svg {
   color: #9a554d;
   background: transparent;
   border: 0;
-  font-size: 8px;
+  font-size: 11.5px;
   font-weight: 700;
 }
 
@@ -866,13 +866,13 @@ svg {
 
 .capability-strip strong {
   color: #44534e;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .capability-strip div span {
   margin-top: 2px;
   color: #929b96;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .mini-spinner {
@@ -937,7 +937,7 @@ svg {
   max-width: 290px;
   margin: 0 0 15px;
   color: #86908b;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.55;
 }
 
@@ -997,7 +997,7 @@ svg {
 .modal-header p {
   margin: 0;
   color: var(--ink-soft);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
@@ -1082,13 +1082,13 @@ svg {
 .drop-zone > span:not(.drop-icon) {
   margin-top: 4px;
   color: #738078;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .drop-zone small {
   margin-top: 13px;
   color: #9ba39e;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .drop-zone.has-file {
@@ -1104,7 +1104,7 @@ svg {
 
 .field > span {
   color: #4c5a55;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1125,7 +1125,7 @@ svg {
   border: 1px solid #dce1da;
   border-radius: 9px;
   outline: 0;
-  font-size: 11px;
+  font-size: 12px;
   transition: border .15s ease, box-shadow .15s ease;
 }
 
@@ -1160,7 +1160,7 @@ svg {
   justify-content: space-between;
   margin-bottom: 8px;
   color: #596861;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .progress-track {
@@ -1204,7 +1204,7 @@ svg {
   border: 1px solid rgba(255, 255, 255, .1);
   border-radius: 11px;
   box-shadow: 0 14px 40px rgba(16, 33, 27, .24);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.5;
   animation: toast-in .22s ease-out;
   pointer-events: auto;
@@ -1230,7 +1230,7 @@ svg {
   gap: 7px;
   margin-bottom: 25px;
   color: #8a948f;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -1273,7 +1273,7 @@ svg {
   align-items: center;
   gap: 9px;
   color: #8d9691;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .meeting-title-block h1 {
@@ -1293,7 +1293,7 @@ svg {
   margin: 0;
   overflow: hidden;
   color: #75807b;
-  font-size: 11px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1330,7 +1330,7 @@ svg {
   background: transparent;
   border: 0;
   border-radius: 8px;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1347,7 +1347,7 @@ svg {
   color: #929991;
   background: #dfe2db;
   border-radius: 4px;
-  font-size: 6px;
+  font-size: 11px;
   letter-spacing: .06em;
   text-transform: uppercase;
 }
@@ -1414,7 +1414,7 @@ svg {
 .recording-name strong {
   overflow: hidden;
   color: #33423d;
-  font-size: 10px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1423,12 +1423,12 @@ svg {
 .recording-stat span {
   margin-top: 3px;
   color: #909994;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .recording-stat strong {
   color: #596660;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -1447,7 +1447,7 @@ svg {
 .recording-empty p {
   margin: 3px 0 0;
   color: #85908a;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .next-step-card {
@@ -1512,7 +1512,7 @@ svg {
   max-width: 490px;
   margin: 0;
   color: #a9beb5;
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1.6;
 }
 
@@ -1540,14 +1540,14 @@ svg {
 .detail-list dt,
 .system-list dt {
   color: #89938e;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .detail-list dd,
 .system-list dd {
   margin: 0;
   color: #4c5a55;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 650;
   text-align: right;
 }
@@ -1574,7 +1574,7 @@ svg {
   padding: 25px 10px;
   color: #929b96;
   content: "No processing jobs yet.";
-  font-size: 9px;
+  font-size: 12px;
   text-align: center;
 }
 
@@ -1608,7 +1608,7 @@ svg {
   max-width: 430px;
   margin: 0 auto;
   color: #77827d;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.6;
 }
 
@@ -1633,7 +1633,7 @@ svg {
   align-items: center;
   gap: 7px;
   color: #697771;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -1685,7 +1685,7 @@ svg {
   background: transparent;
   border: 0;
   border-radius: 7px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
   cursor: pointer;
 }
@@ -1750,7 +1750,7 @@ svg {
 .settings-section-header p {
   margin: 0;
   color: #89928e;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .settings-form {
@@ -1776,7 +1776,7 @@ svg {
 .comparison-grid p {
   margin: 0;
   color: #707d77;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.55;
 }
 
@@ -1787,7 +1787,7 @@ svg {
   color: #4c655b;
   background: #e6eee7;
   border-radius: 999px;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1812,7 +1812,7 @@ svg {
 .comparison-grid small {
   margin: 3px 0 8px;
   color: #4d755f;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1883,7 +1883,7 @@ svg {
 
 .engine-identity-copy .eyebrow {
   color: #9fb7de;
-  font-size: 7px;
+  font-size: 11px;
 }
 
 .engine-identity-copy strong {
@@ -1894,7 +1894,7 @@ svg {
 
 .engine-identity-copy small {
   color: #b9c8de;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .engine-provider-select {
@@ -1904,7 +1904,7 @@ svg {
 
 .engine-provider-select > span {
   color: #afc0da;
-  font-size: 7px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .07em;
   text-transform: uppercase;
@@ -1915,7 +1915,7 @@ svg {
   color: #eef4ff;
   background: rgba(255, 255, 255, .08);
   border-color: rgba(255, 255, 255, .2);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .engine-provider-select option {
@@ -1933,7 +1933,7 @@ svg {
   background: rgba(0, 0, 0, .14);
   border: 1px solid rgba(255, 255, 255, .12);
   border-radius: 20px;
-  font-size: 7px;
+  font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -1977,18 +1977,18 @@ svg {
 
 .engine-config-heading strong {
   color: #31423b;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .engine-config-heading small {
   margin-top: 3px;
   color: #89938e;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .engine-config-heading > span {
   color: #64736c;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .live-assistant-behavior-modes {
@@ -2020,8 +2020,8 @@ svg {
 .live-assistant-behavior-option span,
 .live-assistant-behavior-option strong,
 .live-assistant-behavior-option small { display: block; }
-.live-assistant-behavior-option strong { color: #293b53; font-size: 11px; }
-.live-assistant-behavior-option small { margin-top: 5px; color: #748297; font-size: 9px; line-height: 1.45; }
+.live-assistant-behavior-option strong { color: #293b53; font-size: 12px; }
+.live-assistant-behavior-option small { margin-top: 5px; color: #748297; font-size: 12px; line-height: 1.45; }
 
 .engine-field-grid {
   display: grid;
@@ -2153,7 +2153,7 @@ svg {
 
 .engine-field > span {
   color: #53615c;
-  font-size: 8px;
+  font-size: 11.5px;
   font-weight: 700;
 }
 
@@ -2163,7 +2163,7 @@ svg {
   width: 100%;
   min-width: 0;
   padding: 9px 10px;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .engine-field textarea {
@@ -2209,13 +2209,13 @@ svg {
 
 .engine-field small {
   color: #929b97;
-  font-size: 7px;
+  font-size: 11px;
   line-height: 1.45;
 }
 
 .native-engine-options .engine-field > strong {
   color: #2a3a32;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.35;
 }
 
@@ -2229,7 +2229,7 @@ svg {
   background: #f5f8fb;
   border: 1px solid #e5eaf0;
   border-radius: 8px;
-  font-size: 8px;
+  font-size: 11.5px;
   line-height: 1.5;
 }
 
@@ -2269,13 +2269,13 @@ svg {
 
 .engine-toggle strong {
   color: #4d5b55;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .engine-toggle small {
   margin-top: 3px;
   color: #929b97;
-  font-size: 7px;
+  font-size: 11px;
 }
 
 .realtime-config-group {
@@ -2310,12 +2310,12 @@ svg {
   align-items: center;
   justify-content: space-between;
   color: #4b5b54;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .realtime-parameter output {
   color: #276bf0;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 750;
 }
 
@@ -2326,7 +2326,7 @@ svg {
 
 .realtime-parameter small {
   color: #909a95;
-  font-size: 7px;
+  font-size: 11px;
   line-height: 1.45;
 }
 
@@ -2342,7 +2342,7 @@ svg {
 
 .engine-settings-actions > span {
   color: #68756f;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .setting-row {
@@ -2362,26 +2362,26 @@ svg {
 
 .setting-row > span:first-child strong {
   color: #42504b;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .setting-row > span:first-child small {
   margin-top: 3px;
   color: #8e9792;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .setting-row input,
 .setting-row select {
   padding: 9px 10px;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .setting-row > :last-child { grid-column: 2; }
 .setting-row .switch { justify-self: start; }
 .storage-locations-card { max-width: 980px; }
 .storage-location-row { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:13px 16px; margin-bottom:10px; background:#f7f9fb; border:1px solid #e1e7ef; border-radius:9px; }
-.storage-location-row strong,.storage-location-row small { display:block; }.storage-location-row small { margin-top:4px; color:#667085; font-family:ui-monospace,Consolas,monospace; font-size:8px; overflow-wrap:anywhere; }
+.storage-location-row strong,.storage-location-row small { display:block; }.storage-location-row small { margin-top:4px; color:#667085; font-family:ui-monospace,Consolas,monospace; font-size:11.5px; overflow-wrap:anywhere; }
 .inline-setting { grid-template-columns: max-content 92px minmax(0, 520px); }
 .port-setting { justify-content:start; }.port-setting input { width:92px; }
 .diagnostic-heading { align-items:center; }.diagnostic-heading > div { flex:1; }#diagnostics-dialog { width:min(860px, calc(100% - 28px)); overflow:hidden; }.diagnostics-modal { width:100%; max-width:100%; overflow:hidden; }.diagnostics-report { box-sizing:border-box; width:100%; min-width:0; min-height:390px; padding:12px; overflow:auto; resize:vertical; font:11px/1.5 ui-monospace,Consolas,monospace; white-space:pre-wrap; overflow-wrap:anywhere; }
@@ -2418,14 +2418,14 @@ svg {
 
 .general-card-heading strong {
   color: #33443c;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .general-card-heading small {
   max-width: 680px;
   margin-top: 3px;
   color: #82908a;
-  font-size: 8px;
+  font-size: 11.5px;
   line-height: 1.5;
 }
 
@@ -2438,18 +2438,18 @@ svg {
 
 .inline-setting > span {
   color: #53615c;
-  font-size: 8px;
+  font-size: 11.5px;
   font-weight: 700;
 }
 
 .inline-setting input {
   padding: 9px 10px;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .inline-setting small {
   color: #8a9590;
-  font-size: 8px;
+  font-size: 11.5px;
   line-height: 1.45;
 }
 
@@ -2460,8 +2460,8 @@ svg {
 .mcp-clients-card { max-width: 980px; }
 .mcp-enabled-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 0 14px; border-bottom:1px solid #e4eae3; }
 .mcp-enabled-row strong,.mcp-enabled-row small { display:block; }
-.mcp-enabled-row strong { color:#33443c; font-size:10px; }
-.mcp-enabled-row small,.mcp-status,.mcp-client-heading small,.mcp-client-note { color:#82908a; font-size:8px; line-height:1.5; }
+.mcp-enabled-row strong { color:#33443c; font-size:12px; }
+.mcp-enabled-row small,.mcp-status,.mcp-client-heading small,.mcp-client-note { color:#82908a; font-size:11.5px; line-height:1.5; }
 .mcp-enabled-row small { margin-top:3px; max-width:660px; }
 .mcp-enabled-row .switch { flex:0 0 auto; justify-self:auto; }
 .mcp-status { margin:10px 0 0; }
@@ -2470,11 +2470,11 @@ svg {
 .mcp-client-heading { display:flex; gap:8px; align-items:flex-start; }
 .mcp-client-heading > svg { flex:0 0 auto; width:17px; height:17px; stroke:#557060; fill:none; stroke-width:1.7; }
 .mcp-client-heading strong,.mcp-client-heading small { display:block; }
-.mcp-client-heading strong { color:#33443c; font-size:9px; }
+.mcp-client-heading strong { color:#33443c; font-size:12px; }
 .mcp-client-heading small { margin-top:3px; }
 .mcp-code { box-sizing:border-box; min-height:100px; max-height:250px; margin:11px 0; padding:12px; overflow:auto; background:#f4f7f5; border:1px solid #dce5de; border-radius:8px; color:#30413a; font:8px/1.65 ui-monospace,Consolas,monospace; white-space:pre; }
 .mcp-client-actions { display:flex; flex-wrap:wrap; gap:8px; }
-.mcp-config-path { margin:10px 0 0; color:#82908a; font-size:8px; }
+.mcp-config-path { margin:10px 0 0; color:#82908a; font-size:11.5px; }
 .mcp-config-path code { color:#516a8c; font:inherit; overflow-wrap:anywhere; }
 .mcp-client-note { margin:6px 0 0; }
 
@@ -2505,7 +2505,7 @@ svg {
   background: transparent;
   border: 0;
   border-bottom: 2px solid transparent;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 750;
   cursor: pointer;
 }
@@ -2545,14 +2545,14 @@ svg {
 
 .purpose-intro strong {
   color: #33443c;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .purpose-intro small {
   max-width: 690px;
   margin-top: 4px;
   color: #7d8984;
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
@@ -2568,7 +2568,7 @@ svg {
   display: block;
   margin-top: 4px;
   color: #7b8491;
-  font-size: 8px;
+  font-size: 11.5px;
   line-height: 1.4;
 }
 
@@ -2576,7 +2576,7 @@ svg {
   display: block;
   margin-top: 4px;
   color: #a66d21;
-  font-size: 8px;
+  font-size: 11.5px;
   font-weight: 650;
 }
 
@@ -2602,7 +2602,7 @@ svg {
   color: #71807a;
   background: #f4f7f9;
   border-bottom: 1px solid #e4eaf0;
-  font-size: 7px;
+  font-size: 11px;
   letter-spacing: .05em;
   text-transform: uppercase;
 }
@@ -2611,7 +2611,7 @@ svg {
   padding: 11px 12px;
   color: #596861;
   border-bottom: 1px solid #edf0ed;
-  font-size: 8px;
+  font-size: 11.5px;
   vertical-align: middle;
 }
 
@@ -2626,14 +2626,14 @@ svg {
 
 .model-table td strong {
   color: #34453d;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .model-table td small {
   max-width: 360px;
   margin-top: 3px;
   color: #88938e;
-  font-size: 7px;
+  font-size: 11px;
   line-height: 1.4;
 }
 
@@ -2655,7 +2655,7 @@ svg {
   color: #8a6250;
   background: #fff4ed;
   border-radius: 999px;
-  font-size: 7px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -2670,7 +2670,7 @@ svg {
   color: #287452;
   background: #e8f5ec;
   border-radius: 6px;
-  font-size: 7px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -2685,7 +2685,7 @@ svg {
   background: #edf3ff;
   border: 1px solid #d8e4f8;
   border-radius: 6px;
-  font-size: 7px;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -2731,21 +2731,21 @@ svg {
   background: #f8faf8;
   cursor: pointer;
   list-style: none;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
 }
 
 .advanced-settings > summary::-webkit-details-marker { display: none; }
 .advanced-settings > summary::after { content: "+"; color: #3873d7; font-size: 15px; }
 .advanced-settings[open] > summary::after { content: "−"; }
-.advanced-settings > summary small { color: #8a9590; font-size: 7px; font-weight: 500; }
+.advanced-settings > summary small { color: #8a9590; font-size: 11px; font-weight: 500; }
 
 .model-move-modal { max-width: 510px; }
 .model-install-modal { max-width: 620px; }
-.install-progress-copy { display: flex; justify-content: space-between; margin: 0 0 7px; color: #5c6d64; font-size: 8px; font-weight: 700; }
-.install-log-label { display: block; margin: 16px 0 6px; color: #4b5c53; font-size: 8px; font-weight: 700; }
-.install-log { width: 100%; height: 178px; padding: 10px; color: #dce8df; background: #16201b; border: 1px solid #2c3d33; border-radius: 8px; font-family: Consolas, "Courier New", monospace; font-size: 8px; line-height: 1.55; resize: vertical; }
-.modal-note { margin: 13px 0 0; color: #6d7872; font-size: 9px; line-height: 1.5; }
+.install-progress-copy { display: flex; justify-content: space-between; margin: 0 0 7px; color: #5c6d64; font-size: 11.5px; font-weight: 700; }
+.install-log-label { display: block; margin: 16px 0 6px; color: #4b5c53; font-size: 11.5px; font-weight: 700; }
+.install-log { width: 100%; height: 178px; padding: 10px; color: #dce8df; background: #16201b; border: 1px solid #2c3d33; border-radius: 8px; font-family: Consolas, "Courier New", monospace; font-size: 11.5px; line-height: 1.55; resize: vertical; }
+.modal-note { margin: 13px 0 0; color: #6d7872; font-size: 12px; line-height: 1.5; }
 .progress-track.indeterminate span { width: 38%; animation: meet2notes-progress 1.1s ease-in-out infinite alternate; }
 @keyframes meet2notes-progress { from { transform: translateX(0); } to { transform: translateX(165%); } }
 
@@ -2818,13 +2818,13 @@ svg {
 
 .privacy-grid strong {
   color: #44534d;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .privacy-grid small {
   margin-top: 3px;
   color: #8c9691;
-  font-size: 8px;
+  font-size: 11.5px;
   line-height: 1.45;
 }
 
@@ -2872,7 +2872,7 @@ svg {
 .centered-page p {
   margin: 0 0 20px;
   color: #7f8a84;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .transcript-header {
@@ -2912,13 +2912,13 @@ svg {
 }
 
 .engine-banner strong {
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .engine-banner p {
   margin-top: 3px;
   color: #866b43;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .engine-banner code {
@@ -2929,7 +2929,7 @@ svg {
   background: rgba(255, 255, 255, .62);
   border: 1px solid rgba(159, 118, 51, .18);
   border-radius: 6px;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .audio-dock {
@@ -2962,13 +2962,13 @@ svg {
 
 .audio-source strong {
   color: #394741;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .audio-source span {
   margin-top: 3px;
   color: #8b9490;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .audio-dock audio {
@@ -2982,7 +2982,7 @@ svg {
   align-items: center;
   gap: 6px;
   color: #78847e;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .save-indicator i {
@@ -3050,13 +3050,13 @@ svg {
 
 .version-item strong {
   color: #34433d;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .version-item small {
   grid-column: 1;
   color: #929a96;
-  font-size: 7px;
+  font-size: 11px;
 }
 
 .version-item .status-badge {
@@ -3068,7 +3068,7 @@ svg {
 .version-empty {
   padding: 28px 8px;
   color: #909994;
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1.5;
   text-align: center;
 }
@@ -3081,7 +3081,7 @@ svg {
   padding-top: 14px;
   color: #909994;
   border-top: 1px solid #eaede7;
-  font-size: 7px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
@@ -3094,7 +3094,7 @@ svg {
 .model-footnote strong {
   display: block;
   color: #65726c;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .editor-panel {
@@ -3120,7 +3120,7 @@ svg {
 .editor-meta {
   margin-left: auto;
   color: #8a948e;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .job-progress-card {
@@ -3172,7 +3172,7 @@ svg {
 .job-progress-card p {
   margin: 6px 0 0;
   color: #87928b;
-  font-size: 7px;
+  font-size: 11px;
 }
 
 .transcript-segments {
@@ -3216,7 +3216,7 @@ svg {
   max-width: 390px;
   margin: 0 0 17px;
   color: #84908a;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.6;
 }
 
@@ -3243,7 +3243,7 @@ svg {
   border: 0;
   border-radius: 7px;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 8px;
+  font-size: 11.5px;
   font-weight: 700;
 }
 
@@ -3286,7 +3286,7 @@ svg {
   background: transparent;
   border: 0;
   border-radius: 6px;
-  font-size: 8px;
+  font-size: 11.5px;
   font-weight: 700;
   opacity: 0;
   transition: opacity .15s ease, background .15s ease;
@@ -3303,7 +3303,7 @@ svg {
 
 .field-help {
   color: #89948e;
-  font-size: 8px;
+  font-size: 11.5px;
   line-height: 1.5;
 }
 
@@ -3338,13 +3338,13 @@ svg {
 
 .download-confirmation strong {
   color: #45534d;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .download-confirmation small {
   margin-top: 3px;
   color: #8a948f;
-  font-size: 8px;
+  font-size: 11.5px;
   line-height: 1.45;
 }
 
@@ -3357,7 +3357,7 @@ svg {
   align-items: center;
   gap: 8px;
   color: #567365;
-  font-size: 8px;
+  font-size: 11.5px;
   line-height: 1.5;
 }
 

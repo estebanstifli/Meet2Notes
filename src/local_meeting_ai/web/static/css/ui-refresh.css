@@ -114,7 +114,7 @@ body {
 .brand small {
   margin-top: 3px;
   color: #667085;
-  font-size: 9px;
+  font-size: 12px;
   letter-spacing: .02em;
 }
 
@@ -183,7 +183,7 @@ body {
   color: #8490a3;
   background: #f1f3f6;
   border-radius: 4px;
-  font-size: 7px;
+  font-size: 11px;
   font-weight: 750;
   letter-spacing: .04em;
   text-transform: uppercase;
@@ -247,7 +247,7 @@ body {
 
 .engine-card strong {
   color: #172033;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .engine-card .engine-state {
@@ -256,7 +256,7 @@ body {
   gap: 5px;
   margin-top: 4px;
   color: #159455;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .engine-card .engine-state i {
@@ -273,7 +273,7 @@ body {
 .engine-card small {
   margin-top: 5px;
   color: #7b8799;
-  font-size: 8px;
+  font-size: 11.5px;
   line-height: 1.35;
 }
 
@@ -314,7 +314,7 @@ body {
 .engine-card-loading {
   padding: 9px 2px;
   color: #7b8799;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .engine-status-row {
@@ -375,7 +375,7 @@ body {
 .engine-status-copy b {
   overflow: hidden;
   color: #344054;
-  font-size: 9px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -383,7 +383,7 @@ body {
 .engine-status-copy small {
   overflow: hidden;
   margin-top: 1px;
-  font-size: 7.5px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -394,13 +394,13 @@ body {
 
 .engine-status-value strong {
   color: #667085;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .engine-status-value em {
   margin-top: 2px;
   color: #079455;
-  font-size: 7px;
+  font-size: 11px;
   font-style: normal;
   font-weight: 700;
 }
@@ -427,7 +427,7 @@ body {
   gap: 6px;
   padding: 6px 9px;
   color: #b42318;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 750;
   letter-spacing: .01em;
   background: #fff6f5;
@@ -472,28 +472,30 @@ body {
 }
 
 .hardware-status-row b {
+  /* Block-level so the ellipsis applies; inline text overflowed into the value column. */
+  display: block;
   overflow: hidden;
   color: #344054;
-  font-size: 8.5px;
+  font-size: 11.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .hardware-status-row small {
   margin-top: 1px;
-  font-size: 7px;
+  font-size: 11px;
 }
 
 .hardware-status-row > strong {
   color: #667085;
-  font-size: 7.5px;
+  font-size: 11px;
   font-weight: 650;
   text-align: right;
 }
 
 .hardware-empty {
   color: #8490a3;
-  font-size: 7.5px;
+  font-size: 11px;
 }
 
 @keyframes engine-status-pulse {
@@ -502,7 +504,7 @@ body {
 
 .version-row {
   color: #8490a3;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .main-content {
@@ -668,7 +670,7 @@ body {
 .workspace-heading p {
   margin: 4px 0 0;
   color: #667085;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .workspace-controls {
@@ -704,7 +706,7 @@ body {
   background: #fff;
   border: 0;
   outline: 0;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .meeting-control {
@@ -714,7 +716,7 @@ body {
 
 .meeting-control > span {
   color: #7b8799;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -734,7 +736,7 @@ body {
   gap: 8px;
   padding: 0 14px;
   border-radius: 8px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -795,7 +797,7 @@ body {
 .transcript-header.workbench-topbar .meeting-title-block p {
   margin-top: 4px;
   color: #7b8799;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .meeting-avatar.file-avatar {
@@ -815,7 +817,7 @@ body {
 }
 
 .meeting-kicker {
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .workbench-tabs {
@@ -833,7 +835,7 @@ body {
   min-height: 42px;
   padding: 0 13px;
   color: #667085;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -862,12 +864,12 @@ body {
 
 .audio-source strong {
   color: #263246;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .audio-source span {
   color: #8490a3;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .transcript-layout {
@@ -907,7 +909,7 @@ body {
 
 .version-item strong {
   color: #263246;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .editor-panel {
@@ -936,7 +938,7 @@ body {
 
 .editor-meta {
   color: #7b8799;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .job-progress-card {
@@ -975,7 +977,7 @@ body {
   align-items: center;
   gap: 6px;
   color: #176bff;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 750;
 }
 
@@ -999,7 +1001,7 @@ body {
   background: #f3f5f8;
   border: 1px solid #e2e7ee;
   border-radius: 6px;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .timestamp-button:hover {
@@ -1095,7 +1097,7 @@ body {
   max-width: 520px;
   margin: 0;
   color: #667085;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.65;
 }
 
@@ -1108,7 +1110,7 @@ body {
 
 .empty-actions > span {
   color: #98a2b3;
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .transcript-empty {
@@ -1180,7 +1182,7 @@ body {
 .about-panel p {
   margin: 0 0 7px;
   color: #667085;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
