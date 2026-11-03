@@ -29,7 +29,7 @@ body {
   color: var(--ink);
   background: var(--paper);
   font-family: Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 14px;
+  font-size: var(--text-base);
 }
 
 /* Match the comfortable 110% browser scale on large desktop workspaces. */
@@ -107,14 +107,14 @@ body {
 
 .brand strong {
   color: #101828;
-  font-size: 15px;
+  font-size: var(--text-md);
   letter-spacing: -.02em;
 }
 
 .brand small {
   margin-top: 3px;
   color: #667085;
-  font-size: 12px;
+  font-size: var(--text-xs);
   letter-spacing: .02em;
 }
 
@@ -130,7 +130,7 @@ body {
   color: #344054;
   border: 1px solid transparent;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 650;
 }
 
@@ -183,7 +183,7 @@ body {
   color: #8490a3;
   background: #f1f3f6;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: var(--text-2xs);
   font-weight: 750;
   letter-spacing: .04em;
   text-transform: uppercase;
@@ -247,7 +247,7 @@ body {
 
 .engine-card strong {
   color: #172033;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .engine-card .engine-state {
@@ -256,7 +256,7 @@ body {
   gap: 5px;
   margin-top: 4px;
   color: #159455;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .engine-card .engine-state i {
@@ -273,7 +273,7 @@ body {
 .engine-card small {
   margin-top: 5px;
   color: #7b8799;
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   line-height: 1.35;
 }
 
@@ -314,7 +314,7 @@ body {
 .engine-card-loading {
   padding: 9px 2px;
   color: #7b8799;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .engine-status-row {
@@ -375,7 +375,7 @@ body {
 .engine-status-copy b {
   overflow: hidden;
   color: #344054;
-  font-size: 12px;
+  font-size: var(--text-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -383,7 +383,7 @@ body {
 .engine-status-copy small {
   overflow: hidden;
   margin-top: 1px;
-  font-size: 11px;
+  font-size: var(--text-2xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -394,13 +394,13 @@ body {
 
 .engine-status-value strong {
   color: #667085;
-  font-size: 11.5px;
+  font-size: var(--text-xs);
 }
 
 .engine-status-value em {
   margin-top: 2px;
   color: #079455;
-  font-size: 11px;
+  font-size: var(--text-2xs);
   font-style: normal;
   font-weight: 700;
 }
@@ -427,7 +427,7 @@ body {
   gap: 6px;
   padding: 6px 9px;
   color: #b42318;
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 750;
   letter-spacing: .01em;
   background: #fff6f5;
@@ -476,26 +476,26 @@ body {
   display: block;
   overflow: hidden;
   color: #344054;
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .hardware-status-row small {
   margin-top: 1px;
-  font-size: 11px;
+  font-size: var(--text-2xs);
 }
 
 .hardware-status-row > strong {
   color: #667085;
-  font-size: 11px;
+  font-size: var(--text-2xs);
   font-weight: 650;
   text-align: right;
 }
 
 .hardware-empty {
   color: #8490a3;
-  font-size: 11px;
+  font-size: var(--text-2xs);
 }
 
 @keyframes engine-status-pulse {
@@ -504,7 +504,7 @@ body {
 
 .version-row {
   color: #8490a3;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .main-content {
@@ -662,7 +662,7 @@ body {
   margin: 0;
   color: #101828;
   font-family: inherit;
-  font-size: 25px;
+  font-size: var(--text-2xl);
   font-weight: 720;
   letter-spacing: -.025em;
 }
@@ -670,7 +670,7 @@ body {
 .workspace-heading p {
   margin: 4px 0 0;
   color: #667085;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .workspace-controls {
@@ -700,13 +700,13 @@ body {
 .language-control select,
 .meeting-control select {
   min-width: 90px;
-  height: 34px;
+  min-height: 34px;
   padding: 0 22px 0 0;
   color: #263246;
   background: #fff;
   border: 0;
   outline: 0;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .meeting-control {
@@ -716,7 +716,7 @@ body {
 
 .meeting-control > span {
   color: #7b8799;
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -736,7 +736,7 @@ body {
   gap: 8px;
   padding: 0 14px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 700;
 }
 
@@ -788,7 +788,7 @@ body {
   overflow: hidden;
   color: #101828;
   font-family: inherit;
-  font-size: 17px;
+  font-size: var(--text-lg);
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -797,7 +797,7 @@ body {
 .transcript-header.workbench-topbar .meeting-title-block p {
   margin-top: 4px;
   color: #7b8799;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .meeting-avatar.file-avatar {
@@ -817,7 +817,7 @@ body {
 }
 
 .meeting-kicker {
-  font-size: 11.5px;
+  font-size: var(--text-xs);
 }
 
 .workbench-tabs {
@@ -835,7 +835,7 @@ body {
   min-height: 42px;
   padding: 0 13px;
   color: #667085;
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 650;
 }
 
@@ -864,12 +864,12 @@ body {
 
 .audio-source strong {
   color: #263246;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .audio-source span {
   color: #8490a3;
-  font-size: 11.5px;
+  font-size: var(--text-xs);
 }
 
 .transcript-layout {
@@ -885,7 +885,7 @@ body {
 .version-panel .section-heading h2 {
   color: #172033;
   font-family: inherit;
-  font-size: 14px;
+  font-size: var(--text-base);
   font-weight: 700;
 }
 
@@ -909,7 +909,7 @@ body {
 
 .version-item strong {
   color: #263246;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .editor-panel {
@@ -938,7 +938,7 @@ body {
 
 .editor-meta {
   color: #7b8799;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .job-progress-card {
@@ -977,7 +977,7 @@ body {
   align-items: center;
   gap: 6px;
   color: #176bff;
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 750;
 }
 
@@ -1001,7 +1001,7 @@ body {
   background: #f3f5f8;
   border: 1px solid #e2e7ee;
   border-radius: 6px;
-  font-size: 11.5px;
+  font-size: var(--text-xs);
 }
 
 .timestamp-button:hover {
@@ -1018,7 +1018,7 @@ body {
   border-color: transparent;
   border-radius: 7px;
   font-family: Inter, "Segoe UI", system-ui, sans-serif;
-  font-size: 13px;
+  font-size: var(--text-sm);
   line-height: 1.62;
 }
 
@@ -1056,7 +1056,7 @@ body {
 .empty-workbench .workbench-topbar h2 {
   margin: 5px 0 0;
   color: #172033;
-  font-size: 15px;
+  font-size: var(--text-md);
 }
 
 .empty-editor-canvas {
@@ -1090,14 +1090,14 @@ body {
 .empty-editor-canvas h2 {
   margin: 0 0 7px;
   color: #172033;
-  font-size: 20px;
+  font-size: var(--text-xl);
 }
 
 .empty-editor-canvas p {
   max-width: 520px;
   margin: 0;
   color: #667085;
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.65;
 }
 
@@ -1110,7 +1110,7 @@ body {
 
 .empty-actions > span {
   color: #98a2b3;
-  font-size: 11.5px;
+  font-size: var(--text-xs);
 }
 
 .transcript-empty {
@@ -1126,7 +1126,7 @@ body {
 .transcript-empty h2 {
   color: #172033;
   font-family: inherit;
-  font-size: 20px;
+  font-size: var(--text-xl);
   font-weight: 700;
 }
 
@@ -1176,13 +1176,13 @@ body {
 
 .about-panel h2 {
   margin: 5px 0 4px;
-  font-size: 20px;
+  font-size: var(--text-xl);
 }
 
 .about-panel p {
   margin: 0 0 7px;
   color: #667085;
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.5;
 }
 
@@ -1306,7 +1306,7 @@ body {
   }
 
   .workspace-heading h1 {
-    font-size: 22px;
+    font-size: var(--text-xl);
   }
 
   .workspace-heading p {
@@ -1333,7 +1333,7 @@ body {
 
   .transcript-header.workbench-topbar .meeting-title-block h1 {
     max-width: 60vw;
-    font-size: 15px;
+    font-size: var(--text-md);
   }
 
   .transcript-header.workbench-topbar .header-actions {
@@ -1378,7 +1378,7 @@ body {
 
   .segment-editor {
     min-height: 82px;
-    font-size: 12px;
+    font-size: var(--text-xs);
   }
 
   .segment-save {

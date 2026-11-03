@@ -15,7 +15,7 @@
 }
 
 .prompt-header .workspace-icon { width: 44px; height: 44px; min-width: 44px; }
-.prompt-header .workspace-heading h1 { font-size: 24px; }
+.prompt-header .workspace-heading h1 { font-size: var(--text-2xl); }
 .prompt-header .page-header-actions { margin-left: auto; flex: 0 0 auto; }
 
 .prompt-assistant {
