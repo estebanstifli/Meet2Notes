@@ -24,15 +24,15 @@
 .assistant-markdown :is(th, td) { padding: .45em .65em; border: 1px solid rgba(127, 127, 127, .35); text-align: left; min-width: 6em; }
 .assistant-markdown th { background: rgba(127, 127, 127, .1); }
 .assistant-markdown hr { margin: 1em 0; border: 0; border-top: 1px solid rgba(127, 127, 127, .35); }
-#live-ai-assistant-insight-list .assistant-markdown { color: #202b3d; font-size: 13px; }
+#live-ai-assistant-insight-list .assistant-markdown { color: #202b3d; font-size: var(--text-sm); }
 [data-theme="dark"] #live-ai-assistant-insight-list .assistant-markdown { color: #dce4f0; }
 [data-theme="dark"] .post-meeting-assistant-message-body.assistant-markdown { color: #dce4f0; }
 
-.assistant-stream-status { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 12px; opacity: .8; }
+.assistant-stream-status { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: var(--text-xs); opacity: .8; }
 .assistant-stream-status::before { content: ""; width: 10px; height: 10px; flex: 0 0 10px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: assistant-stream-spin 1s linear infinite; }
 @keyframes assistant-stream-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .assistant-stream-status::before { animation: none; } }
-#live-ai-assistant-widget-body > .live-agent-insight { display: block; margin-top: 10px; padding: 12px; font-size: 13px; }
+#live-ai-assistant-widget-body > .live-agent-insight { display: block; margin-top: 10px; padding: 12px; font-size: var(--text-sm); }
 .assistant-markdown .assistant-citation {
   display: inline;
   padding: .1em .4em;

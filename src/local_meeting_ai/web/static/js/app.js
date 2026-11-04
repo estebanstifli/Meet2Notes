@@ -526,7 +526,7 @@
     const gpuRows = (status.gpus || []).map((gpu) => `
       <div class="hardware-status-row gpu-status-row">
         <span>
-          <b>${escapeHTML(gpu.name)}</b>
+          <b title="${escapeHTML(gpu.name)}">${escapeHTML(gpu.name)}</b>
           <small>${escapeHTML(t("hardware.vram"))} · ${gpu.utilization_percent}% GPU</small>
         </span>
         <strong>${escapeHTML(t("hardware.free", {
