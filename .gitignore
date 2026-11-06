@@ -45,3 +45,6 @@ landing/
 .meet2notes.instance.lock*
 .DS_Store
 Thumbs.db
+
+# macOS application bundle built by scripts/create_macos_app.sh
+*.app/
