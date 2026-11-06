@@ -105,14 +105,26 @@ fi
 if [[ "${RESOLVED_BACKEND}" == "cuda" ]]; then
   TORCH_VERSION="2.13.0+cu126"
   TORCH_INDEX="https://download.pytorch.org/whl/cu126"
+elif [[ "$(uname -s)" == "Darwin" ]]; then
+  # macOS uses the standard CPU/MPS wheels published on PyPI. The
+  # download.pytorch.org "+cpu" local-version builds are Windows/Linux only, so
+  # "torch==2.13.0+cpu" from the cpu index never resolves on macOS.
+  TORCH_VERSION="2.13.0"
+  TORCH_INDEX=""
 else
   TORCH_VERSION="2.13.0+cpu"
   TORCH_INDEX="https://download.pytorch.org/whl/cpu"
 fi
 step "Installing PyTorch ${RESOLVED_BACKEND} runtime inside .venv"
-"${PYTHON}" -m pip install --upgrade --force-reinstall --no-cache-dir \
-  --progress-bar off --disable-pip-version-check "torch==${TORCH_VERSION}" \
-  --index-url "${TORCH_INDEX}"
+TORCH_INSTALL_ARGS=(
+  --upgrade --force-reinstall --no-cache-dir
+  --progress-bar off --disable-pip-version-check
+  "torch==${TORCH_VERSION}"
+)
+if [[ -n "${TORCH_INDEX}" ]]; then
+  TORCH_INSTALL_ARGS+=(--index-url "${TORCH_INDEX}")
+fi
+"${PYTHON}" -m pip install "${TORCH_INSTALL_ARGS[@]}"
 
 "${PYTHON}" -m pip install -e ".[capture,transcription,diarization,nvidia-asr,pyannote-diarization]"
 "${PYTHON}" -m pip install "huggingface-hub>=0.27,<2"
@@ -131,16 +143,35 @@ fi
 LLAMA_INDEX="https://abetlen.github.io/llama-cpp-python/whl/${LLAMA_BACKEND}"
 echo "PyTorch backend: ${RESOLVED_BACKEND}"
 echo "llama.cpp backend: ${LLAMA_BACKEND}"
-if ! "${PYTHON}" -m pip install "llama-cpp-python>=0.3.8,<1" \
-  --extra-index-url "${LLAMA_INDEX}"; then
-  if [[ "${AI_BACKEND}" == "auto" && "${LLAMA_BACKEND}" == "cuda" ]]; then
-    echo "Accelerated llama.cpp wheel unavailable; using the portable CPU wheel."
-    "${PYTHON}" -m pip install --force-reinstall "llama-cpp-python>=0.3.8,<1" \
-      --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/cpu"
-  else
-    echo "llama.cpp could not be installed for backend '${LLAMA_BACKEND}'." >&2
-    exit 1
+# Prefer the newest compatible release, but some published wheels are corrupt
+# (zip members fail their CRC-32 check), so step down to the newest release
+# known to have intact wheels before falling back to the portable CPU wheel.
+LLAMA_SPECS=("llama-cpp-python>=0.3.8,<1")
+if [[ "${LLAMA_BACKEND}" != "cpu" ]]; then
+  LLAMA_SPECS+=("llama-cpp-python==0.3.30")
+fi
+LLAMA_INSTALLED="false"
+for LLAMA_SPEC in "${LLAMA_SPECS[@]}"; do
+  if "${PYTHON}" -m pip install --force-reinstall --no-cache-dir "${LLAMA_SPEC}" \
+    --extra-index-url "${LLAMA_INDEX}"; then
+    LLAMA_INSTALLED="true"
+    break
   fi
+  echo "Could not install ${LLAMA_SPEC} from the ${LLAMA_BACKEND} wheel index (the published wheel may be corrupt); trying the next option."
+done
+if [[ "${LLAMA_INSTALLED}" != "true" && "${AI_BACKEND}" == "auto" ]]; then
+  echo "Accelerated llama.cpp wheel unavailable; using the portable CPU wheel."
+  for LLAMA_SPEC in "llama-cpp-python>=0.3.8,<1" "llama-cpp-python==0.3.30"; do
+    if "${PYTHON}" -m pip install --force-reinstall --no-cache-dir "${LLAMA_SPEC}" \
+      --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/cpu"; then
+      LLAMA_INSTALLED="true"
+      break
+    fi
+  done
+fi
+if [[ "${LLAMA_INSTALLED}" != "true" ]]; then
+  echo "llama.cpp could not be installed for backend '${LLAMA_BACKEND}'." >&2
+  exit 1
 fi
 
 if [[ "${DEV}" == "true" ]]; then
