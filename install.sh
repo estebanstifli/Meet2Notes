@@ -105,14 +105,26 @@ fi
 if [[ "${RESOLVED_BACKEND}" == "cuda" ]]; then
   TORCH_VERSION="2.13.0+cu126"
   TORCH_INDEX="https://download.pytorch.org/whl/cu126"
+elif [[ "$(uname -s)" == "Darwin" ]]; then
+  # macOS uses the standard CPU/MPS wheels published on PyPI. The
+  # download.pytorch.org "+cpu" local-version builds are Windows/Linux only, so
+  # "torch==2.13.0+cpu" from the cpu index never resolves on macOS.
+  TORCH_VERSION="2.13.0"
+  TORCH_INDEX=""
 else
   TORCH_VERSION="2.13.0+cpu"
   TORCH_INDEX="https://download.pytorch.org/whl/cpu"
 fi
 step "Installing PyTorch ${RESOLVED_BACKEND} runtime inside .venv"
-"${PYTHON}" -m pip install --upgrade --force-reinstall --no-cache-dir \
-  --progress-bar off --disable-pip-version-check "torch==${TORCH_VERSION}" \
-  --index-url "${TORCH_INDEX}"
+TORCH_INSTALL_ARGS=(
+  --upgrade --force-reinstall --no-cache-dir
+  --progress-bar off --disable-pip-version-check
+  "torch==${TORCH_VERSION}"
+)
+if [[ -n "${TORCH_INDEX}" ]]; then
+  TORCH_INSTALL_ARGS+=(--index-url "${TORCH_INDEX}")
+fi
+"${PYTHON}" -m pip install "${TORCH_INSTALL_ARGS[@]}"
 
 "${PYTHON}" -m pip install -e ".[capture,transcription,diarization,nvidia-asr,pyannote-diarization]"
 "${PYTHON}" -m pip install "huggingface-hub>=0.27,<2"
@@ -128,20 +140,15 @@ elif [[ "${RESOLVED_BACKEND}" == "cuda" && "${PYTHON_MINOR}" -le 12 ]]; then
 elif [[ "${RESOLVED_BACKEND}" == "cuda" ]]; then
   echo "The Python llama.cpp CUDA wheel requires Python 3.10-3.12; lightweight GGUF models will use CPU. Managed Bonsai uses its own CUDA runtime."
 fi
-LLAMA_INDEX="https://abetlen.github.io/llama-cpp-python/whl/${LLAMA_BACKEND}"
 echo "PyTorch backend: ${RESOLVED_BACKEND}"
 echo "llama.cpp backend: ${LLAMA_BACKEND}"
-if ! "${PYTHON}" -m pip install "llama-cpp-python>=0.3.8,<1" \
-  --extra-index-url "${LLAMA_INDEX}"; then
-  if [[ "${AI_BACKEND}" == "auto" && "${LLAMA_BACKEND}" == "cuda" ]]; then
-    echo "Accelerated llama.cpp wheel unavailable; using the portable CPU wheel."
-    "${PYTHON}" -m pip install --force-reinstall "llama-cpp-python>=0.3.8,<1" \
-      --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/cpu"
-  else
-    echo "llama.cpp could not be installed for backend '${LLAMA_BACKEND}'." >&2
-    exit 1
-  fi
+# scripts/install_llama_cpp.py steps around corrupt upstream wheels while
+# keeping the dependency ranges declared in pyproject.toml.
+LLAMA_ARGUMENTS=(scripts/install_llama_cpp.py --backend "${LLAMA_BACKEND}")
+if [[ "${AI_BACKEND}" == "auto" ]]; then
+  LLAMA_ARGUMENTS+=(--allow-cpu-fallback)
 fi
+"${PYTHON}" "${LLAMA_ARGUMENTS[@]}"
 
 if [[ "${DEV}" == "true" ]]; then
   step "Installing development tools"
