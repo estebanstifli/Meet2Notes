@@ -1,7 +1,6 @@
 """Request-sized context budgets; provider APIs remain authoritative for remote limits."""
 from __future__ import annotations
 
-import importlib
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -9,6 +8,7 @@ from typing import Any
 import httpx
 
 from local_meeting_ai.infrastructure.bonsai_assets import PROFILES
+from local_meeting_ai.infrastructure.llama_runtime import load_llama_cpp
 
 
 def discover_context(config: dict[str, Any]) -> dict[str, Any]:
@@ -42,7 +42,7 @@ def discover_context(config: dict[str, Any]) -> dict[str, Any]:
 def _gguf_context(path: str, size: int, modified: int) -> int | None:
     del size, modified  # Part of the cache identity, invalidated when the GGUF changes.
     try:
-        llama_cpp = importlib.import_module("llama_cpp")
+        llama_cpp = load_llama_cpp()
         model = llama_cpp.Llama(
             model_path=path, vocab_only=True, n_ctx=512, n_gpu_layers=0, verbose=False,
         )

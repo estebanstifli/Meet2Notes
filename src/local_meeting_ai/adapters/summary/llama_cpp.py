@@ -39,6 +39,7 @@ from local_meeting_ai.infrastructure.bonsai_runtime import (
     BonsaiModel,
     host_cache_fits,
 )
+from local_meeting_ai.infrastructure.llama_runtime import llama_cpp_error, load_llama_cpp
 from local_meeting_ai.infrastructure.llm_context import (
     automatic_context,
     discover_context,
@@ -144,13 +145,16 @@ class LlamaCppSummaryEngine:
         system_info = ""
         if dependency:
             try:
-                llama_cpp = importlib.import_module("llama_cpp")
+                llama_cpp = load_llama_cpp()
                 system_info = llama_cpp.llama_print_system_info().decode(
                     "utf-8",
                     errors="replace",
                 )
             except (AttributeError, ImportError, OSError, RuntimeError):
                 system_info = ""
+        # An installed package whose native library cannot load is not usable.
+        runtime_error = llama_cpp_error()
+        dependency = dependency and runtime_error is None
         upper_info = system_info.upper()
         backend = next(
             (
@@ -209,6 +213,7 @@ class LlamaCppSummaryEngine:
             "available": dependency or bool(runtime_executable(self.models_dir)),
             "installed": self._default_model_path().is_file(),
             "install_command": 'python -m pip install -e ".[summaries]"',
+            "runtime_error": runtime_error,
             "repository": DEFAULT_REPOSITORY,
             "model_file": DEFAULT_FILE,
             "models_directory": str(self.models_dir),
@@ -1055,7 +1060,7 @@ class LlamaCppSummaryEngine:
                         "Not enough free memory to grow the local context safely. "
                         "Close other models, use RAG excerpts, or choose a remote model."
                     )
-            llama_cpp = importlib.import_module("llama_cpp")
+            llama_cpp = load_llama_cpp()
             split_modes = {
                 "none": llama_cpp.LLAMA_SPLIT_MODE_NONE,
                 "layer": llama_cpp.LLAMA_SPLIT_MODE_LAYER,
