@@ -69,7 +69,9 @@ def install(
         for requirement, channel in attempts(backend, allow_cpu_fallback):
             print(f"Installing {requirement} ({channel} wheels)", flush=True)
             command = [
-                sys.executable, "-m", "pip", "install", "--no-cache-dir", requirement,
+                sys.executable, "-m", "pip", "install", "--no-cache-dir",
+                # Take the newest published wheel instead of compiling a newer sdist.
+                "--prefer-binary", requirement,
                 "--extra-index-url", WHEEL_INDEX.format(channel=channel),
                 "--constraint", str(constraint_file),
             ]

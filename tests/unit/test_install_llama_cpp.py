@@ -61,6 +61,7 @@ def test_install_stops_at_the_first_success_and_keeps_project_constraints() -> N
     assert pip.commands[1][pip.commands[1].index("--extra-index-url") + 1].endswith("/metal")
     for command, constraints in zip(pip.commands, pip.constraints, strict=True):
         assert "--force-reinstall" not in command
+        assert "--prefer-binary" in command
         assert "numpy>=1.26,<2.4" in constraints.splitlines()
 
 
