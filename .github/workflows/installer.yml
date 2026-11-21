@@ -1,0 +1,57 @@
+name: installer
+
+# Runs the real source installer on macOS and Linux. It is limited to changes
+# that can affect installation because it downloads the full Python runtime.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - install.sh
+      - install.json
+      - update.json
+      - pyproject.toml
+      - scripts/install_llama_cpp.py
+      - scripts/install_torch.py
+      - scripts/check_environment.py
+      - .github/workflows/installer.yml
+  pull_request:
+    paths:
+      - install.sh
+      - install.json
+      - update.json
+      - pyproject.toml
+      - scripts/install_llama_cpp.py
+      - scripts/install_torch.py
+      - scripts/check_environment.py
+      - .github/workflows/installer.yml
+
+jobs:
+  source-install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install from source without models
+        run: ./install.sh --ai-backend auto --no-models
+      - name: Verify the installed runtime
+        run: |
+          .venv/bin/python - <<'PY'
+          from importlib.metadata import version
+
+          import llama_cpp
+          import numpy
+          import torch
+
+          print("torch", torch.__version__)
+          print("numpy", numpy.__version__)
+          print("llama-cpp-python", version("llama-cpp-python"), llama_cpp.__file__)
+          assert tuple(int(part) for part in numpy.__version__.split(".")[:2]) < (2, 4)
+          PY
+          .venv/bin/meet2notes --help

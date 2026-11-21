@@ -140,39 +140,15 @@ elif [[ "${RESOLVED_BACKEND}" == "cuda" && "${PYTHON_MINOR}" -le 12 ]]; then
 elif [[ "${RESOLVED_BACKEND}" == "cuda" ]]; then
   echo "The Python llama.cpp CUDA wheel requires Python 3.10-3.12; lightweight GGUF models will use CPU. Managed Bonsai uses its own CUDA runtime."
 fi
-LLAMA_INDEX="https://abetlen.github.io/llama-cpp-python/whl/${LLAMA_BACKEND}"
 echo "PyTorch backend: ${RESOLVED_BACKEND}"
 echo "llama.cpp backend: ${LLAMA_BACKEND}"
-# Prefer the newest compatible release, but some published wheels are corrupt
-# (zip members fail their CRC-32 check), so step down to the newest release
-# known to have intact wheels before falling back to the portable CPU wheel.
-LLAMA_SPECS=("llama-cpp-python>=0.3.8,<1")
-if [[ "${LLAMA_BACKEND}" != "cpu" ]]; then
-  LLAMA_SPECS+=("llama-cpp-python==0.3.30")
+# scripts/install_llama_cpp.py steps around corrupt upstream wheels while
+# keeping the dependency ranges declared in pyproject.toml.
+LLAMA_ARGUMENTS=(scripts/install_llama_cpp.py --backend "${LLAMA_BACKEND}")
+if [[ "${AI_BACKEND}" == "auto" ]]; then
+  LLAMA_ARGUMENTS+=(--allow-cpu-fallback)
 fi
-LLAMA_INSTALLED="false"
-for LLAMA_SPEC in "${LLAMA_SPECS[@]}"; do
-  if "${PYTHON}" -m pip install --force-reinstall --no-cache-dir "${LLAMA_SPEC}" \
-    --extra-index-url "${LLAMA_INDEX}"; then
-    LLAMA_INSTALLED="true"
-    break
-  fi
-  echo "Could not install ${LLAMA_SPEC} from the ${LLAMA_BACKEND} wheel index (the published wheel may be corrupt); trying the next option."
-done
-if [[ "${LLAMA_INSTALLED}" != "true" && "${AI_BACKEND}" == "auto" ]]; then
-  echo "Accelerated llama.cpp wheel unavailable; using the portable CPU wheel."
-  for LLAMA_SPEC in "llama-cpp-python>=0.3.8,<1" "llama-cpp-python==0.3.30"; do
-    if "${PYTHON}" -m pip install --force-reinstall --no-cache-dir "${LLAMA_SPEC}" \
-      --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/cpu"; then
-      LLAMA_INSTALLED="true"
-      break
-    fi
-  done
-fi
-if [[ "${LLAMA_INSTALLED}" != "true" ]]; then
-  echo "llama.cpp could not be installed for backend '${LLAMA_BACKEND}'." >&2
-  exit 1
-fi
+"${PYTHON}" "${LLAMA_ARGUMENTS[@]}"
 
 if [[ "${DEV}" == "true" ]]; then
   step "Installing development tools"
