@@ -401,6 +401,11 @@ Python 3.11 or newer must already be installed on macOS and Linux. For CUDA,
 custom model storage, and backend-specific setup, continue to the
 [advanced installation options](#advanced-installation-from-source).
 
+On macOS, `./scripts/create_macos_app.sh` builds a double-clickable
+`Meet2Notes.app` that starts this installation; add `--install` to copy it to
+`/Applications`. The bundle is unsigned and points at this folder, so rebuild
+it if the folder is moved.
+
 ## Modular processing pipeline
 
 ```mermaid

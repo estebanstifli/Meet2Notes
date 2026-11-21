@@ -13,6 +13,8 @@ on:
       - scripts/install_llama_cpp.py
       - scripts/install_torch.py
       - scripts/check_environment.py
+      - scripts/create_macos_app.sh
+      - assets/macos/**
       - .github/workflows/installer.yml
   pull_request:
     paths:
@@ -23,6 +25,8 @@ on:
       - scripts/install_llama_cpp.py
       - scripts/install_torch.py
       - scripts/check_environment.py
+      - scripts/create_macos_app.sh
+      - assets/macos/**
       - .github/workflows/installer.yml
 
 jobs:
@@ -55,3 +59,13 @@ jobs:
           assert tuple(int(part) for part in numpy.__version__.split(".")[:2]) < (2, 4)
           PY
           .venv/bin/meet2notes --help
+      - name: Build and launch the macOS app bundle from a path with shell characters
+        if: runner.os == 'macOS'
+        run: |
+          link="${RUNNER_TEMP}/Meet & Notes \$HOME 'q'"
+          ln -s "${PWD}" "${link}"
+          "${link}/scripts/create_macos_app.sh"
+          plutil -lint Meet2Notes.app/Contents/Info.plist
+          grep '^REPO=' Meet2Notes.app/Contents/MacOS/Meet2Notes
+          Meet2Notes.app/Contents/MacOS/Meet2Notes --help
+          tail -n 5 "${HOME}/Library/Logs/Meet2Notes.log"

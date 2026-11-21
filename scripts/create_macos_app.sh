@@ -48,6 +48,8 @@ if [[ ! -x "${ROOT}/.venv/bin/meet2notes" ]]; then
   exit 1
 fi
 
+VERSION="$("${ROOT}/.venv/bin/python" -c 'from importlib.metadata import version; print(version("meet2notes"))')"
+
 STAGE="$(mktemp -d)"
 trap 'rm -rf "${STAGE}"' EXIT
 
@@ -77,8 +79,8 @@ cat > "${APP}/Contents/Info.plist" <<PLIST
   <key>CFBundleExecutable</key><string>${APP_NAME}</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.0</string>
-  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+  <key>CFBundleVersion</key><string>${VERSION}</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>NSHighResolutionCapable</key><true/>
@@ -88,12 +90,13 @@ cat > "${APP}/Contents/Info.plist" <<PLIST
 PLIST
 
 # 3. launcher: Finder starts processes with a minimal PATH, so set one and
-#    keep a log for launches that have no terminal attached.
-cat > "${APP}/Contents/MacOS/${APP_NAME}" <<'LAUNCHER'
-#!/bin/bash
-set -euo pipefail
+#    keep a log for launches that have no terminal attached. The checkout path
+#    is written with printf %q so any character in it stays literal.
+{
+  printf '#!/bin/bash\nset -euo pipefail\n'
+  printf 'REPO=%q\n' "${ROOT}"
+  cat <<'LAUNCHER'
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-REPO="__REPO_ROOT__"
 if [[ ! -x "${REPO}/.venv/bin/meet2notes" ]]; then
   osascript -e 'display alert "Meet2Notes is not installed" message "Run ./install.sh inside the Meet2Notes folder, then open this app again."' >/dev/null 2>&1 || true
   echo "Missing ${REPO}/.venv/bin/meet2notes" >&2
@@ -107,7 +110,7 @@ fi
 mkdir -p "$(dirname "${LOG}")"
 exec "${REPO}/.venv/bin/meet2notes" "$@" >>"${LOG}" 2>&1
 LAUNCHER
-sed -i '' "s|__REPO_ROOT__|${ROOT}|" "${APP}/Contents/MacOS/${APP_NAME}"
+} > "${APP}/Contents/MacOS/${APP_NAME}"
 chmod +x "${APP}/Contents/MacOS/${APP_NAME}"
 
 # locally built bundles are unsigned; clear any quarantine bit so Gatekeeper
