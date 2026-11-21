@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from local_meeting_ai.domain.errors import CapabilityUnavailableError, ValidationError
+from local_meeting_ai.infrastructure.llama_runtime import llama_cpp_usable, load_llama_cpp
 
 
 class LlamaCppEmbeddingProvider:
@@ -27,7 +28,7 @@ class LlamaCppEmbeddingProvider:
         self._shutdown = False
 
     def capability(self, config: dict[str, Any]) -> dict[str, Any]:
-        dependency = importlib.util.find_spec("llama_cpp") is not None
+        dependency = llama_cpp_usable()
         path = self._model_path(config, required=False)
         with self._lock:
             resident = self._model is not None
@@ -145,7 +146,7 @@ class LlamaCppEmbeddingProvider:
             self._state = "loading"
             self._last_error = None
         try:
-            module = importlib.import_module("llama_cpp")
+            module = load_llama_cpp()
             arguments: dict[str, Any] = {
                 "model_path": str(path),
                 "embedding": True,

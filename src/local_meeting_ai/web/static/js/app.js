@@ -158,7 +158,11 @@
     const body = contentType.includes("json") ? await response.json() : await response.text();
     if (!response.ok) {
       const detail = typeof body === "object" ? body.detail : body;
-      throw new Error(detail || `Request failed (${response.status})`);
+      const error = new Error(detail || `Request failed (${response.status})`);
+      // Callers can react to the server's error type, not only to its message.
+      error.status = response.status;
+      if (body && typeof body === "object" && body.error) error.code = body.error;
+      throw error;
     }
     return body;
   }

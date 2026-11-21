@@ -1805,7 +1805,7 @@
     try {
       await startNativeCapture();
     } catch (error) {
-      toast(error.message, "error");
+      if (!error.cancelled) toast(error.message, "error");
       submit.disabled = false;
       delete document.querySelector("#transcription-form").dataset.busy;
       if (!startDialog.open) startDialog.showModal();
@@ -1825,13 +1825,32 @@
   async function startNativeCapture() {
     const selected = selectedNativeSources();
     if (!selected.length) throw new Error("Choose an available audio source.");
-    const session = await api("/api/capture/sessions", {
+    const request = (allowModelDownload) => api("/api/capture/sessions", {
       method: "POST",
       body: JSON.stringify({
         source_ids: selected.map((input) => input.value),
         ...transcriptionOptions(),
+        allow_model_download: allowModelDownload,
       }),
     });
+    let session;
+    try {
+      session = await request(false);
+    } catch (error) {
+      if (error.code !== "ConfirmationRequiredError") throw error;
+      // The server needs consent before it downloads a missing live model.
+      const confirmed = window.confirm(
+        `${error.message}
+
+Recording starts right away. Live text appears after the download finishes.`,
+      );
+      if (!confirmed) {
+        const cancelled = new Error("Model download was not confirmed.");
+        cancelled.cancelled = true;
+        throw cancelled;
+      }
+      session = await request(true);
+    }
     captureSession = session;
     meetingId = String(session.meeting_id);
     activeTranscriptionId = Number(session.transcription_id);
